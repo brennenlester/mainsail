@@ -62,6 +62,7 @@ import {
 } from "../encounters/godLand";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { markCreatureDiscovered } from "../world/worldState";
+import { SPAR_WILD_OPENING_TURNS } from "../encounters/encounterEconomy";
 import { unlockCodexHud } from "../ui/hudChrome";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { scaledStat } from "../progression/leveling";
@@ -267,9 +268,14 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     this.refreshHp();
-    this.log(`A training spar with ${this.wild.name} begins.`);
+    // #267: wild takes SPAR_WILD_OPENING_TURNS opening turn(s) before player input.
+    this.log(`A training spar with ${this.wild.name} begins. The wild strikes first!`);
     this.showHunterMatchupTeachIfNeeded();
     this.buildActionButtons();
+    if (SPAR_WILD_OPENING_TURNS > 0) {
+      this.waitingForPlayer = false;
+      this.time.delayedCall(500, () => this.wildTurn());
+    }
     this.input.keyboard?.on("keydown", this.onGodSparKillCheatKeyDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.keyboard?.off("keydown", this.onGodSparKillCheatKeyDown);

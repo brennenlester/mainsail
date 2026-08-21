@@ -46,18 +46,21 @@ export function splitSparXp(
   return shares;
 }
 
+/** Pinned #266/#267 spar-win table: +1 Folklore Dust (plus +1 species material, +70 XP). */
+export const SPAR_WIN_DUST_GAIN = 1;
+
 export function grantSparRewards(
   wildCreatureId: string,
   activePartyIndex: number,
 ): SparRewardSummary {
   const summary: SparRewardSummary = {
-    dustGained: 1,
+    dustGained: SPAR_WIN_DUST_GAIN,
     xpGained: 0,
     leveledUp: false,
     xpShares: [],
   };
 
-  addMaterial("folklore-dust", 1);
+  addMaterial("folklore-dust", SPAR_WIN_DUST_GAIN);
 
   const matId = getMaterialForCreature(wildCreatureId);
   if (matId) {
