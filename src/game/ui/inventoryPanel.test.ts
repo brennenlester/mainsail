@@ -47,6 +47,31 @@ describe("openInventory", () => {
     document.body.replaceChildren();
   });
 
+  it("renders ingredient icons with names above images", () => {
+    setInventoryFromSnapshot({ wood: 1, "folklore-dust": 1 }, { boat: 1 });
+    openInventory();
+    const woodImg = document.querySelector(
+      'img.material-icon[src*="assets/materials/wood.png"]',
+    );
+    expect(woodImg).toBeInstanceOf(HTMLImageElement);
+    const woodRow = woodImg?.closest(".inventory-line-visual");
+    const woodLabel = woodRow?.querySelector(".material-icon-name");
+    expect(woodLabel?.textContent).toBe("Wood");
+    expect(
+      woodLabel?.compareDocumentPosition(woodImg!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const boatImg = document.querySelector(
+      'img.material-icon[src*="assets/items/boat.png"]',
+    );
+    expect(boatImg).toBeInstanceOf(HTMLImageElement);
+    expect(
+      boatImg
+        ?.closest(".inventory-line-visual")
+        ?.querySelector(".material-icon-name")?.textContent,
+    ).toBe("Boat");
+  });
+
   it("does not show the craft grid until a Portable Moonshrine is owned", () => {
     openInventory();
     expect(document.querySelector(".crafting-hud")).toBeNull();

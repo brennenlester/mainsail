@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMaterialIconSrc } from "../inventory/materials";
+import { getIngredientIconSrc } from "../inventory/materials";
 import { closeRecipes, listRecipePages, openRecipes } from "./recipePanel";
 
 describe("listRecipePages", () => {
@@ -43,7 +43,7 @@ describe("recipe overlay icons", () => {
     document.body.appendChild(app);
     openRecipes();
     const pearl = document.querySelector(
-      `img.material-icon[src="${getMaterialIconSrc("brook-pearl")}"]`,
+      `img.material-icon[src="${getIngredientIconSrc("brook-pearl")}"]`,
     );
     expect(pearl).toBeInstanceOf(HTMLImageElement);
     const filled = pearl?.closest(".recipe-cell-filled");
@@ -51,6 +51,11 @@ describe("recipe overlay icons", () => {
     expect(filled?.querySelector(".material-icon-name")?.textContent).toBe(
       "Brook Pearl",
     );
+    const pearlLabel = filled?.querySelector(".material-icon-name");
+    expect(
+      pearlLabel?.compareDocumentPosition(pearl!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       filled
         ?.querySelector(".material-icon-name")
@@ -78,7 +83,7 @@ describe("recipe overlay icons", () => {
     );
     for (const id of ["tide-crown", "boulder-crown"] as const) {
       const img = seal?.querySelector(
-        `img.material-icon[src="${getMaterialIconSrc(id)}"]`,
+        `img.material-icon[src="${getIngredientIconSrc(id)}"]`,
       );
       expect(img).toBeInstanceOf(HTMLImageElement);
       const cell = img?.closest(".recipe-cell-filled");

@@ -300,7 +300,7 @@ export function mountCraftingHud(
       document.body.appendChild(ghost);
     }
     ghost.replaceChildren();
-    appendMaterialVisual(ghost, materialId, { showName: false });
+    appendMaterialVisual(ghost, materialId, { showName: true });
     return ghost;
   }
 
@@ -520,7 +520,7 @@ export function mountCraftingHud(
         const id = grid[r][c];
         cell.replaceChildren();
         if (id) {
-          appendMaterialVisual(cell, id, { showName: false });
+          appendMaterialVisual(cell, id, { showName: true });
         } else {
           cell.removeAttribute("title");
           cell.removeAttribute("aria-label");

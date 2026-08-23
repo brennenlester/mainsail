@@ -896,11 +896,23 @@ body,
 .inventory-section li {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   padding: 6px 8px;
   background: #f4fffa;
   border: 1px solid #c8e4d8;
   border-radius: 8px;
+}
+
+.inventory-line-visual {
+  flex: 1;
+  min-width: 0;
+}
+
+.inventory-line-visual .material-icon-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .inventory-count {
@@ -1060,6 +1072,32 @@ body,
   flex-shrink: 0;
   pointer-events: none;
   object-fit: contain;
+}
+
+.ingredient-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.crafting-cell.ingredient-visual {
+  min-height: 52px;
+}
+
+.crafting-list-main.ingredient-visual .material-icon-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.crafting-cell .material-icon-name,
+.crafting-ghost .material-icon-name {
+  font-size: 9px;
+  line-height: 1.15;
+  font-weight: 600;
+  text-align: center;
 }
 
 .crafting-cell .material-icon,

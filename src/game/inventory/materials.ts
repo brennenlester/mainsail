@@ -91,7 +91,7 @@ export function getMaterialForCreature(creatureId: string): string | undefined {
   return CREATURE_MATERIALS[creatureId];
 }
 
-/** Recipe-grid ingredients that have HUD icons. Other owned mats stay name-only. */
+/** @deprecated Recipe-grid subset; icons now cover full catalogs (#218). */
 export const CRAFT_MATERIAL_ICON_IDS = [
   "wood",
   "stone",
@@ -105,10 +105,33 @@ export const CRAFT_MATERIAL_ICON_IDS = [
   "mist-shard",
   "lantern-wick",
   "peat-tuft",
-  // ponytail: crowns share materials/ with craft mats until #218 splits item art.
   "tide-crown",
   "boulder-crown",
 ] as const;
+
+function assetPrefix(): string {
+  const base = import.meta.env.BASE_URL;
+  return base.endsWith("/") ? base : `${base}/`;
+}
+
+export function getMaterialIconSrc(materialId: string): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(MATERIAL_NAMES, materialId)) {
+    return undefined;
+  }
+  return `${assetPrefix()}assets/materials/${materialId}.png`;
+}
+
+export function getItemIconSrc(itemId: string): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(ITEM_NAMES, itemId)) {
+    return undefined;
+  }
+  return `${assetPrefix()}assets/items/${itemId}.png`;
+}
+
+/** Material or craft-item id → public PNG path when catalogued. */
+export function getIngredientIconSrc(id: string): string | undefined {
+  return getMaterialIconSrc(id) ?? getItemIconSrc(id);
+}
 
 export function getIngredientName(id: string): string {
   return MATERIAL_NAMES[id] ?? ITEM_NAMES[id] ?? id;
@@ -116,17 +139,6 @@ export function getIngredientName(id: string): string {
 
 export function getMaterialName(materialId: string): string {
   return getIngredientName(materialId);
-}
-
-export function getMaterialIconSrc(materialId: string): string | undefined {
-  if (
-    !(CRAFT_MATERIAL_ICON_IDS as readonly string[]).includes(materialId)
-  ) {
-    return undefined;
-  }
-  const base = import.meta.env.BASE_URL;
-  const prefix = base.endsWith("/") ? base : `${base}/`;
-  return `${prefix}assets/materials/${materialId}.png`;
 }
 
 export function getItemName(itemId: string): string {

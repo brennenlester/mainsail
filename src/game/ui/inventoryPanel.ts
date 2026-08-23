@@ -1,3 +1,4 @@
+import { appendMaterialVisual } from "./materialIcon";
 import {
   getItemName,
   getMaterialName,
@@ -152,13 +153,13 @@ function renderInventoryBody(): void {
       const list = document.createElement("ul");
       for (const line of sectionLines) {
         const li = document.createElement("li");
-        const name = document.createElement("span");
-        name.className = "inventory-name";
-        name.textContent = line.name;
+        const visual = document.createElement("div");
+        visual.className = "inventory-line-visual";
+        appendMaterialVisual(visual, line.id, { showName: true });
         const count = document.createElement("span");
         count.className = "inventory-count";
         count.textContent = `×${line.count}`;
-        li.append(name, count);
+        li.append(visual, count);
         if (
           line.kind === "item" &&
           line.id === PORTABLE_MOONSHRINE_ID &&
