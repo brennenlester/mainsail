@@ -1,3 +1,4 @@
+import { HUNTER_MULTIPLIER } from "../creatures/folkloreTypes";
 import type { QuestDefinition, QuestId } from "./questTypes";
 
 export const QUEST_ORDER: QuestId[] = [
@@ -17,7 +18,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "first-spar": {
     id: "first-spar",
     title: "Win a training spar",
-    hint: "Trigger an encounter, choose Spar, and win — this opens the overworld gate to Folklore Fields.",
+    hint: `Spar a wild creature: hunter types deal ×${HUNTER_MULTIPLIER} damage to their prey. Win to open the overworld gate.`,
     objective: { type: "win_spar" },
     unlocksOverworld: true,
   },

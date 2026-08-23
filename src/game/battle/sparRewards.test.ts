@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   formatRewardMessage,
   grantSparRewards,
+  SPAR_WIN_DUST_GAIN,
   splitSparXp,
 } from "./sparRewards";
 import {
@@ -9,12 +10,16 @@ import {
   setPartyFromSnapshot,
 } from "../creatures/party";
 import type { CreatureInstance } from "../creatures/types";
-import { setInventoryFromSnapshot } from "../inventory/playerInventory";
+import {
+  getMaterialCount,
+  setInventoryFromSnapshot,
+} from "../inventory/playerInventory";
 import { XP_PER_SPAR_WIN } from "../progression/leveling";
 import { restoreQuestProgress } from "../story/questProgress";
 import { QUEST_ORDER } from "../story/quests";
 import type { QuestId, QuestStatus } from "../story/questTypes";
 import { getSparWinsForSpecies, setSparWinsBySpecies } from "../world/sparWins";
+import { SPAR_WILD_OPENING_TURNS } from "../encounters/encounterEconomy";
 
 function member(
   overrides: Partial<CreatureInstance> & Pick<CreatureInstance, "instanceId">,
@@ -54,6 +59,21 @@ describe("grantSparRewards XP share", () => {
     setInventoryFromSnapshot({}, {});
     setPartyFromSnapshot([], 1);
     setSparWinsBySpecies({}, false);
+  });
+
+  it("pins #267 spar-win rewards: +1 Dust, +1 material, +70 XP; wild opens", () => {
+    expect(SPAR_WIN_DUST_GAIN).toBe(1);
+    expect(XP_PER_SPAR_WIN).toBe(70);
+    expect(SPAR_WILD_OPENING_TURNS).toBe(1);
+
+    const a = member({ instanceId: "a" });
+    setPartyFromSnapshot([a], 4, ["a"]);
+    const reward = grantSparRewards("mossling", 0);
+    expect(reward.dustGained).toBe(1);
+    expect(reward.xpGained).toBe(70);
+    expect(reward.materialId).toBeTruthy();
+    expect(getMaterialCount("folklore-dust")).toBe(1);
+    expect(getMaterialCount(reward.materialId!)).toBe(1);
   });
 
   it("shares XP across the active party and leaves reserve untouched", () => {

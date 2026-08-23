@@ -33,6 +33,10 @@ import {
   resolveAttack,
 } from "../battle/battleLogic";
 import {
+  formatHunterMatchupTeach,
+  isHunterMatchupTeachActive,
+} from "../battle/hunterMatchupTeach";
+import {
   formatRewardMessage,
   grantSparRewards,
 } from "../battle/sparRewards";
@@ -58,6 +62,7 @@ import {
 } from "../encounters/godLand";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { markCreatureDiscovered } from "../world/worldState";
+import { SPAR_WILD_OPENING_TURNS } from "../encounters/encounterEconomy";
 import { unlockCodexHud } from "../ui/hudChrome";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { scaledStat } from "../progression/leveling";
@@ -90,6 +95,8 @@ export class BattleScene extends Phaser.Scene {
   private actionButtons: Phaser.GameObjects.Text[] = [];
   private switchMenuObjects: Phaser.GameObjects.GameObject[] = [];
   private wandererFallbackObjects: Phaser.GameObjects.GameObject[] = [];
+  /** Story 2 pre-move hunter tip; cleared after the first move selection. */
+  private matchupTeachText: Phaser.GameObjects.Text | null = null;
   // ponytail: temporary god-spar kill cheat
   private onGodSparKillCheatKeyDown = (event: KeyboardEvent) => {
     const result = appendGodSparKillCheatKey(
@@ -261,12 +268,48 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     this.refreshHp();
-    this.log(`A training spar with ${this.wild.name} begins.`);
+    // #267: wild takes SPAR_WILD_OPENING_TURNS opening turn(s) before player input.
+    this.log(`A training spar with ${this.wild.name} begins. The wild strikes first!`);
+    this.showHunterMatchupTeachIfNeeded();
     this.buildActionButtons();
+    if (SPAR_WILD_OPENING_TURNS > 0) {
+      this.waitingForPlayer = false;
+      this.time.delayedCall(500, () => this.wildTurn());
+    }
     this.input.keyboard?.on("keydown", this.onGodSparKillCheatKeyDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.keyboard?.off("keydown", this.onGodSparKillCheatKeyDown);
     });
+  }
+
+  private showHunterMatchupTeachIfNeeded(): void {
+    if (!isHunterMatchupTeachActive()) {
+      return;
+    }
+    const tip = formatHunterMatchupTeach(
+      this.player.folkloreType,
+      this.wild.folkloreType,
+    );
+    if (this.matchupTeachText) {
+      this.matchupTeachText.setText(tip);
+      return;
+    }
+    const cx = DESIGN_SIZE / 2;
+    this.matchupTeachText = this.add
+      .text(cx, 318, tip, {
+        color: "#ffe6a8",
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "13px",
+        align: "center",
+        wordWrap: { width: 380 },
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(5);
+  }
+
+  private clearHunterMatchupTeach(): void {
+    this.matchupTeachText?.destroy();
+    this.matchupTeachText = null;
   }
 
   private drawArena(): void {
@@ -408,7 +451,8 @@ export class BattleScene extends Phaser.Scene {
     this.hideWandererFallbackMenu();
 
     const cx = DESIGN_SIZE / 2;
-    let buttonY = 300;
+    // Leave room for Story 2 hunter tip above the move list.
+    let buttonY = this.matchupTeachText ? 368 : 300;
 
     if (!this.forcedSwitch) {
       for (const move of this.player.moves) {
@@ -664,6 +708,9 @@ export class BattleScene extends Phaser.Scene {
     this.syncPlayerBattleFacing();
     this.syncPlayerPresenceTint();
     this.log(`${this.player.name} steps up to fight!`);
+    if (this.matchupTeachText) {
+      this.showHunterMatchupTeachIfNeeded();
+    }
     this.buildActionButtons();
     this.waitingForPlayer = true;
   }
@@ -691,6 +738,9 @@ export class BattleScene extends Phaser.Scene {
     this.syncPlayerBattleFacing();
     this.syncPlayerPresenceTint();
     this.log(`Go, ${this.player.name}!`);
+    if (this.matchupTeachText) {
+      this.showHunterMatchupTeachIfNeeded();
+    }
     this.buildActionButtons();
 
     if (voluntarySwitch) {
@@ -702,6 +752,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private playerTurn(move: MoveDefinition): void {
+    this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
     const outcome = resolveAttack(this.player, move, this.wild);
     if (outcome.kind === "miss") {
@@ -862,6 +913,7 @@ export class BattleScene extends Phaser.Scene {
     }
     this.battleEnded = true;
     this.waitingForPlayer = false;
+    this.clearHunterMatchupTeach();
     this.hideSwitchMenu();
     this.hideWandererFallbackMenu();
     this.syncActivePartyHp();
