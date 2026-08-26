@@ -15,7 +15,7 @@
 
 A folklore RPG where you spar with your odd little party, craft at the Moon Shrine to help them grow, and wander a soft world between sharper fights. Companionship is the end; shrine craft is the means. Social hosting (invite links) is a frozen satellite, not the headline.
 
-**Play (canonical):** [ivyward-brennen1.vercel.app](https://ivyward-brennen1.vercel.app) (tracks latest production). Fallbacks: [ivyward-git-main-brennen1.vercel.app](https://ivyward-git-main-brennen1.vercel.app) or [poke-wine-kappa.vercel.app](https://poke-wine-kappa.vercel.app). [moved from README]
+**Play (canonical):** [mainsail-brennen1.vercel.app](https://mainsail-brennen1.vercel.app) (tracks latest production). Fallbacks: [mainsail-git-main-brennen1.vercel.app](https://mainsail-git-main-brennen1.vercel.app) or [poke-wine-kappa.vercel.app](https://poke-wine-kappa.vercel.app). Legacy `ivyward-brennen1.vercel.app` is re-aliased to the same production deploy.
 
 **Audience / session:** Desktop sit-down RPG. Keyboard/mouse. Hybrid sessions (about twenty minutes to a Session set: spar with the party, then a shrine pit-stop). Longer evenings are optional repeats, not required. Not a 3-minute casual drop-in.
 
@@ -231,7 +231,7 @@ Local Vite only: **U** toggles the overworld gate; `?encounter=` / `?spar=` prev
 
 - **Engine:** Phaser 3 (`phaser` ^3.90.0) [inferred: `package.json`]
 - **Stack:** TypeScript, Vite 6, Vitest. Node.js 20.9+.
-- **Platform:** Web. Production on Vercel. Canonical play URL aliased to latest production (`ivyward-brennen1.vercel.app`).
+- **Platform:** Web. Production on Vercel. Canonical play URL aliased to latest production (`mainsail-brennen1.vercel.app`).
 - **Persistence:** host `localStorage`. Visitor mode is a snapshot (`?join=`), not a shared live simulation of encounters/crafting.
 - **Layout:** `src/game/` Phaser bootstrap and scenes; `story/` quests; `world/` zones, collision, invites, saves; `creatures/` catalog and party; `inventory/` / `crafting/` / `shrine/` materials and Moon Shrine.
 - **CI:** PRs to `main` run `npm ci`, `npm test`, `npm run build`. Merges deploy via Vercel.
