@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_PROFILE,
   getHabitatProfile,
+  GROVE_ENCOUNTER_CHANCE,
   HABITAT_PROFILES,
   isInteriorZone,
   profilesEqual,
@@ -78,7 +79,10 @@ describe("habitatProfiles", () => {
     expect(profilesEqual(getHabitatProfile("warden-cottage"), DEFAULT_PROFILE)).toBe(
       true,
     );
-    expect(HABITAT_PROFILES.grove.trigger).toEqual({ kind: "guaranteed" });
+    expect(HABITAT_PROFILES.grove.trigger).toEqual({
+      kind: "chance",
+      chance: GROVE_ENCOUNTER_CHANCE,
+    });
     expect(HABITAT_PROFILES.shrine.resolution).toEqual({
       kind: "folkloreMatchup",
     });
@@ -132,10 +136,17 @@ describe("habitatRuntime behaviors", () => {
     questProgress["first-spar"] = "locked";
   });
 
-  it("grove trigger is guaranteed (no 0.05 gate)", () => {
+  it("grove trigger is elevated chance, not guaranteed (#308)", () => {
     const profile = getHabitatProfile("grove");
-    expect(shouldGuaranteeWildTrigger(profile, "grove")).toBe(true);
-    expect(rollWildTriggerChance(profile, () => 0.99)).toBe(true);
+    expect(GROVE_ENCOUNTER_CHANCE).toBe(0.12);
+    expect(GROVE_ENCOUNTER_CHANCE).toBeGreaterThan(0.05);
+    expect(shouldGuaranteeWildTrigger(profile, "grove")).toBe(false);
+    expect(rollWildTriggerChance(profile, () => GROVE_ENCOUNTER_CHANCE - 0.001)).toBe(
+      true,
+    );
+    expect(rollWildTriggerChance(profile, () => GROVE_ENCOUNTER_CHANCE)).toBe(
+      false,
+    );
     expect(
       rollWildTriggerChance(getHabitatProfile("village"), () => 0.99),
     ).toBe(false);
