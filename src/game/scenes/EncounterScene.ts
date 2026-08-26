@@ -65,7 +65,6 @@ export class EncounterScene extends Phaser.Scene {
   private revealed = false;
   private missText?: Phaser.GameObjects.Text;
   private befriendBtn?: Phaser.GameObjects.Text;
-  private fleeBtn?: Phaser.GameObjects.Text;
   private unaffordableText?: Phaser.GameObjects.Text;
   private costReasonY = 0;
   private titleText?: Phaser.GameObjects.Text;
@@ -220,8 +219,6 @@ export class EncounterScene extends Phaser.Scene {
       );
       if (verb.toneIndex === 0) {
         this.befriendBtn = btn;
-      } else if (verb.toneIndex === 2) {
-        this.fleeBtn = btn;
       }
     });
 
@@ -253,19 +250,8 @@ export class EncounterScene extends Phaser.Scene {
     );
   }
 
-  /**
-   * After Dust is spent (e.g. paid Befriend miss), disable Flee when it is no
-   * longer affordable and refresh the reason line so the control is not a silent no-op.
-   */
+  /** Refresh unaffordable reason line after a miss (Dust costs are free under #306). */
   private refreshFleeAffordanceAfterSpend(): void {
-    if (this.fleeBtn && !canAffordFlee()) {
-      this.fleeBtn
-        .off("pointerover")
-        .off("pointerout")
-        .off("pointerdown")
-        .disableInteractive()
-        .setAlpha(0.45);
-    }
     this.renderUnaffordableReasons();
   }
 

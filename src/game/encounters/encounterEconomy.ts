@@ -1,21 +1,17 @@
-import { getMaterialName } from "../inventory/materials";
-import {
-  consumeMaterial,
-  getMaterialCount,
-} from "../inventory/playerInventory";
+import { getMaterialCount } from "../inventory/playerInventory";
 import {
   befriendButtonLabel,
   getBefriendChance,
 } from "./godSail";
 
-/** Pinned #266/#267: Folklore Dust id used by encounter verb costs. */
+/** Folklore Dust id (spar loot / Want / craft). Encounter verbs no longer spend it (#306). */
 export const FOLKLORE_DUST_ID = "folklore-dust";
 
-/** Befriend: 2 Folklore Dust per attempt. */
-export const BEFRIEND_DUST_COST = 2;
+/** Befriend: free (#306; was 2 Dust under #267). */
+export const BEFRIEND_DUST_COST = 0;
 
-/** Flee: 1 Folklore Dust for a guaranteed escape. */
-export const FLEE_DUST_COST = 1;
+/** Flee: free (#306; was 1 Dust under #267). */
+export const FLEE_DUST_COST = 0;
 
 /**
  * Spar risk: the wild creature takes exactly this many opening turns
@@ -27,30 +23,26 @@ export function getFolkloreDustCount(): number {
   return getMaterialCount(FOLKLORE_DUST_ID);
 }
 
-export function canAffordBefriend(
-  dustCount: number = getFolkloreDustCount(),
-): boolean {
-  return dustCount >= BEFRIEND_DUST_COST;
+export function canAffordBefriend(_dustCount?: number): boolean {
+  return true;
 }
 
-export function canAffordFlee(
-  dustCount: number = getFolkloreDustCount(),
-): boolean {
-  return dustCount >= FLEE_DUST_COST;
+export function canAffordFlee(_dustCount?: number): boolean {
+  return true;
 }
 
-/** Spend Befriend cost. Returns false if unaffordable (no mutation). */
+/** No-op since costs are 0; always succeeds. */
 export function payBefriendCost(): boolean {
-  return consumeMaterial(FOLKLORE_DUST_ID, BEFRIEND_DUST_COST);
+  return true;
 }
 
-/** Spend Flee cost. Returns false if unaffordable (no mutation). */
+/** No-op since costs are 0; always succeeds. */
 export function payFleeCost(): boolean {
-  return consumeMaterial(FOLKLORE_DUST_ID, FLEE_DUST_COST);
+  return true;
 }
 
 export function encounterBefriendButtonLabel(creatureId: string): string {
-  return `${befriendButtonLabel(getBefriendChance(creatureId))} · ${BEFRIEND_DUST_COST} Dust`;
+  return befriendButtonLabel(getBefriendChance(creatureId));
 }
 
 export function encounterSparButtonLabel(): string {
@@ -58,30 +50,21 @@ export function encounterSparButtonLabel(): string {
 }
 
 export function encounterFleeButtonLabel(): string {
-  return `Flee · ${FLEE_DUST_COST} Dust`;
+  return "Flee";
 }
 
 export function unaffordableBefriendReason(): string {
-  return `Need ${BEFRIEND_DUST_COST} ${getMaterialName(FOLKLORE_DUST_ID)} to Befriend`;
+  return "";
 }
 
 export function unaffordableFleeReason(): string {
-  return `Need ${FLEE_DUST_COST} ${getMaterialName(FOLKLORE_DUST_ID)} to Flee`;
+  return "";
 }
 
 /**
- * Reasons for disabled encounter verbs. Empty when both Dust verbs are affordable.
+ * Reasons for disabled encounter verbs. Empty when Dust costs are free (#306).
  * Spar never appears — it has no Dust cost.
  */
-export function encounterUnaffordableReasons(
-  dustCount: number = getFolkloreDustCount(),
-): string[] {
-  const reasons: string[] = [];
-  if (!canAffordBefriend(dustCount)) {
-    reasons.push(unaffordableBefriendReason());
-  }
-  if (!canAffordFlee(dustCount)) {
-    reasons.push(unaffordableFleeReason());
-  }
-  return reasons;
+export function encounterUnaffordableReasons(_dustCount?: number): string[] {
+  return [];
 }

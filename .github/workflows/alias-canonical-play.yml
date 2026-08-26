@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Alias mainsail-brennen1.vercel.app to latest production
+      - name: Alias play hosts to latest production
         id: alias
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -51,7 +51,8 @@ jobs:
           set -euo pipefail
           chmod +x scripts/alias-canonical-play.sh
           # Always re-resolve latest READY production so overlapping deploy events
-          # cannot leave the canonical hostname on an older build.
+          # cannot leave the canonical hostname on an older build. Also re-aliases
+          # legacy ivyward-* hosts (#306).
           ./scripts/alias-canonical-play.sh
           resolved="$(
             npx vercel@latest ls mainsail --prod --status READY --scope brennen1 --format json 2>/dev/null \
