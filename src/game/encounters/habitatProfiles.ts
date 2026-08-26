@@ -62,6 +62,12 @@ export const DEFAULT_PROFILE: HabitatProfile = {
   aftermath: { kind: "none" },
 };
 
+/**
+ * Whisper Grove density (#308). Elevated vs DEFAULT 5%, but not `guaranteed`
+ * — guaranteed + 0.75 travel threshold fired an encounter every ~tile.
+ */
+export const GROVE_ENCOUNTER_CHANCE = 0.12;
+
 /** Non-interior habitats that must each differ from DEFAULT and each other. */
 export const VARIATION_ZONE_IDS = [
   "grove",
@@ -79,7 +85,7 @@ export type VariationZoneId = (typeof VARIATION_ZONE_IDS)[number];
 export const HABITAT_PROFILES: Record<VariationZoneId, HabitatProfile> = {
   grove: {
     ...DEFAULT_PROFILE,
-    trigger: { kind: "guaranteed" },
+    trigger: { kind: "chance", chance: GROVE_ENCOUNTER_CHANCE },
   },
   shrine: {
     ...DEFAULT_PROFILE,
