@@ -41,7 +41,7 @@ The HUD shows `Story N/4: …` and a short “Next” hint. Host progress saves 
 3. **Reach Hearth Crossing** — follow the path Grove → Shrine → Village.
 4. **Craft a relic at Moon Shrine** — stand on the moon altar, press **E**, craft any relic.
 
-Gate status reads `Overworld gate: LOCKED (Story 2/4)` until the spar quest is done, then `OPEN`.
+Gate status reads `Overworld: LOCKED (Act 1 · 2/4) · Village: LOCKED (story)` until the spar quest is done, then `Overworld: OPEN`.
 
 ### Hearth Crossing villagers
 

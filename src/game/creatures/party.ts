@@ -8,6 +8,7 @@ import {
 } from "../progression/leveling";
 import { hasCraftedWeapon } from "../battle/wandererWeapons";
 import { recordQuestEvent } from "../story/questProgress";
+import { refreshPartyStatusLine } from "../ui/statusPanel";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { formatTraitLabel, rollSignatureTrait } from "./traits";
 import type { CreatureInstance } from "./types";
@@ -129,6 +130,7 @@ function addToPartyWithHp(
   }
   recordQuestEvent({ type: "befriend_creature" });
   notifyWorldChanged();
+  refreshPartyStatusLine();
   return instance;
 }
 
