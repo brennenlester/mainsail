@@ -40,6 +40,7 @@ import {
   profileForEncounter,
   resolveProfileBefriendChance,
   shouldConcealReveal,
+  encounterTypeLineText,
   shouldOfferHarborBefriend,
   shouldShowSparVerb,
 } from "../encounters/habitatRuntime";
@@ -158,17 +159,20 @@ export class EncounterScene extends Phaser.Scene {
       },
     );
 
-    if (!concealed) {
-      this.typeText = this.addPanelText(
-        panelX,
-        panelY + 102,
-        `Type: ${def.folkloreType}`,
-        innerWidth,
-        {
-          color: "#5a7888",
-          fontSize: "14px",
-        },
-      );
+    if (this.revealed) {
+      const typeLine = encounterTypeLineText(this.revealed, def.folkloreType);
+      if (typeLine) {
+        this.typeText = this.addPanelText(
+          panelX,
+          panelY + 102,
+          typeLine,
+          innerWidth,
+          {
+            color: "#5a7888",
+            fontSize: "14px",
+          },
+        );
+      }
     }
 
     const buttonY = panelY + 162;
@@ -278,13 +282,14 @@ export class EncounterScene extends Phaser.Scene {
     this.silhouette = undefined;
     this.showPortrait(DESIGN_SIZE / 2, DESIGN_SIZE / 2 - 90);
     this.titleText?.setText(`A wild ${def.name} appeared!`);
-    if (this.typeText) {
-      this.typeText.setText(`Type: ${def.folkloreType}`);
-    } else {
+    const typeLine = encounterTypeLineText(true, def.folkloreType);
+    if (this.typeText && typeLine) {
+      this.typeText.setText(typeLine);
+    } else if (typeLine) {
       this.typeText = this.addPanelText(
         DESIGN_SIZE / 2,
         DESIGN_SIZE / 2 + 102,
-        `Type: ${def.folkloreType}`,
+        typeLine,
         PANEL_WIDTH - PANEL_PADDING * 2,
         {
           color: "#5a7888",

@@ -26,6 +26,7 @@ import {
   rollHarborCreature,
   rollWildTriggerChance,
   shouldConcealReveal,
+  encounterTypeLineText,
   shouldGuaranteeWildTrigger,
   shouldOfferHarborBefriend,
   shouldShowSparVerb,
@@ -218,6 +219,12 @@ describe("habitatRuntime behaviors", () => {
     expect(
       shouldConcealReveal(getHabitatProfile("mistwood"), "thunder-finch"),
     ).toBe(true);
+    expect(
+      encounterTypeLineText(
+        !shouldConcealReveal(getHabitatProfile("mistwood"), "thunder-finch"),
+        "storm",
+      ),
+    ).toBeNull();
     expect(
       shouldConcealReveal(getHabitatProfile("mistwood"), "tide-sovereign"),
     ).toBe(false);
