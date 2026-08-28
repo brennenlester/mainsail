@@ -1,6 +1,7 @@
 import { addToPartyFainted, countCreatures } from "../creatures/party";
 import type { MoveDefinition } from "../creatures/types";
 import { addItem, canAddItem, getItemCount, ownsSovereignPlate, BOULDER_CROWN_ID } from "../inventory/playerInventory";
+import { recordQuestEvent } from "../story/questProgress";
 import type { ZoneId } from "../world/zoneTypes";
 import { TileType } from "../world/zoneTypes";
 import {
@@ -10,7 +11,7 @@ import {
   recordCairnSovereignObtained,
   setGodLandEncounterClaimed,
 } from "../world/worldState";
-import { isOverworldEncounterSafeTile } from "./overworldEncounters";
+import { CAIRN_ISLAND_INDEX } from "../world/cairnIsland";
 
 export const CAIRN_SOVEREIGN_ID = "cairn-sovereign";
 export const CAIRN_MAUL_ID = "cairn-maul";
@@ -71,11 +72,10 @@ export function getCairnSovereignAttack(
 export type GodLandEncounterContext = {
   sailing: boolean;
   zoneId: ZoneId;
+  islandIndex: number | null;
   walkableLand: boolean;
   visitor: boolean;
   claimed: boolean;
-  tileX: number;
-  tileY: number;
 };
 
 export type PendingGodLandEncounter = {
@@ -94,9 +94,9 @@ export function shouldAttemptGodLandEncounter(
 ): boolean {
   return (
     !context.sailing &&
-    context.zoneId === "overworld" &&
+    context.zoneId === "archipelago" &&
+    context.islandIndex === CAIRN_ISLAND_INDEX &&
     context.walkableLand &&
-    !isOverworldEncounterSafeTile(context.tileX, context.tileY) &&
     !context.visitor &&
     // ponytail: claimed stops natural rolls only after the crown is earned, so befriend-first and legacy claimed saves can still spar for it.
     // Sovereign Plate (#289): keep farming crowns even while a crown is held.
@@ -116,7 +116,9 @@ export function rollGodLandEncounter(rng: () => number = Math.random): boolean {
 export function canForceGodLandEncounter(
   context: Pick<GodLandEncounterContext, "sailing" | "zoneId" | "visitor">,
 ): boolean {
-  return !context.sailing && context.zoneId === "overworld" && !context.visitor;
+  return (
+    !context.sailing && context.zoneId === "archipelago" && !context.visitor
+  );
 }
 
 export function createPendingGodLandEncounter(
@@ -206,5 +208,9 @@ export function resolveCairnSovereignOutcome(
   if (outcome === "spar-win" || ownsSovereignPlate()) {
     result.crownGranted = grantCrownIfMissing(BOULDER_CROWN_ID);
   }
+  recordQuestEvent({
+    type: "obtain_creature",
+    creatureId: CAIRN_SOVEREIGN_ID,
+  });
   return result;
 }

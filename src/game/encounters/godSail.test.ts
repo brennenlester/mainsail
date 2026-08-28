@@ -47,10 +47,12 @@ import {
   rollBefriendAttempt,
   rollGodSailEncounter,
   shouldAttemptGodSailEncounter,
+  shouldAttemptHermitTideEncounter,
   TIDE_CLEAVER_ID,
   TIDE_SOVEREIGN_ATTACK_PATTERN,
   TIDE_SOVEREIGN_ID,
 } from "./godSail";
+import { HERMIT_ISLAND_INDEX } from "../world/hermitIsland";
 import {
   ENCOUNTER_TRAVEL_THRESHOLD,
   getHabitatsForCreature,
@@ -79,6 +81,23 @@ describe("god sail encounter", () => {
     expect(rollGodSailEncounter(() => 0)).toBe(true);
     expect(rollGodSailEncounter(() => 0.009999)).toBe(true);
     expect(rollGodSailEncounter(() => 0.01)).toBe(false);
+  });
+
+  it("allows Tide rolls on the hermit island while on foot", () => {
+    const valid = {
+      sailing: false,
+      zoneId: "archipelago" as const,
+      islandIndex: HERMIT_ISLAND_INDEX,
+      visitor: false,
+      claimed: false,
+    };
+    expect(shouldAttemptHermitTideEncounter(valid)).toBe(true);
+    expect(
+      shouldAttemptHermitTideEncounter({ ...valid, islandIndex: HERMIT_ISLAND_INDEX + 1 }),
+    ).toBe(false);
+    expect(shouldAttemptHermitTideEncounter({ ...valid, sailing: true })).toBe(
+      false,
+    );
   });
 
   it("only allows natural rolls for solo open-water Archipelago sailing", () => {
