@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { syncQuestHudPosition } from "./questHud";
+import { describe, expect, it, beforeEach } from "vitest";
+import { syncQuestHudPosition, refreshQuestHud } from "./questHud";
+import {
+  initQuestProgress,
+  recordQuestEvent,
+  restoreQuestProgress,
+} from "../story/questProgress";
 
 describe("syncQuestHudPosition", () => {
   it("pins the quest HUD to the game board top-right inside the playfield", () => {
@@ -39,5 +44,32 @@ describe("syncQuestHudPosition", () => {
     expect(hud.style.top).toBe("8px");
     expect(hud.style.right).toBe("48px");
     expect(hud.style.left).toBe("auto");
+  });
+});
+
+describe("refreshQuestHud", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="playfield" style="position:relative;width:400px;height:500px">
+        <div id="game" style="width:360px;height:360px;margin:0 auto"></div>
+        <div id="quest-hud">
+          <div id="quest-hud-summary"></div>
+          <div id="quest-hud-hint"></div>
+        </div>
+      </div>
+    `;
+    restoreQuestProgress({});
+    initQuestProgress();
+  });
+
+  it("shows quest completion in the tracker immediately", () => {
+    recordQuestEvent({ type: "befriend_creature" });
+
+    const summary = document.getElementById("quest-hud-summary")!;
+    const hint = document.getElementById("quest-hud-hint")!;
+
+    expect(summary.textContent).toBe("Quest complete: Befriend a wild creature");
+    expect(hint.textContent).toContain("Next:");
+    expect(hint.textContent).toContain("Spar");
   });
 });

@@ -1,5 +1,4 @@
-import { getGateStatusText, getQuestHint, getQuestSummary } from "../story/questProgress";
-import { getActiveSideQuestHint } from "../world/npcState";
+import { getGateStatusText } from "../story/questProgress";
 import { getHostLabel, isVisitorMode } from "../world/worldSession";
 import { resetHostGame } from "../world/worldSave";
 import type { ZoneDefinition } from "../world/zoneTypes";
@@ -10,7 +9,7 @@ import { openRecipes } from "./recipePanel";
 import { renderPartyHpHud } from "./partyHpHud";
 import "./partyHpHud.css";
 import { CONTROL_LEGEND_TEXT } from "./controlLegend";
-import { syncQuestHudPosition } from "./questHud";
+import { refreshQuestHud } from "./questHud";
 import {
   refreshHudChromeButtons,
 } from "./hudChrome";
@@ -72,8 +71,6 @@ function defaultSessionColor(): string {
 export function updateStatusPanel(zone: ZoneDefinition): void {
   syncHostInviteButton();
   const zoneEl = document.getElementById("status-zone");
-  const questEl = document.getElementById("quest-hud-summary");
-  const questHintEl = document.getElementById("quest-hud-hint");
   const legendEl = document.getElementById("status-control-legend");
   const gateEl = document.getElementById("status-gate");
   const partyEl = document.getElementById("status-party");
@@ -84,16 +81,7 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
       ? `Visiting: ${getHostLabel()}`
       : zone.name;
   }
-  if (questEl) {
-    questEl.textContent = getQuestSummary();
-  }
-  if (questHintEl) {
-    const villageAsk = getActiveSideQuestHint();
-    const storyHint = getQuestHint();
-    questHintEl.textContent = villageAsk
-      ? `${storyHint} · ${villageAsk}`
-      : storyHint;
-  }
+  refreshQuestHud();
   if (legendEl) {
     legendEl.textContent = CONTROL_LEGEND_TEXT;
   }
@@ -108,7 +96,6 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
     sessionEl.textContent = defaultSessionText();
     sessionEl.style.color = defaultSessionColor();
   }
-  syncQuestHudPosition();
 }
 
 export function refreshPartyStatusLine(): void {
