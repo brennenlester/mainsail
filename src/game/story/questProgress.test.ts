@@ -12,6 +12,9 @@ import {
   setOverworldUnlocked,
   worldState,
 } from "../world/worldState";
+import { setClaimedMinigameWins } from "../minigames/progress";
+import { setSideQuestStatuses } from "../world/npcState";
+import { setPartyFromSnapshot } from "../creatures/party";
 import { ZONE_ENCOUNTERS } from "../encounters/tables";
 import {
   SECOND_ACT_WANT_AMOUNT,
@@ -31,6 +34,7 @@ import {
   recordCraftOutputQuestEvents,
   recordQuestEvent,
   restoreQuestProgress,
+  syncMainQuestFromGameplay,
 } from "./questProgress";
 import { QUEST_ORDER } from "./quests";
 import type { QuestId, QuestStatus } from "./questTypes";
@@ -175,6 +179,62 @@ describe("recordQuestEvent", () => {
     setVisitorMode(true);
     expect(recordQuestEvent({ type: "befriend_creature" })).toBe(false);
     expect(questProgress["first-befriend"]).toBe("active");
+  });
+});
+
+describe("Act 2 main quest bridge (#317)", () => {
+  beforeEach(() => {
+    setVisitorMode(false);
+    restoreQuestProgress(createEmptyQuestProgress());
+  });
+
+  it("advances odd-company when the villager side quest is complete", () => {
+    restoreQuestProgress({
+      ...createEmptyQuestProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "complete",
+      "evolve-hearthflame": "complete",
+      "open-village-gate": "complete",
+      "odd-company": "active",
+    });
+    setPartyFromSnapshot(
+      [
+        { instanceId: "a", definitionId: "mossling", speciesId: "mossling", currentHp: 10, level: 1, xp: 0 },
+        { instanceId: "b", definitionId: "ember-wisp", speciesId: "ember-wisp", currentHp: 10, level: 1, xp: 0 },
+        { instanceId: "c", definitionId: "brook-nymph", speciesId: "brook-nymph", currentHp: 10, level: 1, xp: 0 },
+      ],
+      3,
+    );
+    setSideQuestStatuses({ "odd-company": "complete" });
+
+    syncMainQuestFromGameplay();
+
+    expect(questProgress["odd-company"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("hearth-lots");
+  });
+
+  it("catches up minigame wins on restore", () => {
+    restoreQuestProgress({
+      ...createEmptyQuestProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "complete",
+      "evolve-hearthflame": "complete",
+      "open-village-gate": "complete",
+      "odd-company": "complete",
+      "hearth-lots": "active",
+    });
+    setClaimedMinigameWins(["hearth-lots"]);
+
+    syncMainQuestFromGameplay();
+
+    expect(questProgress["hearth-lots"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("bryn-ledger");
   });
 });
 

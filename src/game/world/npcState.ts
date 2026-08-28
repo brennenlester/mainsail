@@ -26,6 +26,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
+import { syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -203,6 +204,7 @@ function turnInSideQuest(quest: SideQuestDefinition): string[] | null {
   sideQuestStatus.set(quest.id, "complete");
   grantGift(quest.reward);
   notifyWorldChanged();
+  syncMainQuestFromGameplay();
   return [
     ...quest.turnInLines,
     `Reward — ${formatGift(quest.reward)}.`,
