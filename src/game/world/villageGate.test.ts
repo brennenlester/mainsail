@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  isValidVillageGateCode,
-  normalizeVillageGateCode,
-  VILLAGE_GATE_CODE,
-} from "./villageGate";
+import { VILLAGE_CODE_GATE, VILLAGE_COTTAGE_DOORS } from "./villageGate";
 import { beginConversation, resetNpcStateForTest } from "./npcState";
 import { getNpcById } from "./npcs";
 import { HERMIT_NPC_ID } from "./hermitIsland";
@@ -13,16 +9,14 @@ import {
   worldState,
 } from "./worldState";
 
-describe("villageGate code", () => {
-  it("accepts only the stable four-digit code", () => {
-    expect(VILLAGE_GATE_CODE).toMatch(/^\d{4}$/);
-    expect(isValidVillageGateCode(VILLAGE_GATE_CODE)).toBe(true);
-    expect(isValidVillageGateCode("0000")).toBe(false);
-    expect(normalizeVillageGateCode("18-47")).toBe(VILLAGE_GATE_CODE);
+describe("village gate layout", () => {
+  it("keeps stable cottage gate and door coordinates", () => {
+    expect(VILLAGE_CODE_GATE).toEqual({ x: 8, y: 5 });
+    expect(VILLAGE_COTTAGE_DOORS.hearthkeep).toEqual({ x: 11, y: 8 });
   });
 });
 
-describe("hermit Reed dialogue (#291)", () => {
+describe("hermit Reed dialogue (#318)", () => {
   const reed = getNpcById(HERMIT_NPC_ID)!;
 
   beforeEach(() => {
@@ -31,27 +25,29 @@ describe("hermit Reed dialogue (#291)", () => {
     setVillageGateUnlocked(false, false);
   });
 
-  it("introduces Sovereigns and withholds the code before Tide Sovereign", () => {
+  it("does not mention a numeric gate code before Tide Sovereign", () => {
     const first = beginConversation(reed);
     expect(first.lines.join(" ")).toMatch(/Sovereign/i);
-    expect(first.lines.join(" ")).not.toContain(VILLAGE_GATE_CODE);
+    expect(first.lines.join(" ")).not.toMatch(/\d{4}/);
 
     const again = beginConversation(reed);
-    expect(again.lines.join(" ")).not.toContain(VILLAGE_GATE_CODE);
+    expect(again.lines.join(" ")).not.toMatch(/\d{4}/);
     expect(again.lines.join(" ").length).toBeGreaterThan(0);
   });
 
-  it("reveals the gate code after Tide Sovereign is obtained", () => {
+  it("points to story-driven gate unlock after Tide Sovereign", () => {
     beginConversation(reed);
     setTideSovereignObtained(1, false);
     const talk = beginConversation(reed);
-    expect(talk.lines.join(" ")).toContain(VILLAGE_GATE_CODE);
+    expect(talk.lines.join(" ")).toMatch(/east gate/i);
+    expect(talk.lines.join(" ")).not.toMatch(/\d{4}/);
   });
 
-  it("reveals the code on the first meeting when Tide was already claimed", () => {
+  it("uses story-driven gate lines when Tide was already claimed", () => {
     setTideSovereignObtained(1, false);
     const first = beginConversation(reed);
-    expect(first.lines.join(" ")).toContain(VILLAGE_GATE_CODE);
+    expect(first.lines.join(" ")).toMatch(/east gate/i);
+    expect(first.lines.join(" ")).not.toMatch(/\d{4}/);
   });
 });
 

@@ -63,7 +63,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "open-village-gate": {
     id: "open-village-gate",
     title: "Open the cottage gate",
-    hint: "Return to Hearth Crossing — the east gate should yield to your party now.",
+    hint: "Return to Hearth Crossing — the east cottage gate opens for your party.",
     objective: { type: "unlock_village_gate" },
   },
   "odd-company": {

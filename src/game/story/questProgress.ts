@@ -2,6 +2,7 @@ import {
   isFirstIslandLanded,
   setFirstIslandLanded,
   setOverworldUnlocked,
+  setVillageGateUnlocked,
   worldState,
 } from "../world/worldState";
 import { isCodexComplete } from "../progression/achievements";
@@ -121,6 +122,7 @@ export function restoreQuestProgress(
     questProgress[id] = normalized[id];
   }
   ensureActiveQuest();
+  syncVillageGateForStoryQuest();
 }
 
 export function getActiveQuestId(): QuestId | null {
@@ -266,12 +268,38 @@ function objectiveMatches(
   }
 }
 
+const VILLAGE_GATE_QUEST_INDEX = QUEST_ORDER.indexOf("open-village-gate");
+
+function isAtOrPastVillageGateQuest(): boolean {
+  for (let i = VILLAGE_GATE_QUEST_INDEX; i < QUEST_ORDER.length; i += 1) {
+    const status = questProgress[QUEST_ORDER[i]];
+    if (status === "active" || status === "complete") {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Story step 7+: east cottage gate opens without a code (#318). */
+function syncVillageGateForStoryQuest(): void {
+  if (isVisitorMode() || !isAtOrPastVillageGateQuest()) {
+    return;
+  }
+  if (!worldState.villageGateUnlocked) {
+    setVillageGateUnlocked(true);
+  }
+  if (getActiveQuestId() === "open-village-gate") {
+    recordQuestEvent({ type: "unlock_village_gate" });
+  }
+}
+
 function activateNextQuest(completedId: QuestId): void {
   const index = QUEST_ORDER.indexOf(completedId);
   const next = QUEST_ORDER[index + 1];
   if (next && questProgress[next] === "locked") {
     questProgress[next] = "active";
   }
+  syncVillageGateForStoryQuest();
 }
 
 function completeQuest(questId: QuestId): void {

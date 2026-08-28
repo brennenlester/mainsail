@@ -315,7 +315,6 @@ body,
 
 .invite-error[hidden],
 .name-intro[hidden],
-#village-gate-code[hidden],
 #playfield[hidden] {
   display: none !important;
 }
@@ -437,12 +436,6 @@ body,
 .name-intro-btn:focus-visible {
   outline: 2px solid #f0c878;
   outline-offset: 2px;
-}
-
-.village-gate-code-cancel {
-  background: transparent;
-  color: #e8d8c0;
-  border: 1px solid #6eb8a888;
 }
 
 /* Touch controls: only on coarse pointers; sit on the game canvas, not the status panel. */
