@@ -96,7 +96,7 @@ export const NPCS: Partial<Record<ZoneId, NpcDefinition[]>> = {
       ],
       idleLines: [
         "Tide Sovereign rides the open sail. Win its respect — spar or bond — and come back to me.",
-        "The village gate east of the plaza still waits on a code. I will not speak it until Tide has been met.",
+        "When your party has grown, Hearth Crossing's east gate yields on its own.",
         "Stone Sovereign keeps the late roads. Tide is the one that matters for the gate.",
       ],
       gift: { kind: "material", id: "wild-fiber", amount: 2 },

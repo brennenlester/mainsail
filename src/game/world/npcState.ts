@@ -27,7 +27,6 @@ import {
   setDailyAskState,
 } from "./dailyAsk";
 import { HERMIT_NPC_ID } from "./hermitIsland";
-import { VILLAGE_GATE_CODE } from "./villageGate";
 
 const giftsClaimed = new Set<string>();
 const sideQuestStatus = new Map<SideQuestId, SideQuestStatus>();
@@ -373,8 +372,7 @@ function hermitConversation(npc: NpcDefinition): Conversation {
     }
     if (!isVisitorMode() && getTideSovereignObtained() > 0) {
       lines.push(
-        `You already met the Tide Sovereign. The east gate at Hearth Crossing opens to ${VILLAGE_GATE_CODE}.`,
-        "Four digits. Speak them at the locked gate. The cottages are waiting on the other side.",
+        "You already met the Tide Sovereign. When the village story calls you back, the east gate opens on its own.",
       );
     }
     return talk(lines);
@@ -386,8 +384,8 @@ function hermitConversation(npc: NpcDefinition): Conversation {
 
   if (getTideSovereignObtained() > 0) {
     return talk([
-      `You met the Tide Sovereign. Good. The east gate at Hearth Crossing opens to ${VILLAGE_GATE_CODE}.`,
-      "Four digits. Speak them at the locked gate. The cottages are waiting on the other side.",
+      "You met the Tide Sovereign. Good.",
+      "When the village story calls you back, the east gate at Hearth Crossing opens on its own.",
     ]);
   }
 

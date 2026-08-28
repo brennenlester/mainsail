@@ -155,11 +155,6 @@ import {
   isGatePropOpen,
   propTextureKey,
 } from "../world/zoneProps";
-import { VILLAGE_CODE_GATE } from "../world/villageGate";
-import {
-  isVillageGateCodeOpen,
-  openVillageGateCode,
-} from "../ui/villageGateCode";
 import { findNpcNearPlayer, getZoneNpcs, nearestNpcDistance } from "../world/npcs";
 import {
   findMinigameNearPlayer,
@@ -426,7 +421,7 @@ export class IsometricScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    if (!hasPlayerName() || isVillageGateCodeOpen()) {
+    if (!hasPlayerName()) {
       this.isMoving = false;
       this.playPlayerAnimation();
       setTouchControlsEnabled(false);
@@ -458,7 +453,6 @@ export class IsometricScene extends Phaser.Scene {
       if (
         !this.tryShrineInteract() &&
         !this.tryDoorInteract() &&
-        !this.tryVillageGateInteract() &&
         !this.tryMinigameInteract() &&
         !this.tryNpcInteract() &&
         !this.tryDockInteract()
@@ -1657,7 +1651,6 @@ export class IsometricScene extends Phaser.Scene {
   private updateInteractPrompt(): void {
     const shrine = this.isNearShrineTile();
     const door = this.getNearbyDoor();
-    const villageGate = this.getNearbyLockedVillageGate();
     const minigame = this.getMinigameHere();
     const npc = this.getNearbyNpc();
     const dock = this.getNearbyDockPrompt();
@@ -1665,7 +1658,6 @@ export class IsometricScene extends Phaser.Scene {
     const picked = pickInteractPrompt({
       shrine: shrine ? "Press E — Moon Shrine" : undefined,
       door: door ? `Press E — ${door.label}` : undefined,
-      gate: villageGate ? "Press E — Enter gate code" : undefined,
       minigame: minigame ? `Press E — ${minigame.title}` : undefined,
       npc: npc ? `Press E — Talk to ${npc.name}` : undefined,
       dock,
@@ -1917,47 +1909,8 @@ export class IsometricScene extends Phaser.Scene {
     return true;
   }
 
-  private getNearbyLockedVillageGate(): boolean {
-    if (this.currentZoneId !== "village" || worldState.villageGateUnlocked) {
-      return false;
-    }
-    const tileX = Math.round(this.playerGridX);
-    const tileY = Math.round(this.playerGridY);
-    return (
-      Math.max(
-        Math.abs(tileX - VILLAGE_CODE_GATE.x),
-        Math.abs(tileY - VILLAGE_CODE_GATE.y),
-      ) <= 1
-    );
-  }
-
-  private tryVillageGateInteract(): boolean {
-    if (!this.getNearbyLockedVillageGate()) {
-      return false;
-    }
-    if (isVisitorMode()) {
-      this.showGatherToast("Only the host can unlock the village gate.", false);
-      return true;
-    }
-    setTouchControlsEnabled(false);
-    openVillageGateCode((unlocked) => {
-      this.input.keyboard?.resetKeys();
-      setTouchControlsEnabled(hasPlayerName());
-      this.syncKeyboardGate();
-      if (unlocked) {
-        this.loadZone(this.currentZoneId);
-        this.showGatherToast("Village gate opened.", true);
-      }
-      this.updateInteractPrompt();
-    });
-    return true;
-  }
-
   private syncKeyboardGate(): void {
-    applyNameIntroKeyboardGate(
-      this.input.keyboard,
-      hasPlayerName() && !isVillageGateCodeOpen(),
-    );
+    applyNameIntroKeyboardGate(this.input.keyboard, hasPlayerName());
   }
 
   private getMinigameHere() {

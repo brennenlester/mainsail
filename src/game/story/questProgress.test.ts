@@ -142,6 +142,30 @@ describe("recordQuestEvent", () => {
     expect(getActiveQuestId()).toBe("evolve-hearthflame");
   });
 
+  it("unlocks the cottage gate when open-village-gate becomes active (#318)", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "complete",
+      "evolve-hearthflame": "active",
+    });
+    expect(worldState.villageGateUnlocked).toBe(false);
+
+    expect(
+      recordQuestEvent({
+        type: "evolve_creature",
+        evolvesTo: "hearthflame",
+      }),
+    ).toBe(true);
+
+    expect(worldState.villageGateUnlocked).toBe(true);
+    expect(questProgress["open-village-gate"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("odd-company");
+  });
+
   it("ignores mismatched objectives", () => {
     expect(recordQuestEvent({ type: "win_spar" })).toBe(false);
     expect(questProgress["first-befriend"]).toBe("active");
