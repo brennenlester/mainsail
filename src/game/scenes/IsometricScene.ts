@@ -107,6 +107,7 @@ import {
   unlockHostInviteChrome,
   updateStatusPanel,
 } from "../ui/statusPanel";
+import { syncQuestHudPosition } from "../ui/questHud";
 import {
   WALK_HINT_TEXT,
   shouldShowWalkHint,
@@ -1262,6 +1263,7 @@ export class IsometricScene extends Phaser.Scene {
         gameEl.style.height = `${boardDisplaySize}px`;
       }
       updateStatusPanel(zone);
+      syncQuestHudPosition();
       resizeGameForDisplay(this, boardDisplaySize);
       this.scale.refresh();
 

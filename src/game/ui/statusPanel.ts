@@ -10,6 +10,7 @@ import { openRecipes } from "./recipePanel";
 import { renderPartyHpHud } from "./partyHpHud";
 import "./partyHpHud.css";
 import { CONTROL_LEGEND_TEXT } from "./controlLegend";
+import { syncQuestHudPosition } from "./questHud";
 import {
   refreshHudChromeButtons,
 } from "./hudChrome";
@@ -107,6 +108,7 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
     sessionEl.textContent = defaultSessionText();
     sessionEl.style.color = defaultSessionColor();
   }
+  syncQuestHudPosition();
 }
 
 export function refreshPartyStatusLine(): void {
