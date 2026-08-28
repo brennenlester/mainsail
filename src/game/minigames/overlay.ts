@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { bindOverlayPixelRatio, DESIGN_SIZE } from "../render/pixelRatio";
 import { tryClaimMinigameWin } from "./progress";
+import { recordQuestEvent } from "../story/questProgress";
 import { MINIGAMES, type MinigameId } from "./ids";
 import { setTouchControlsEnabled } from "../ui/touchControls";
 
@@ -77,6 +78,7 @@ export function resolveMinigameEnd(
   const title = MINIGAMES[minigameId].title;
   if (won) {
     const payout = tryClaimMinigameWin(minigameId);
+    recordQuestEvent({ type: "complete_minigame", minigameId });
     status.setText(payout ? `You win. ${payout}` : `${title}: you win.`);
   } else {
     status.setText(`${title}: not this time.`);

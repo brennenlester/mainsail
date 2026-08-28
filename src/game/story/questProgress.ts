@@ -9,6 +9,9 @@ import { isCodexComplete } from "../progression/achievements";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { refreshQuestHud } from "../ui/questHud";
+import { playerParty } from "../creatures/party";
+import { hasClaimedMinigameWin } from "../minigames/progress";
+import { getSideQuestStatuses } from "../world/npcState";
 import { getMaterialName } from "../inventory/materials";
 import { addMaterial, SOVEREIGN_SEAL_ID } from "../inventory/playerInventory";
 import { QUEST_ORDER, QUESTS } from "./quests";
@@ -123,6 +126,7 @@ export function restoreQuestProgress(
   }
   ensureActiveQuest();
   syncVillageGateForStoryQuest();
+  syncMainQuestFromGameplay();
 }
 
 export function getActiveQuestId(): QuestId | null {
@@ -293,6 +297,76 @@ function syncVillageGateForStoryQuest(): void {
   }
 }
 
+/**
+ * Bridge village side quests / minigames into the linear main quest (steps 8–13).
+ * Loops so saves that finished content out-of-order catch up on load.
+ */
+export function syncMainQuestFromGameplay(): void {
+  if (isVisitorMode()) {
+    return;
+  }
+  const sideStatuses = getSideQuestStatuses();
+  for (let pass = 0; pass < QUEST_ORDER.length; pass += 1) {
+    const activeId = getActiveQuestId();
+    if (!activeId) {
+      return;
+    }
+    let advanced = false;
+    switch (activeId) {
+      case "odd-company":
+        if (sideStatuses["odd-company"] === "complete") {
+          advanced = recordQuestEvent({
+            type: "party_size",
+            count: playerParty.creatures.length,
+          });
+        }
+        break;
+      case "hearth-lots":
+        if (hasClaimedMinigameWin("hearth-lots")) {
+          advanced = recordQuestEvent({
+            type: "complete_minigame",
+            minigameId: "hearth-lots",
+          });
+        }
+        break;
+      case "bryn-ledger":
+        if (sideStatuses["bryn-ledger"] === "complete") {
+          advanced = recordQuestEvent({
+            type: "discover_creatures",
+            count: worldState.discoveredCreatures.length,
+          });
+        }
+        break;
+      case "ward-crossing":
+        if (hasClaimedMinigameWin("ward-crossing")) {
+          advanced = recordQuestEvent({
+            type: "complete_minigame",
+            minigameId: "ward-crossing",
+          });
+        }
+        break;
+      case "sable-thread":
+        if (sideStatuses["sable-thread"] === "complete") {
+          advanced = recordQuestEvent({ type: "deliver_materials" });
+        }
+        break;
+      case "loom-pattern":
+        if (hasClaimedMinigameWin("loom-pattern")) {
+          advanced = recordQuestEvent({
+            type: "complete_minigame",
+            minigameId: "loom-pattern",
+          });
+        }
+        break;
+      default:
+        return;
+    }
+    if (!advanced) {
+      return;
+    }
+  }
+}
+
 function activateNextQuest(completedId: QuestId): void {
   const index = QUEST_ORDER.indexOf(completedId);
   const next = QUEST_ORDER[index + 1];
@@ -300,6 +374,7 @@ function activateNextQuest(completedId: QuestId): void {
     questProgress[next] = "active";
   }
   syncVillageGateForStoryQuest();
+  syncMainQuestFromGameplay();
 }
 
 function completeQuest(questId: QuestId): void {
