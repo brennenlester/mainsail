@@ -5,6 +5,7 @@ import {
   playerParty,
 } from "../creatures/party";
 import { consumeItem } from "../inventory/playerInventory";
+import { recordQuestEvent } from "../story/questProgress";
 import { isVisitorMode } from "../world/worldSession";
 import {
   applyPresenceStatBoost,
@@ -61,6 +62,9 @@ export function applyShrineFusion(
   }
 
   const message = applyEffect(creature, effect, key);
+  if (effect.effectType === "evolution" && effect.evolvesTo) {
+    recordQuestEvent({ type: "evolve_creature", evolvesTo: effect.evolvesTo });
+  }
   return { ok: true, message };
 }
 
