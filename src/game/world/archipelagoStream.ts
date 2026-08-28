@@ -1,6 +1,7 @@
 import { TileType, type ZoneDefinition, type ZoneId } from "./zoneTypes";
 import type { PropKind, ZoneProp } from "./zoneProps";
 import {
+  CAIRN_ISLAND_FLOOR_TINT,
   CAIRN_ISLAND_INDEX,
   CAIRN_LANDMARK_LOCAL,
 } from "./cairnIsland";
@@ -117,7 +118,7 @@ const DOCK_LOCAL_Y = 9;
 const PIER_LOCAL_Y = 8;
 const EMBARK_LOCAL_Y = 10;
 
-export type IslandBiome = "lush" | "barren" | "other";
+export type IslandBiome = "lush" | "barren" | "other" | "cairn";
 
 export type IslandTemplate = {
   index: number;
@@ -182,6 +183,7 @@ export const ISLAND_BIOME_FLOOR_TINT: Record<IslandBiome, number> = {
   lush: 0xa8d878,
   barren: 0xd0c8a0,
   other: 0xb8c898,
+  cairn: CAIRN_ISLAND_FLOOR_TINT,
 };
 
 let archipelagoProps: ZoneProp[] = [];
@@ -265,7 +267,8 @@ export function islandTemplateAtIndex(index: number): IslandTemplate {
   const row = Math.floor(index / ISLAND_COLS);
   const x = ISLAND_ORIGIN_X + col * ISLAND_SPACING;
   const y = ISLAND_ORIGIN_Y + row * ISLAND_SPACING;
-  const biome = BIOMES[index % BIOMES.length]!;
+  const biome: IslandBiome =
+    index === CAIRN_ISLAND_INDEX ? "cairn" : BIOMES[index % BIOMES.length]!;
   const dockX = x + DOCK_LOCAL_X;
   const template: IslandTemplate = {
     index,
@@ -437,6 +440,9 @@ export function biomeAtIslandTile(
   if (!hit) {
     return null;
   }
+  if (hit.index === CAIRN_ISLAND_INDEX) {
+    return "cairn";
+  }
   return BIOMES[hit.index % BIOMES.length]!;
 }
 
@@ -450,6 +456,50 @@ export function islandIndexAtTile(
   }
   const hit = islandCoordsAt(tileX, tileY);
   return hit?.index ?? null;
+}
+
+function isCairnRimLocal(dx: number, dy: number): boolean {
+  return (
+    dx === 0 ||
+    dy === 0 ||
+    dx === ISLAND_WIDTH - 1 ||
+    dy === ISLAND_WIDTH - 1
+  );
+}
+
+function stampCairnIslandProps(
+  x: number,
+  y: number,
+  pier: { x: number; y: number },
+  cairnLandmark: { x: number; y: number },
+): void {
+  for (let dx = 0; dx < ISLAND_WIDTH; dx++) {
+    for (let dy = 0; dy < ISLAND_WIDTH; dy++) {
+      if (!isCairnRimLocal(dx, dy)) {
+        continue;
+      }
+      const px = x + dx;
+      const py = y + dy;
+      if (px === pier.x && py === pier.y) {
+        continue;
+      }
+      if (!inBounds(px, py)) {
+        continue;
+      }
+      archipelagoProps.push({
+        x: px,
+        y: py,
+        kind: "standing-stone",
+      });
+    }
+  }
+  if (inBounds(cairnLandmark.x, cairnLandmark.y)) {
+    archipelagoProps.push({
+      x: cairnLandmark.x,
+      y: cairnLandmark.y,
+      kind: "standing-stone",
+    });
+  }
 }
 
 function stampIsland(island: IslandTemplate): void {
@@ -489,6 +539,11 @@ function stampIsland(island: IslandTemplate): void {
           y: y + CAIRN_LANDMARK_LOCAL.dy,
         }
       : null;
+
+  if (index === CAIRN_ISLAND_INDEX && cairnLandmark) {
+    stampCairnIslandProps(x, y, pier, cairnLandmark);
+    return;
+  }
 
   const kinds = propKindsForBiome(biome);
   for (let i = 0; i < ISLAND_PROP_CELLS.length; i++) {
@@ -537,13 +592,6 @@ function stampIsland(island: IslandTemplate): void {
       x: hermitCottage.x,
       y: hermitCottage.y,
       kind: "cottage",
-    });
-  }
-  if (cairnLandmark && inBounds(cairnLandmark.x, cairnLandmark.y)) {
-    archipelagoProps.push({
-      x: cairnLandmark.x,
-      y: cairnLandmark.y,
-      kind: "standing-stone",
     });
   }
 }

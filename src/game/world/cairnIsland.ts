@@ -6,3 +6,5 @@
 export const CAIRN_ISLAND_INDEX = 7;
 /** Center standing-stone cairn on the stone isle (south of hermit island 3). */
 export const CAIRN_LANDMARK_LOCAL = { dx: 4, dy: 4 } as const;
+/** Flat gray floor tint for the stone isle interior (#319). */
+export const CAIRN_ISLAND_FLOOR_TINT = 0x9a9a9a;
