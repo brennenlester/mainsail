@@ -26,7 +26,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { syncMainQuestFromGameplay } from "../story/questProgress";
+import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -313,6 +313,44 @@ export function confirmOddRest(): string[] {
   return ["There. Whole again. The hearth does not mind the work."];
 }
 
+function tryAdvanceOddCompanyMainQuest(): void {
+  if (getActiveQuestId() !== "odd-company") {
+    return;
+  }
+  if (playerParty.creatures.length < 3) {
+    return;
+  }
+  recordQuestEvent({
+    type: "party_size",
+    count: playerParty.creatures.length,
+  });
+}
+
+function sideQuestConversation(npc: NpcDefinition): Conversation | null {
+  const quest = getSideQuestForNpc(npc.id);
+  if (!quest) {
+    return null;
+  }
+  const status = getSideQuestStatus(quest.id);
+  if (status === "locked") {
+    return talk(activateSideQuest(quest));
+  }
+  if (status === "active") {
+    const turnIn = turnInSideQuest(quest);
+    if (turnIn) {
+      return talk(turnIn);
+    }
+    return talk([quest.progressLine]);
+  }
+  if (status === "complete") {
+    if (npc.id === ODD_NPC_ID) {
+      return oddRestTalk();
+    }
+    return talk([quest.completeLine]);
+  }
+  return null;
+}
+
 /**
  * Lines and prompt for one conversation: first-visit gift, then side-quest
  * offer / progress / turn-in, then Odd's rest or idle chatter. Visitors never
@@ -336,30 +374,17 @@ export function beginConversation(npc: NpcDefinition): Conversation {
     return talk([nextIdleLine(npc)]);
   }
 
+  const sideQuest = sideQuestConversation(npc);
+  if (sideQuest) {
+    if (npc.id === ODD_NPC_ID) {
+      tryAdvanceOddCompanyMainQuest();
+    }
+    return sideQuest;
+  }
+
   const dailyLines = converseDailyAsk(npc.id);
   if (dailyLines) {
     return talk(dailyLines);
-  }
-
-  const quest = getSideQuestForNpc(npc.id);
-  if (quest) {
-    const status = getSideQuestStatus(quest.id);
-    if (status === "locked") {
-      return talk(activateSideQuest(quest));
-    }
-    if (status === "active") {
-      const turnIn = turnInSideQuest(quest);
-      if (turnIn) {
-        return talk(turnIn);
-      }
-      return talk([quest.progressLine]);
-    }
-    if (status === "complete") {
-      if (npc.id === ODD_NPC_ID) {
-        return oddRestTalk();
-      }
-      return talk([quest.completeLine]);
-    }
   }
 
   return talk([nextIdleLine(npc)]);
