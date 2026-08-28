@@ -36,13 +36,18 @@ describe("control legend", () => {
     expect(CONTROL_LEGEND_TEXT.toLowerCase()).not.toMatch(/click|tap|dismiss|ok/);
   });
 
-  it("places the quest HUD on the game canvas and keeps the control legend in the status panel", () => {
+  it("places the quest HUD on the playfield over the game board", () => {
+    const playfieldAt = INDEX_HTML.indexOf('id="playfield"');
     const gameAt = INDEX_HTML.indexOf('id="game"');
     const questHudAt = INDEX_HTML.indexOf('id="quest-hud"');
+    const statusAt = INDEX_HTML.indexOf('id="status-panel"');
     const legendAt = INDEX_HTML.indexOf('id="status-control-legend"');
-    expect(gameAt).toBeGreaterThan(-1);
+    expect(playfieldAt).toBeGreaterThan(-1);
+    expect(gameAt).toBeGreaterThan(playfieldAt);
     expect(questHudAt).toBeGreaterThan(gameAt);
+    expect(statusAt).toBeGreaterThan(questHudAt);
     expect(legendAt).toBeGreaterThan(-1);
+    expect(INDEX_HTML).not.toContain('id="status-quest"');
     expect(INDEX_HTML).toContain(CONTROL_LEGEND_TEXT);
   });
 
