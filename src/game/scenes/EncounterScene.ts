@@ -86,6 +86,10 @@ export class EncounterScene extends Phaser.Scene {
     this.actionTaken = false;
     this.befriendAttempted = false;
     this.revealed = false;
+    this.titleText = undefined;
+    this.typeText = undefined;
+    this.portrait = undefined;
+    this.silhouette = undefined;
   }
 
   create(): void {
