@@ -7,6 +7,7 @@ import {
 import { isCodexComplete } from "../progression/achievements";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
+import { refreshQuestHud } from "../ui/questHud";
 import { getMaterialName } from "../inventory/materials";
 import { addMaterial, SOVEREIGN_SEAL_ID } from "../inventory/playerInventory";
 import { QUEST_ORDER, QUESTS } from "./quests";
@@ -165,6 +166,7 @@ export function claimSecondActWantOnIslandLand(): boolean {
   }
   addMaterial(SECOND_ACT_WANT_MATERIAL_ID, SECOND_ACT_WANT_AMOUNT);
   lastCompletionMessage = `Island bounty: ${getMaterialName(SECOND_ACT_WANT_MATERIAL_ID)}×${SECOND_ACT_WANT_AMOUNT}`;
+  refreshQuestHud();
   return true;
 }
 
@@ -200,6 +202,10 @@ export function getQuestHint(): string {
     return "All story beats finished — explore freely. Your codex still has blank pages.";
   }
   return `Next: ${QUESTS[activeId].hint}`;
+}
+
+export function peekQuestCompletionMessage(): string | null {
+  return lastCompletionMessage;
 }
 
 export function consumeQuestToast(): string | null {
@@ -280,6 +286,7 @@ function completeQuest(questId: QuestId): void {
 
   activateNextQuest(questId);
   notifyWorldChanged();
+  refreshQuestHud();
 }
 
 export function recordCraftOutputQuestEvents(outputItemId: string): void {
