@@ -16,12 +16,17 @@ import { ZONE_ENCOUNTERS } from "../encounters/tables";
 import {
   SECOND_ACT_WANT_AMOUNT,
   SECOND_ACT_WANT_MATERIAL_ID,
+  STORY_QUEST_COUNT,
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
+  createEmptyQuestProgress,
   getActiveQuestId,
   getQuestHint,
   getQuestSummary,
   initQuestProgress,
+  isFullQuestProgress,
+  isLegacyQuestProgress,
+  normalizeQuestProgress,
   questProgress,
   recordQuestEvent,
   restoreQuestProgress,
@@ -30,10 +35,47 @@ import { QUEST_ORDER } from "./quests";
 import type { QuestId, QuestStatus } from "./questTypes";
 
 function lockedProgress(): Record<QuestId, QuestStatus> {
+  return createEmptyQuestProgress();
+}
+
+function allQuestsComplete(): Record<QuestId, QuestStatus> {
   return Object.fromEntries(
-    QUEST_ORDER.map((id) => [id, "locked" as const]),
+    QUEST_ORDER.map((id) => [id, "complete" as const]),
   ) as Record<QuestId, QuestStatus>;
 }
+
+describe("quest registry", () => {
+  it("defines 18 linear main-quest steps (#312)", () => {
+    expect(STORY_QUEST_COUNT).toBe(18);
+    expect(QUEST_ORDER).toHaveLength(18);
+    expect(QUEST_ORDER[0]).toBe("first-befriend");
+    expect(QUEST_ORDER[17]).toBe("fuse-horizon");
+  });
+});
+
+describe("normalizeQuestProgress", () => {
+  it("migrates legacy 4-step saves into the 18-step registry", () => {
+    const legacy = {
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "active",
+    } as const;
+    expect(isLegacyQuestProgress(legacy)).toBe(true);
+    const normalized = normalizeQuestProgress(legacy);
+    expect(normalized["shrine-craft"]).toBe("active");
+    expect(normalized["evolve-bramblewarden"]).toBe("locked");
+    expect(isFullQuestProgress(normalized)).toBe(true);
+  });
+
+  it("locks unknown ids when restoring partial progress", () => {
+    const normalized = normalizeQuestProgress({
+      "first-befriend": "complete",
+    });
+    expect(normalized["first-spar"]).toBe("locked");
+    expect(normalized["fuse-horizon"]).toBe("locked");
+  });
+});
 
 describe("recordQuestEvent", () => {
   beforeEach(() => {
@@ -63,6 +105,42 @@ describe("recordQuestEvent", () => {
     expect(getActiveQuestId()).toBe("reach-village");
   });
 
+  it("activates evolve-bramblewarden after shrine-craft", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "active",
+    });
+    expect(recordQuestEvent({ type: "craft_item" })).toBe(true);
+    expect(getActiveQuestId()).toBe("evolve-bramblewarden");
+  });
+
+  it("matches evolve_creature objectives by evolvesTo", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "active",
+    });
+    expect(
+      recordQuestEvent({
+        type: "evolve_creature",
+        evolvesTo: "hearthflame",
+      }),
+    ).toBe(false);
+    expect(
+      recordQuestEvent({
+        type: "evolve_creature",
+        evolvesTo: "bramblewarden",
+      }),
+    ).toBe(true);
+    expect(getActiveQuestId()).toBe("evolve-hearthflame");
+  });
+
   it("ignores mismatched objectives", () => {
     expect(recordQuestEvent({ type: "win_spar" })).toBe(false);
     expect(questProgress["first-befriend"]).toBe("active");
@@ -82,15 +160,16 @@ describe("post-story HUD Next", () => {
     setDiscoveredZones([]);
     setFirstIslandLanded(false, false);
     setInventoryFromSnapshot({}, {});
-    restoreQuestProgress({
-      "first-befriend": "complete",
-      "first-spar": "complete",
-      "reach-village": "complete",
-      "shrine-craft": "complete",
-    });
+    restoreQuestProgress(allQuestsComplete());
   });
 
-  it("shows Harbor Next immediately after Story 4/4", () => {
+  it("shows Harbor Next only after all 18 main-quest steps", () => {
+    restoreQuestProgress({
+      ...allQuestsComplete(),
+      "fuse-horizon": "active",
+    });
+    expect(getQuestSummary()).toMatch(/^Story 18\/18:/);
+    restoreQuestProgress(allQuestsComplete());
     expect(getQuestSummary()).toBe("Next: reach Moonwake Harbor");
     expect(getQuestHint()).toBe("");
   });
@@ -118,22 +197,17 @@ describe("post-story HUD Next", () => {
   it("persists chain progress via restore of zones and island flag", () => {
     setDiscoveredZones(["harbor"]);
     expect(getQuestSummary()).toBe("Next: sail east for Folklore Dust");
-    restoreQuestProgress({
-      "first-befriend": "complete",
-      "first-spar": "complete",
-      "reach-village": "complete",
-      "shrine-craft": "complete",
-    });
+    restoreQuestProgress(allQuestsComplete());
     expect(getQuestSummary()).toBe("Next: sail east for Folklore Dust");
   });
 
-  it("leaves pre-4/4 Story N/4 display unchanged", () => {
+  it("leaves pre-complete Story N/18 display unchanged", () => {
     restoreQuestProgress({
       ...lockedProgress(),
       "first-befriend": "complete",
       "first-spar": "active",
     });
-    expect(getQuestSummary()).toMatch(/^Story 2\/4:/);
+    expect(getQuestSummary()).toMatch(/^Story 2\/18:/);
     expect(getQuestHint().startsWith("Next:")).toBe(true);
   });
 

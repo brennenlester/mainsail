@@ -14,7 +14,12 @@ import {
   playerInventory,
   setInventoryFromSnapshot,
 } from "../inventory/playerInventory";
-import { restoreQuestProgress, questProgress } from "../story/questProgress";
+import {
+  restoreQuestProgress,
+  questProgress,
+  isFullQuestProgress,
+  isLegacyQuestProgress,
+} from "../story/questProgress";
 import {
   getHudChromeSnapshot,
   setHudChromeFromSnapshot,
@@ -25,7 +30,6 @@ import {
   setShrineDisclosureFromSnapshot,
 } from "../shrine/shrineDisclosure";
 import type { QuestId, QuestStatus } from "../story/questTypes";
-import { QUEST_ORDER } from "../story/quests";
 import { reopenParentSovereignEncounters } from "../shrine/godFusion";
 import { migrateLegacyPresenceCharmBuffs } from "../shrine/presence";
 import { CAIRN_SOVEREIGN_ID } from "../encounters/godLand";
@@ -198,11 +202,6 @@ const CODEX_CREATURE_IDS = new Set(
     (creature) => creature.id,
   ),
 );
-const VALID_QUEST_STATUSES = new Set<QuestStatus>([
-  "locked",
-  "active",
-  "complete",
-]);
 
 const MAX_LEVEL = 100;
 const MAX_HP = 10_000;
@@ -259,23 +258,8 @@ function isSpawnWalkable(
   return false;
 }
 
-function isValidQuestProgress(
-  value: unknown,
-): value is Record<QuestId, QuestStatus> {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const progress = value as Record<string, unknown>;
-  for (const questId of QUEST_ORDER) {
-    const status = progress[questId];
-    if (
-      typeof status !== "string" ||
-      !VALID_QUEST_STATUSES.has(status as QuestStatus)
-    ) {
-      return false;
-    }
-  }
-  return true;
+function acceptsQuestProgress(value: unknown): boolean {
+  return isFullQuestProgress(value) || isLegacyQuestProgress(value);
 }
 
 function isValidCountMap(value: unknown): value is Record<string, number> {
@@ -924,7 +908,7 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
   ) {
     return false;
   }
-  if (!isValidQuestProgress(s.questProgress)) return false;
+  if (!acceptsQuestProgress(s.questProgress)) return false;
   if (!isValidCountMap(s.materials) || !isValidCountMap(s.items)) return false;
   return true;
 }

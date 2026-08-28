@@ -330,6 +330,21 @@ describe("isValidWorldSnapshot", () => {
     ).toBe(false);
   });
 
+  it("accepts legacy 4-step questProgress on load (#313)", () => {
+    expect(
+      isValidWorldSnapshot(
+        validSnapshot({
+          questProgress: {
+            "first-befriend": "complete",
+            "first-spar": "complete",
+            "reach-village": "complete",
+            "shrine-craft": "complete",
+          } as WorldSnapshot["questProgress"],
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("rejects non-walkable spawn", () => {
     expect(
       isValidWorldSnapshot(
