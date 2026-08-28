@@ -38,6 +38,7 @@ import {
   rollGodLandEncounter,
   shouldAttemptGodLandEncounter,
 } from "./godLand";
+import { CAIRN_ISLAND_INDEX } from "../world/cairnIsland";
 import {
   ENCOUNTER_TRAVEL_THRESHOLD,
   getHabitatsForCreature,
@@ -61,19 +62,18 @@ describe("god land encounter", () => {
     expect(rollGodLandEncounter(() => 0.01)).toBe(false);
   });
 
-  it("only allows natural rolls for solo Folklore Fields land walking", () => {
+  it("only allows natural rolls for solo Cairn island walking", () => {
     const valid = {
       sailing: false,
-      zoneId: "overworld" as const,
+      zoneId: "archipelago" as const,
+      islandIndex: CAIRN_ISLAND_INDEX,
       walkableLand: true,
       visitor: false,
       claimed: false,
-      tileX: 5,
-      tileY: 5,
     };
     expect(shouldAttemptGodLandEncounter(valid)).toBe(true);
     expect(
-      shouldAttemptGodLandEncounter({ ...valid, tileX: 7, tileY: 12 }),
+      shouldAttemptGodLandEncounter({ ...valid, islandIndex: CAIRN_ISLAND_INDEX + 1 }),
     ).toBe(false);
     expect(shouldAttemptGodLandEncounter({ ...valid, sailing: true })).toBe(
       false,
@@ -85,7 +85,7 @@ describe("god land encounter", () => {
       false,
     );
     expect(
-      shouldAttemptGodLandEncounter({ ...valid, zoneId: "archipelago" }),
+      shouldAttemptGodLandEncounter({ ...valid, zoneId: "overworld" }),
     ).toBe(false);
     expect(
       shouldAttemptGodLandEncounter({ ...valid, walkableLand: false }),
@@ -140,33 +140,32 @@ describe("god land encounter", () => {
     expect(
       canForceGodLandEncounter({
         sailing: false,
-        zoneId: "overworld",
+        zoneId: "archipelago",
         visitor: false,
       }),
     ).toBe(true);
     expect(
       canForceGodLandEncounter({
         sailing: false,
-        zoneId: "overworld",
+        zoneId: "archipelago",
         visitor: true,
       }),
     ).toBe(false);
     expect(
       canForceGodLandEncounter({
         sailing: true,
-        zoneId: "overworld",
+        zoneId: "archipelago",
         visitor: false,
       }),
     ).toBe(false);
 
     const naturallyClaimed = {
       sailing: false,
-      zoneId: "overworld" as const,
+      zoneId: "archipelago" as const,
+      islandIndex: CAIRN_ISLAND_INDEX,
       walkableLand: true,
       visitor: false,
       claimed: true,
-      tileX: 5,
-      tileY: 5,
     };
     const naturallyOnWater = {
       ...naturallyClaimed,
@@ -324,12 +323,11 @@ describe("god land encounter", () => {
     expect(
       shouldAttemptGodLandEncounter({
         sailing: false,
-        zoneId: "overworld",
+        zoneId: "archipelago",
+        islandIndex: CAIRN_ISLAND_INDEX,
         walkableLand: true,
         visitor: false,
         claimed: true,
-        tileX: 5,
-        tileY: 5,
       }),
     ).toBe(true);
   });

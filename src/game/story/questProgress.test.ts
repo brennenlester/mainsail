@@ -28,6 +28,7 @@ import {
   isLegacyQuestProgress,
   normalizeQuestProgress,
   questProgress,
+  recordCraftOutputQuestEvents,
   recordQuestEvent,
   restoreQuestProgress,
 } from "./questProgress";
@@ -150,6 +151,55 @@ describe("recordQuestEvent", () => {
     setVisitorMode(true);
     expect(recordQuestEvent({ type: "befriend_creature" })).toBe(false);
     expect(questProgress["first-befriend"]).toBe("active");
+  });
+});
+
+describe("Act 3 quest events", () => {
+  beforeEach(() => {
+    setVisitorMode(false);
+    restoreQuestProgress(createEmptyQuestProgress());
+  });
+
+  function activate(questId: QuestId): void {
+    restoreQuestProgress({
+      ...createEmptyQuestProgress(),
+      [questId]: "active",
+    });
+  }
+
+  it("advances craft-boat on boat craft output", () => {
+    activate("craft-boat");
+    recordCraftOutputQuestEvents("boat");
+    expect(questProgress["craft-boat"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("obtain-tide-sovereign");
+  });
+
+  it("advances obtain-tide-sovereign on sovereign obtain event", () => {
+    activate("obtain-tide-sovereign");
+    expect(
+      recordQuestEvent({
+        type: "obtain_creature",
+        creatureId: "tide-sovereign",
+      }),
+    ).toBe(true);
+    expect(getActiveQuestId()).toBe("obtain-cairn-sovereign");
+  });
+
+  it("advances craft-sovereign-seal and fuse-horizon", () => {
+    const progress = createEmptyQuestProgress();
+    for (const id of QUEST_ORDER) {
+      progress[id] =
+        id === "craft-sovereign-seal"
+          ? "active"
+          : id === "fuse-horizon"
+            ? "locked"
+            : "complete";
+    }
+    restoreQuestProgress(progress);
+    recordCraftOutputQuestEvents("sovereign-seal");
+    expect(getActiveQuestId()).toBe("fuse-horizon");
+    expect(recordQuestEvent({ type: "fuse_horizon" })).toBe(true);
+    expect(questProgress["fuse-horizon"]).toBe("complete");
   });
 });
 

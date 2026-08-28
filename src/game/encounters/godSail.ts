@@ -2,7 +2,8 @@ import { addToPartyFainted, countCreatures } from "../creatures/party";
 import type { MoveDefinition } from "../creatures/types";
 import { addItem, canAddItem, getItemCount, ownsSovereignPlate, TIDE_CROWN_ID } from "../inventory/playerInventory";
 import type { ZoneId } from "../world/zoneTypes";
-import { questProgress } from "../story/questProgress";
+import { HERMIT_ISLAND_INDEX } from "../world/hermitIsland";
+import { questProgress, recordQuestEvent } from "../story/questProgress";
 import {
   canObtainAnotherParentSovereign,
   getTideSovereignObtained,
@@ -70,6 +71,30 @@ export function getTideSovereignAttack(
   return TIDE_SOVEREIGN_ATTACK_PATTERN[
     turnIndex % TIDE_SOVEREIGN_ATTACK_PATTERN.length
   ];
+}
+
+export type GodHermitTideEncounterContext = {
+  sailing: boolean;
+  zoneId: ZoneId;
+  islandIndex: number | null;
+  visitor: boolean;
+  claimed: boolean;
+};
+
+export function shouldAttemptHermitTideEncounter(
+  context: GodHermitTideEncounterContext,
+): boolean {
+  return (
+    !context.sailing &&
+    context.zoneId === "archipelago" &&
+    context.islandIndex === HERMIT_ISLAND_INDEX &&
+    !context.visitor &&
+    !(
+      context.claimed &&
+      getItemCount(TIDE_CROWN_ID) > 0 &&
+      !ownsSovereignPlate()
+    )
+  );
 }
 
 export type GodSailEncounterContext = {
@@ -300,5 +325,9 @@ export function resolveTideSovereignOutcome(
   if (outcome === "spar-win" || ownsSovereignPlate()) {
     result.crownGranted = grantCrownIfMissing(TIDE_CROWN_ID);
   }
+  recordQuestEvent({
+    type: "obtain_creature",
+    creatureId: TIDE_SOVEREIGN_ID,
+  });
   return result;
 }

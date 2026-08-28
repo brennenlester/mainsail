@@ -77,6 +77,7 @@ import {
   lockPendingGodSailEncounter,
   rollGodSailEncounter,
   shouldAttemptGodSailEncounter,
+  shouldAttemptHermitTideEncounter,
   type PendingGodSailEncounter,
 } from "../encounters/godSail";
 import {
@@ -92,6 +93,7 @@ import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters"
 import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
+  getActiveQuestId,
   recordQuestEvent,
 } from "../story/questProgress";
 import { consumeAchievementToast } from "../progression/achievements";
@@ -202,6 +204,8 @@ import {
   type ArchipelagoVisualWindow,
   type ChunkEnsureResult,
 } from "../world/archipelagoStream";
+import { CAIRN_ISLAND_INDEX } from "../world/cairnIsland";
+import { HERMIT_ISLAND_INDEX } from "../world/hermitIsland";
 import { getItemCount } from "../inventory/playerInventory";
 import { isSovereignPlateSuppressingWild } from "../inventory/sovereignPlate";
 import {
@@ -554,9 +558,12 @@ export class IsometricScene extends Phaser.Scene {
     }
     const sailing = isSailing();
     if (sailing) {
-      this.tryGodSailEncounter(step);
+      if (getActiveQuestId() !== "obtain-tide-sovereign") {
+        this.tryGodSailEncounter(step);
+      }
       return;
     }
+    this.tryHermitTideEncounter(step);
     this.tryGodLandEncounter(step);
     if (this.inEncounter || this.pendingGodLandEncounter) {
       return;
@@ -625,6 +632,37 @@ export class IsometricScene extends Phaser.Scene {
     });
   }
 
+  private tryHermitTideEncounter(step: number): void {
+    if (this.inEncounter || this.pendingGodSailEncounter) {
+      return;
+    }
+    const islandIndex =
+      this.currentZoneId === "archipelago"
+        ? islandIndexAtTile(this.playerGridX, this.playerGridY)
+        : null;
+    if (
+      !shouldAttemptHermitTideEncounter({
+        sailing: isSailing(),
+        zoneId: this.currentZoneId,
+        islandIndex,
+        visitor: isVisitorMode(),
+        claimed: worldState.godSailEncounterClaimed,
+      })
+    ) {
+      this.godSailTravelSinceEncounter = 0;
+      return;
+    }
+
+    this.godSailTravelSinceEncounter += step;
+    if (this.godSailTravelSinceEncounter < ENCOUNTER_TRAVEL_THRESHOLD) {
+      return;
+    }
+    this.godSailTravelSinceEncounter = 0;
+    if (rollGodSailEncounter()) {
+      this.scheduleGodSailEncounter(false);
+    }
+  }
+
   private tryGodSailEncounter(step: number): void {
     if (this.inEncounter || this.pendingGodSailEncounter) {
       return;
@@ -684,15 +722,18 @@ export class IsometricScene extends Phaser.Scene {
     }
     const tileX = Math.round(this.playerGridX);
     const tileY = Math.round(this.playerGridY);
+    const islandIndex =
+      this.currentZoneId === "archipelago"
+        ? islandIndexAtTile(tileX, tileY)
+        : null;
     if (
       !shouldAttemptGodLandEncounter({
         sailing: isSailing(),
         zoneId: this.currentZoneId,
+        islandIndex,
         walkableLand: this.currentWalkableLand(),
         visitor: isVisitorMode(),
         claimed: worldState.godLandEncounterClaimed,
-        tileX,
-        tileY,
       })
     ) {
       this.godLandTravelSinceEncounter = 0;
@@ -1004,6 +1045,38 @@ export class IsometricScene extends Phaser.Scene {
   }
 
 
+  private maybeMainQuestSovereignEncounter(): void {
+    if (
+      isVisitorMode() ||
+      this.inEncounter ||
+      this.pendingGodSailEncounter ||
+      this.pendingGodLandEncounter
+    ) {
+      return;
+    }
+    const islandIndex = islandIndexAtTile(
+      Math.round(this.playerGridX),
+      Math.round(this.playerGridY),
+    );
+    if (islandIndex === null) {
+      return;
+    }
+    const active = getActiveQuestId();
+    if (
+      active === "obtain-tide-sovereign" &&
+      islandIndex === HERMIT_ISLAND_INDEX
+    ) {
+      this.scheduleGodSailEncounter(true);
+      return;
+    }
+    if (
+      active === "obtain-cairn-sovereign" &&
+      islandIndex === CAIRN_ISLAND_INDEX
+    ) {
+      this.scheduleGodLandEncounter(true);
+    }
+  }
+
   private maybeNoteIslandLand(): void {
     if (this.currentZoneId !== "archipelago" || isFirstIslandLanded()) {
       return;
@@ -1015,6 +1088,7 @@ export class IsometricScene extends Phaser.Scene {
     if (!isArchipelagoIslandPosition(this.playerGridX, this.playerGridY)) {
       return;
     }
+    this.maybeMainQuestSovereignEncounter();
     claimSecondActWantOnIslandLand();
     updateStatusPanel(getZone(this.currentZoneId));
   }

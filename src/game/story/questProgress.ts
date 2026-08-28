@@ -8,7 +8,7 @@ import { isCodexComplete } from "../progression/achievements";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { getMaterialName } from "../inventory/materials";
-import { addMaterial } from "../inventory/playerInventory";
+import { addMaterial, SOVEREIGN_SEAL_ID } from "../inventory/playerInventory";
 import { QUEST_ORDER, QUESTS } from "./quests";
 import type {
   QuestEvent,
@@ -280,6 +280,15 @@ function completeQuest(questId: QuestId): void {
 
   activateNextQuest(questId);
   notifyWorldChanged();
+}
+
+export function recordCraftOutputQuestEvents(outputItemId: string): void {
+  if (outputItemId === "boat") {
+    recordQuestEvent({ type: "craft_item_id", itemId: "boat" });
+  }
+  if (outputItemId === SOVEREIGN_SEAL_ID) {
+    recordQuestEvent({ type: "craft_item_id", itemId: SOVEREIGN_SEAL_ID });
+  }
 }
 
 export function recordQuestEvent(event: QuestEvent): boolean {
