@@ -80,6 +80,7 @@ describe("cairn island placement (#319)", () => {
   it("points the obtain-cairn-sovereign hint south from the hermit", () => {
     const quest = QUESTS["obtain-cairn-sovereign"];
     expect(quest?.hint).toMatch(/south/i);
+    expect(quest?.hint).toMatch(/not east/i);
     expect(quest?.hint).not.toMatch(/east of the hermit/i);
   });
 });

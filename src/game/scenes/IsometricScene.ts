@@ -1366,7 +1366,12 @@ export class IsometricScene extends Phaser.Scene {
         if (tileType === TileType.Floor && zone.id === "archipelago") {
           const biome = biomeAtIslandTile(x, y);
           if (biome) {
-            tile.setTint(ISLAND_BIOME_FLOOR_TINT[biome]);
+            const tint = ISLAND_BIOME_FLOOR_TINT[biome];
+            if (biome === "cairn") {
+              tile.setTintFill(tint);
+            } else {
+              tile.setTint(tint);
+            }
           }
         }
 
