@@ -326,6 +326,11 @@ function tryAdvanceOddCompanyMainQuest(): void {
   });
 }
 
+function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
+  const ask = getDailyAskState() ?? ensureDailyAsk();
+  return ask?.npcId === npcId && ask.status !== "complete";
+}
+
 function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   const quest = getSideQuestForNpc(npc.id);
   if (!quest) {
@@ -343,6 +348,9 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
     return talk([quest.progressLine]);
   }
   if (status === "complete") {
+    if (shouldYieldSideQuestToDailyAsk(npc.id)) {
+      return null;
+    }
     if (npc.id === ODD_NPC_ID) {
       return oddRestTalk();
     }

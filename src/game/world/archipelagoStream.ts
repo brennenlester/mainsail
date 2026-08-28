@@ -1,6 +1,10 @@
 import { TileType, type ZoneDefinition, type ZoneId } from "./zoneTypes";
 import type { PropKind, ZoneProp } from "./zoneProps";
 import {
+  CAIRN_ISLAND_INDEX,
+  CAIRN_LANDMARK_LOCAL,
+} from "./cairnIsland";
+import {
   HERMIT_COTTAGE_LOCAL,
   HERMIT_DOOR_LOCAL,
   HERMIT_ISLAND_INDEX,
@@ -296,6 +300,15 @@ export function hermitCottageWorld(): { x: number; y: number } {
   };
 }
 
+/** World tile of the stone cairn landmark on the Cairn Sovereign island (#319). */
+export function cairnLandmarkWorld(): { x: number; y: number } {
+  const island = islandTemplateAtIndex(CAIRN_ISLAND_INDEX);
+  return {
+    x: island.x + CAIRN_LANDMARK_LOCAL.dx,
+    y: island.y + CAIRN_LANDMARK_LOCAL.dy,
+  };
+}
+
 function hermitIslandDoor(): NonNullable<ZoneDefinition["doors"]>[number] {
   const door = hermitDoorWorld();
   return {
@@ -469,6 +482,13 @@ function stampIsland(island: IslandTemplate): void {
           y: y + HERMIT_DOOR_LOCAL.dy,
         }
       : null;
+  const cairnLandmark =
+    index === CAIRN_ISLAND_INDEX
+      ? {
+          x: x + CAIRN_LANDMARK_LOCAL.dx,
+          y: y + CAIRN_LANDMARK_LOCAL.dy,
+        }
+      : null;
 
   const kinds = propKindsForBiome(biome);
   for (let i = 0; i < ISLAND_PROP_CELLS.length; i++) {
@@ -487,6 +507,13 @@ function stampIsland(island: IslandTemplate): void {
       continue;
     }
     if (hermitDoor && px === hermitDoor.x && py === hermitDoor.y) {
+      continue;
+    }
+    if (
+      cairnLandmark &&
+      px === cairnLandmark.x &&
+      py === cairnLandmark.y
+    ) {
       continue;
     }
     if (
@@ -510,6 +537,13 @@ function stampIsland(island: IslandTemplate): void {
       x: hermitCottage.x,
       y: hermitCottage.y,
       kind: "cottage",
+    });
+  }
+  if (cairnLandmark && inBounds(cairnLandmark.x, cairnLandmark.y)) {
+    archipelagoProps.push({
+      x: cairnLandmark.x,
+      y: cairnLandmark.y,
+      kind: "standing-stone",
     });
   }
 }

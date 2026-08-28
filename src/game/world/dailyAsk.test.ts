@@ -23,8 +23,10 @@ import {
   beginConversation,
   resetNpcStateForTest,
   setClaimedNpcGifts,
+  setSideQuestStatuses,
 } from "./npcState";
 import { getNpcById } from "./npcs";
+import { SIDE_QUEST_IDS } from "./sideQuests";
 import { setDiscoveredCreatures } from "./worldState";
 import { setVisitorMode } from "./worldSession";
 import {
@@ -165,6 +167,11 @@ describe("conversation wiring", () => {
     const ask = ensureDailyAsk()!;
     const npc = getNpcById(ask.npcId)!;
     setClaimedNpcGifts([ask.npcId]);
+    setSideQuestStatuses(
+      Object.fromEntries(
+        SIDE_QUEST_IDS.map((id) => [id, "complete" as const]),
+      ),
+    );
 
     const offer = beginConversation(npc);
     expect(offer.lines.join(" ").toLowerCase()).toContain("ask");
