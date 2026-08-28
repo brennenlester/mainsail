@@ -225,6 +225,7 @@ describe("habitatRuntime behaviors", () => {
         "storm",
       ),
     ).toBeNull();
+    expect(encounterTypeLineText(true, "storm")).toBe("Type: storm");
     expect(
       shouldConcealReveal(getHabitatProfile("mistwood"), "tide-sovereign"),
     ).toBe(false);
