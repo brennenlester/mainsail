@@ -123,7 +123,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "obtain-cairn-sovereign": {
     id: "obtain-cairn-sovereign",
     title: "Claim the Stone Sovereign",
-    hint: "Sail south from the hermit's island to the stone cairn isle and befriend or spar-win the Cairn Sovereign.",
+    hint: "From the hermit's island, sail due south to the gray stone cairn isle — not east. Befriend or spar-win the Stone Sovereign there.",
     objective: { type: "obtain_creature", creatureId: "cairn-sovereign" },
   },
   "craft-sovereign-seal": {

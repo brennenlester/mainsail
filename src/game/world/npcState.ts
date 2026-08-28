@@ -418,10 +418,16 @@ function hermitConversation(npc: NpcDefinition): Conversation {
   }
 
   if (getTideSovereignObtained() > 0) {
-    return talk([
+    const lines = [
       "You met the Tide Sovereign. Good.",
       "When the village story calls you back, the east gate at Hearth Crossing opens on its own.",
-    ]);
+    ];
+    if (getActiveQuestId() === "obtain-cairn-sovereign") {
+      lines.push(
+        "Stone Sovereign keeps the cairn isle due south of here — sail south, not east, to the gray rock ringed with standing stones.",
+      );
+    }
+    return talk(lines);
   }
 
   return talk([nextIdleLine(npc)]);
