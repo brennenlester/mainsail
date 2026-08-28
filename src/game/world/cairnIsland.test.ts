@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  CAIRN_ISLAND_FLOOR_TINT,
   CAIRN_ISLAND_INDEX,
   CAIRN_LANDMARK_LOCAL,
 } from "./cairnIsland";
 import { HERMIT_ISLAND_INDEX } from "./hermitIsland";
 import {
+  biomeAtIslandTile,
   cairnLandmarkWorld,
   getArchipelagoProps,
+  ISLAND_BIOME_FLOOR_TINT,
+  ISLAND_WIDTH,
   islandTemplateAtIndex,
   resetArchipelagoStream,
 } from "./archipelagoStream";
@@ -42,6 +46,35 @@ describe("cairn island placement (#319)", () => {
       x: island.x + CAIRN_LANDMARK_LOCAL.dx,
       y: island.y + CAIRN_LANDMARK_LOCAL.dy,
     });
+  });
+
+  it("uses a flat gray floor and a standing-stone rim", () => {
+    const island = islandTemplateAtIndex(CAIRN_ISLAND_INDEX);
+    expect(island.biome).toBe("cairn");
+    expect(ISLAND_BIOME_FLOOR_TINT.cairn).toBe(CAIRN_ISLAND_FLOOR_TINT);
+    expect(biomeAtIslandTile(island.x + 4, island.y + 4)).toBe("cairn");
+
+    const props = getArchipelagoProps().filter(
+      (p) =>
+        p.x >= island.x &&
+        p.x < island.x + ISLAND_WIDTH &&
+        p.y >= island.y &&
+        p.y < island.y + ISLAND_WIDTH,
+    );
+    const rimCount = props.filter((p) => {
+      const dx = p.x - island.x;
+      const dy = p.y - island.y;
+      const onRim =
+        dx === 0 ||
+        dy === 0 ||
+        dx === ISLAND_WIDTH - 1 ||
+        dy === ISLAND_WIDTH - 1;
+      return onRim && p.kind === "standing-stone";
+    }).length;
+    expect(rimCount).toBe(ISLAND_WIDTH * 4 - 4 - 1);
+    expect(props.some((p) => p.kind === "tree" || p.kind === "fern")).toBe(
+      false,
+    );
   });
 
   it("points the obtain-cairn-sovereign hint south from the hermit", () => {
