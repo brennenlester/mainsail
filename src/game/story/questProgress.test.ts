@@ -188,7 +188,7 @@ describe("Act 2 main quest bridge (#317)", () => {
     restoreQuestProgress(createEmptyQuestProgress());
   });
 
-  it("advances odd-company when the villager side quest is complete", () => {
+  it("advances odd-company when the party has three companions", () => {
     restoreQuestProgress({
       ...createEmptyQuestProgress(),
       "first-befriend": "complete",
@@ -208,7 +208,6 @@ describe("Act 2 main quest bridge (#317)", () => {
       ],
       3,
     );
-    setSideQuestStatuses({ "odd-company": "complete" });
 
     syncMainQuestFromGameplay();
 

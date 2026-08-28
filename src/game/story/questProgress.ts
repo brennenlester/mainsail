@@ -314,7 +314,7 @@ export function syncMainQuestFromGameplay(): void {
     let advanced = false;
     switch (activeId) {
       case "odd-company":
-        if (sideStatuses["odd-company"] === "complete") {
+        if (playerParty.creatures.length >= 3) {
           advanced = recordQuestEvent({
             type: "party_size",
             count: playerParty.creatures.length,
