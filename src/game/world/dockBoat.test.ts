@@ -35,7 +35,8 @@ import {
   migrateBoatStateToHarbor,
   type WorldSnapshot,
 } from "./worldSnapshot";
-import { restoreQuestProgress } from "../story/questProgress";
+import { createEmptyQuestProgress, restoreQuestProgress } from "../story/questProgress";
+import { QUEST_ORDER } from "../story/quests";
 import { setPartyFromSnapshot } from "../creatures/party";
 import { setUnlockedAchievements } from "../progression/achievements";
 import {
@@ -46,13 +47,14 @@ import {
   resetArchipelagoStream,
 } from "./archipelagoStream";
 
+function allQuestsComplete(): WorldSnapshot["questProgress"] {
+  return Object.fromEntries(
+    QUEST_ORDER.map((id) => [id, "complete" as const]),
+  ) as WorldSnapshot["questProgress"];
+}
+
 function questProgress(): WorldSnapshot["questProgress"] {
-  return {
-    "first-befriend": "complete",
-    "first-spar": "complete",
-    "reach-village": "complete",
-    "shrine-craft": "complete",
-  };
+  return allQuestsComplete();
 }
 
 beforeEach(() => {
@@ -62,12 +64,7 @@ beforeEach(() => {
   setVisitorMode(false);
   setPartyFromSnapshot([], 1);
   setUnlockedAchievements([]);
-  restoreQuestProgress({
-    "first-befriend": "locked",
-    "first-spar": "locked",
-    "reach-village": "locked",
-    "shrine-craft": "locked",
-  });
+  restoreQuestProgress(createEmptyQuestProgress());
 });
 
 describe("Folklore Fields south shore after Harbor move", () => {

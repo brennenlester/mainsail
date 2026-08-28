@@ -16,17 +16,26 @@ import type {
   QuestObjective,
   QuestStatus,
 } from "./questTypes";
+import { LEGACY_QUEST_IDS } from "./questTypes";
 
-export const questProgress: Record<QuestId, QuestStatus> = {
-  "first-befriend": "locked",
-  "first-spar": "locked",
-  "reach-village": "locked",
-  "shrine-craft": "locked",
-};
+const VALID_QUEST_STATUSES = new Set<QuestStatus>([
+  "locked",
+  "active",
+  "complete",
+]);
+
+export function createEmptyQuestProgress(): Record<QuestId, QuestStatus> {
+  return Object.fromEntries(
+    QUEST_ORDER.map((id) => [id, "locked" as const]),
+  ) as Record<QuestId, QuestStatus>;
+}
+
+export const questProgress: Record<QuestId, QuestStatus> =
+  createEmptyQuestProgress();
 
 let lastCompletionMessage: string | null = null;
 
-const STORY_QUEST_COUNT = QUEST_ORDER.length;
+export const STORY_QUEST_COUNT = QUEST_ORDER.length;
 
 /** #270 second-act Want: Folklore Dust (accepted currency; not a parallel id). */
 export const SECOND_ACT_WANT_MATERIAL_ID = "folklore-dust";
@@ -34,18 +43,61 @@ export const SECOND_ACT_WANT_MATERIAL_ID = "folklore-dust";
 /** One-shot island-landing grant — enough for early Dust sinks without re-tuning spars. */
 export const SECOND_ACT_WANT_AMOUNT = 5;
 
-export function initQuestProgress(): void {
-  if (questProgress["first-befriend"] === "locked") {
-    questProgress["first-befriend"] = "active";
-  }
+function isQuestStatus(value: unknown): value is QuestStatus {
+  return (
+    typeof value === "string" && VALID_QUEST_STATUSES.has(value as QuestStatus)
+  );
 }
 
-export function restoreQuestProgress(
-  saved: Record<QuestId, QuestStatus>,
-): void {
+/** Additive migration: legacy 4-step saves map into steps 1–4; missing ids lock. */
+export function normalizeQuestProgress(
+  saved: Partial<Record<QuestId, QuestStatus>> | Record<string, unknown>,
+): Record<QuestId, QuestStatus> {
+  const normalized = createEmptyQuestProgress();
+  const source = saved as Record<string, unknown>;
   for (const id of QUEST_ORDER) {
-    questProgress[id] = saved[id] ?? "locked";
+    const status = source[id];
+    if (isQuestStatus(status)) {
+      normalized[id] = status;
+    }
   }
+  return normalized;
+}
+
+export function isLegacyQuestProgress(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const progress = value as Record<string, unknown>;
+  const keys = Object.keys(progress);
+  if (keys.length !== LEGACY_QUEST_IDS.length) {
+    return false;
+  }
+  for (const id of LEGACY_QUEST_IDS) {
+    if (!isQuestStatus(progress[id])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isFullQuestProgress(value: unknown): value is Record<
+  QuestId,
+  QuestStatus
+> {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const progress = value as Record<string, unknown>;
+  for (const questId of QUEST_ORDER) {
+    if (!isQuestStatus(progress[questId])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function ensureActiveQuest(): void {
   if (!QUEST_ORDER.some((id) => questProgress[id] === "active")) {
     const next = QUEST_ORDER.find((id) => questProgress[id] !== "complete");
     if (next) {
@@ -54,10 +106,25 @@ export function restoreQuestProgress(
   }
 }
 
+export function initQuestProgress(): void {
+  if (questProgress["first-befriend"] === "locked") {
+    questProgress["first-befriend"] = "active";
+  }
+}
+
+export function restoreQuestProgress(
+  saved: Partial<Record<QuestId, QuestStatus>> | Record<string, unknown>,
+): void {
+  const normalized = normalizeQuestProgress(saved);
+  for (const id of QUEST_ORDER) {
+    questProgress[id] = normalized[id];
+  }
+  ensureActiveQuest();
+}
+
 export function getActiveQuestId(): QuestId | null {
   return QUEST_ORDER.find((id) => questProgress[id] === "active") ?? null;
 }
-
 
 const POST_STORY_NEXT = {
   harbor: "Next: reach Moonwake Harbor",
@@ -66,7 +133,7 @@ const POST_STORY_NEXT = {
   islands: "Next: claim Folklore Dust ashore",
 } as const;
 
-/** Post-FTUE HUD Next while Story 4/4 is done and before first island landing. */
+/** Post-story HUD Next while main quest is done and before first island landing. */
 export function getPostStoryNext(): string | null {
   const done = QUEST_ORDER.every((id) => questProgress[id] === "complete");
   if (!done) {
@@ -122,14 +189,15 @@ export function getQuestHint(): string {
     if (!done) {
       return "";
     }
-    // While the post-Story Next chain occupies the story slot, keep the hint empty.
+    // While the post-story Next chain occupies the story slot, keep the hint empty.
     if (getPostStoryNext()) {
       return "";
     }
     // Subtle nudge only — the codex reward is never named before it is earned.
-    return isCodexComplete(worldState.discoveredCreatures)
-      ? "All story beats finished — explore freely."
-      : "All story beats finished — explore freely. Your codex still has blank pages.";
+    if (isCodexComplete(worldState.discoveredCreatures)) {
+      return "All story beats finished — explore freely. Eclipse Sovereign fusion remains a deeper mystery.";
+    }
+    return "All story beats finished — explore freely. Your codex still has blank pages.";
   }
   return `Next: ${QUESTS[activeId].hint}`;
 }
@@ -140,7 +208,10 @@ export function consumeQuestToast(): string | null {
   return message;
 }
 
-function objectiveMatches(objective: QuestObjective, event: QuestEvent): boolean {
+function objectiveMatches(
+  objective: QuestObjective,
+  event: QuestEvent,
+): boolean {
   switch (objective.type) {
     case "enter_zone":
       return event.type === "enter_zone" && event.zoneId === objective.zoneId;
@@ -150,6 +221,40 @@ function objectiveMatches(objective: QuestObjective, event: QuestEvent): boolean
       return event.type === "win_spar";
     case "craft_item":
       return event.type === "craft_item";
+    case "evolve_creature":
+      return (
+        event.type === "evolve_creature" &&
+        event.evolvesTo === objective.evolvesTo
+      );
+    case "unlock_village_gate":
+      return event.type === "unlock_village_gate";
+    case "party_size":
+      return (
+        event.type === "party_size" && event.count >= objective.count
+      );
+    case "complete_minigame":
+      return (
+        event.type === "complete_minigame" &&
+        event.minigameId === objective.minigameId
+      );
+    case "discover_creatures":
+      return (
+        event.type === "discover_creatures" &&
+        event.count >= objective.count
+      );
+    case "deliver_materials":
+      return event.type === "deliver_materials";
+    case "craft_item_id":
+      return (
+        event.type === "craft_item_id" && event.itemId === objective.itemId
+      );
+    case "obtain_creature":
+      return (
+        event.type === "obtain_creature" &&
+        event.creatureId === objective.creatureId
+      );
+    case "fuse_horizon":
+      return event.type === "fuse_horizon";
     default:
       return false;
   }
@@ -204,6 +309,6 @@ export function getGateStatusText(): string {
       : `Overworld: LOCKED (Story ${sparIndex}/${STORY_QUEST_COUNT})`;
   const village = worldState.villageGateUnlocked
     ? "Village: OPEN"
-    : "Village: LOCKED (code)";
+    : "Village: LOCKED (story)";
   return `${overworld} · ${village}`;
 }

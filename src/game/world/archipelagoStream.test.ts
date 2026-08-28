@@ -43,7 +43,8 @@ import {
   isValidWorldSnapshot,
   type WorldSnapshot,
 } from "./worldSnapshot";
-import { restoreQuestProgress } from "../story/questProgress";
+import { createEmptyQuestProgress, restoreQuestProgress } from "../story/questProgress";
+import { QUEST_ORDER } from "../story/quests";
 import { setPartyFromSnapshot } from "../creatures/party";
 import { setUnlockedAchievements } from "../progression/achievements";
 import { setInventoryFromSnapshot } from "../inventory/playerInventory";
@@ -55,12 +56,9 @@ import {
 } from "./dockBoat";
 
 function questProgress(): WorldSnapshot["questProgress"] {
-  return {
-    "first-befriend": "complete",
-    "first-spar": "complete",
-    "reach-village": "complete",
-    "shrine-craft": "complete",
-  };
+  return Object.fromEntries(
+    QUEST_ORDER.map((id) => [id, "complete" as const]),
+  ) as WorldSnapshot["questProgress"];
 }
 
 beforeEach(() => {
