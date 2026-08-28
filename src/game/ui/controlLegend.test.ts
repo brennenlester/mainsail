@@ -36,11 +36,13 @@ describe("control legend", () => {
     expect(CONTROL_LEGEND_TEXT.toLowerCase()).not.toMatch(/click|tap|dismiss|ok/);
   });
 
-  it("is already in index.html under the quest hint for a cold host load", () => {
-    const hintAt = INDEX_HTML.indexOf('id="status-quest-hint"');
+  it("places the quest HUD on the game canvas and keeps the control legend in the status panel", () => {
+    const gameAt = INDEX_HTML.indexOf('id="game"');
+    const questHudAt = INDEX_HTML.indexOf('id="quest-hud"');
     const legendAt = INDEX_HTML.indexOf('id="status-control-legend"');
-    expect(hintAt).toBeGreaterThan(-1);
-    expect(legendAt).toBeGreaterThan(hintAt);
+    expect(gameAt).toBeGreaterThan(-1);
+    expect(questHudAt).toBeGreaterThan(gameAt);
+    expect(legendAt).toBeGreaterThan(-1);
     expect(INDEX_HTML).toContain(CONTROL_LEGEND_TEXT);
   });
 

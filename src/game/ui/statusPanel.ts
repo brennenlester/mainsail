@@ -71,8 +71,8 @@ function defaultSessionColor(): string {
 export function updateStatusPanel(zone: ZoneDefinition): void {
   syncHostInviteButton();
   const zoneEl = document.getElementById("status-zone");
-  const questEl = document.getElementById("status-quest");
-  const questHintEl = document.getElementById("status-quest-hint");
+  const questEl = document.getElementById("quest-hud-summary");
+  const questHintEl = document.getElementById("quest-hud-hint");
   const legendEl = document.getElementById("status-control-legend");
   const gateEl = document.getElementById("status-gate");
   const partyEl = document.getElementById("status-party");
