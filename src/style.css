@@ -1294,6 +1294,10 @@ body,
   height: 28px;
 }
 
+.shrine-craft-overlay .crafting-cell .material-icon-name {
+  display: none;
+}
+
 .shrine-craft-overlay .crafting-result {
   min-width: 0;
   width: min(160px, 100%);

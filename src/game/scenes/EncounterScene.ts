@@ -158,16 +158,18 @@ export class EncounterScene extends Phaser.Scene {
       },
     );
 
-    this.typeText = this.addPanelText(
-      panelX,
-      panelY + 102,
-      this.revealed ? `Type: ${def.folkloreType}` : "Type: ???",
-      innerWidth,
-      {
-        color: "#5a7888",
-        fontSize: "14px",
-      },
-    );
+    if (!concealed) {
+      this.typeText = this.addPanelText(
+        panelX,
+        panelY + 102,
+        `Type: ${def.folkloreType}`,
+        innerWidth,
+        {
+          color: "#5a7888",
+          fontSize: "14px",
+        },
+      );
+    }
 
     const buttonY = panelY + 162;
     const showSpar = shouldShowSparVerb(profile, this.creatureId);
@@ -276,7 +278,20 @@ export class EncounterScene extends Phaser.Scene {
     this.silhouette = undefined;
     this.showPortrait(DESIGN_SIZE / 2, DESIGN_SIZE / 2 - 90);
     this.titleText?.setText(`A wild ${def.name} appeared!`);
-    this.typeText?.setText(`Type: ${def.folkloreType}`);
+    if (this.typeText) {
+      this.typeText.setText(`Type: ${def.folkloreType}`);
+    } else {
+      this.typeText = this.addPanelText(
+        DESIGN_SIZE / 2,
+        DESIGN_SIZE / 2 + 102,
+        `Type: ${def.folkloreType}`,
+        PANEL_WIDTH - PANEL_PADDING * 2,
+        {
+          color: "#5a7888",
+          fontSize: "14px",
+        },
+      );
+    }
   }
 
   private addPanelText(

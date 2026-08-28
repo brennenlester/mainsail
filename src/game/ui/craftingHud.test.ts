@@ -233,7 +233,7 @@ describe("crafting HUD", () => {
     ).toBeTruthy();
     expect(cellImg?.getAttribute("src")).toBe(getMaterialIconSrc("wood"));
     expect(cellLabel?.textContent).toBe("Wood");
-    expect(cellLabel?.classList.contains("visually-hidden")).toBe(false);
+    expect(cellLabel?.classList.contains("visually-hidden")).toBe(true);
     expect(cell.getAttribute("aria-label")).toBe("Wood");
     hud.destroy();
   });
