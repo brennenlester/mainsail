@@ -520,7 +520,7 @@ export function mountCraftingHud(
         const id = grid[r][c];
         cell.replaceChildren();
         if (id) {
-          appendMaterialVisual(cell, id, { showName: true });
+          appendMaterialVisual(cell, id, { showName: false });
         } else {
           cell.removeAttribute("title");
           cell.removeAttribute("aria-label");

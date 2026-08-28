@@ -40,6 +40,7 @@ import {
   profileForEncounter,
   resolveProfileBefriendChance,
   shouldConcealReveal,
+  encounterTypeLineText,
   shouldOfferHarborBefriend,
   shouldShowSparVerb,
 } from "../encounters/habitatRuntime";
@@ -69,6 +70,9 @@ export class EncounterScene extends Phaser.Scene {
   private costReasonY = 0;
   private titleText?: Phaser.GameObjects.Text;
   private typeText?: Phaser.GameObjects.Text;
+  private typeLineX = 0;
+  private typeLineY = 0;
+  private typeLineWidth = 0;
   private portrait?: Phaser.GameObjects.Image;
   private silhouette?: Phaser.GameObjects.Rectangle;
 
@@ -82,6 +86,10 @@ export class EncounterScene extends Phaser.Scene {
     this.actionTaken = false;
     this.befriendAttempted = false;
     this.revealed = false;
+    this.titleText = undefined;
+    this.typeText = undefined;
+    this.portrait = undefined;
+    this.silhouette = undefined;
   }
 
   create(): void {
@@ -109,6 +117,9 @@ export class EncounterScene extends Phaser.Scene {
     const panelLeft = panelX - PANEL_WIDTH / 2;
     const innerLeft = panelLeft + PANEL_PADDING;
     const innerWidth = PANEL_WIDTH - PANEL_PADDING * 2;
+    this.typeLineX = panelX;
+    this.typeLineY = panelY + 102;
+    this.typeLineWidth = innerWidth;
 
     const panel = this.add.graphics();
     panel.fillStyle(0xfff8ec, 0.97);
@@ -158,16 +169,19 @@ export class EncounterScene extends Phaser.Scene {
       },
     );
 
-    this.typeText = this.addPanelText(
-      panelX,
-      panelY + 102,
-      this.revealed ? `Type: ${def.folkloreType}` : "Type: ???",
-      innerWidth,
-      {
-        color: "#5a7888",
-        fontSize: "14px",
-      },
-    );
+    const typeLine = encounterTypeLineText(this.revealed, def.folkloreType);
+    if (typeLine) {
+      this.typeText = this.addPanelText(
+        this.typeLineX,
+        this.typeLineY,
+        typeLine,
+        this.typeLineWidth,
+        {
+          color: "#5a7888",
+          fontSize: "14px",
+        },
+      );
+    }
 
     const buttonY = panelY + 162;
     const showSpar = shouldShowSparVerb(profile, this.creatureId);
@@ -276,7 +290,21 @@ export class EncounterScene extends Phaser.Scene {
     this.silhouette = undefined;
     this.showPortrait(DESIGN_SIZE / 2, DESIGN_SIZE / 2 - 90);
     this.titleText?.setText(`A wild ${def.name} appeared!`);
-    this.typeText?.setText(`Type: ${def.folkloreType}`);
+    const typeLine = encounterTypeLineText(true, def.folkloreType);
+    if (this.typeText && typeLine) {
+      this.typeText.setText(typeLine);
+    } else if (typeLine) {
+      this.typeText = this.addPanelText(
+        this.typeLineX,
+        this.typeLineY,
+        typeLine,
+        this.typeLineWidth,
+        {
+          color: "#5a7888",
+          fontSize: "14px",
+        },
+      );
+    }
   }
 
   private addPanelText(

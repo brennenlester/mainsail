@@ -219,6 +219,14 @@ export function shouldConcealReveal(
   return profile.reveal.kind === "concealedUntilAction";
 }
 
+/** Encounter panel folklore type line; omitted until reveal (no `???` placeholder). */
+export function encounterTypeLineText(
+  revealed: boolean,
+  folkloreType: string,
+): string | null {
+  return revealed ? `Type: ${folkloreType}` : null;
+}
+
 export function shouldOfferHarborBefriend(
   profile: HabitatProfile,
   creatureId: string,
