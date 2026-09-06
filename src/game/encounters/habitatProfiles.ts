@@ -13,8 +13,7 @@ export type HabitatTrigger =
 
 export type HabitatAvailability =
   | { kind: "always" }
-  | { kind: "fleePersists" }
-  | { kind: "onePerLanding" };
+  | { kind: "fleePersists" };
 
 export type HabitatVerbs =
   | { kind: "all" }
@@ -68,6 +67,12 @@ export const DEFAULT_PROFILE: HabitatProfile = {
  */
 export const GROVE_ENCOUNTER_CHANCE = 0.12;
 
+/**
+ * Archipelago on-foot chance (#338). Distinct from DEFAULT 5% and grove 12%
+ * so the habitat stays unique after dropping one-per-landing.
+ */
+export const ARCHIPELAGO_ENCOUNTER_CHANCE = 0.08;
+
 /** Non-interior habitats that must each differ from DEFAULT and each other. */
 export const VARIATION_ZONE_IDS = [
   "grove",
@@ -109,7 +114,7 @@ export const HABITAT_PROFILES: Record<VariationZoneId, HabitatProfile> = {
   },
   archipelago: {
     ...DEFAULT_PROFILE,
-    availability: { kind: "onePerLanding" },
+    trigger: { kind: "chance", chance: ARCHIPELAGO_ENCOUNTER_CHANCE },
   },
   harbor: {
     ...DEFAULT_PROFILE,
