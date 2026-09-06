@@ -268,8 +268,12 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     this.refreshHp();
-    // #267: wild takes SPAR_WILD_OPENING_TURNS opening turn(s) before player input.
-    this.log(`A training spar with ${this.wild.name} begins. The wild strikes first!`);
+    // #336: SPAR_WILD_OPENING_TURNS 0 waits for the player's first strike.
+    this.log(
+      SPAR_WILD_OPENING_TURNS > 0
+        ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
+        : `A training spar with ${this.wild.name} begins.`,
+    );
     this.showHunterMatchupTeachIfNeeded();
     this.buildActionButtons();
     if (SPAR_WILD_OPENING_TURNS > 0) {
