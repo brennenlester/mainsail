@@ -61,10 +61,10 @@ describe("grantSparRewards XP share", () => {
     setSparWinsBySpecies({}, false);
   });
 
-  it("pins #267 spar-win rewards: +1 Dust, +1 material, +70 XP; wild opens", () => {
+  it("pins #267 spar-win rewards: +1 Dust, +1 material, +70 XP; player opens", () => {
     expect(SPAR_WIN_DUST_GAIN).toBe(1);
     expect(XP_PER_SPAR_WIN).toBe(70);
-    expect(SPAR_WILD_OPENING_TURNS).toBe(1);
+    expect(SPAR_WILD_OPENING_TURNS).toBe(0);
 
     const a = member({ instanceId: "a" });
     setPartyFromSnapshot([a], 4, ["a"]);

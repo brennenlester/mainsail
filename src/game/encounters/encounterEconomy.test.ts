@@ -28,20 +28,20 @@ describe("encounterEconomy (#306 free verbs)", () => {
     setInventoryFromSnapshot({}, {});
   });
 
-  it("pins free Dust costs and wild-opening spar risk", () => {
+  it("pins free Dust costs and player-first spar openings", () => {
     expect(FOLKLORE_DUST_ID).toBe("folklore-dust");
     expect(BEFRIEND_DUST_COST).toBe(0);
     expect(FLEE_DUST_COST).toBe(0);
-    expect(SPAR_WILD_OPENING_TURNS).toBe(1);
+    expect(SPAR_WILD_OPENING_TURNS).toBe(0);
     expect(XP_PER_SPAR_WIN).toBe(70);
   });
 
-  it("shows odds / spar risk on labels without Dust costs", () => {
+  it("shows odds on labels without Dust costs or wild-open spar copy", () => {
     expect(encounterBefriendButtonLabel("mossling")).toBe("Befriend 55%");
     expect(encounterBefriendButtonLabel(TIDE_SOVEREIGN_ID)).toBe(
       "Befriend 8%",
     );
-    expect(encounterSparButtonLabel()).toBe("Spar · wild opens");
+    expect(encounterSparButtonLabel()).toBe("Spar");
     expect(encounterFleeButtonLabel()).toBe("Flee");
   });
 

@@ -14,10 +14,10 @@ export const BEFRIEND_DUST_COST = 0;
 export const FLEE_DUST_COST = 0;
 
 /**
- * Spar risk: the wild creature takes exactly this many opening turns
- * before the player's first action.
+ * Opening turns the wild takes before the player's first action.
+ * 0 = player strikes first (#336).
  */
-export const SPAR_WILD_OPENING_TURNS = 1;
+export const SPAR_WILD_OPENING_TURNS = 0;
 
 export function getFolkloreDustCount(): number {
   return getMaterialCount(FOLKLORE_DUST_ID);
@@ -46,7 +46,7 @@ export function encounterBefriendButtonLabel(creatureId: string): string {
 }
 
 export function encounterSparButtonLabel(): string {
-  return "Spar · wild opens";
+  return SPAR_WILD_OPENING_TURNS > 0 ? "Spar · wild opens" : "Spar";
 }
 
 export function encounterFleeButtonLabel(): string {
