@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  ARCHIPELAGO_ENCOUNTER_CHANCE,
   DEFAULT_PROFILE,
   getHabitatProfile,
   GROVE_ENCOUNTER_CHANCE,
@@ -9,13 +10,10 @@ import {
   VARIATION_ZONE_IDS,
 } from "./habitatProfiles";
 import {
-  clearArchipelagoLandingEncounters,
   folkloreMatchupBefriendChance,
   getEmberfenFleeChainId,
   getOverworldFleeFollowId,
-  hasArchipelagoLandingEncounter,
   isHarborEncounterStand,
-  markArchipelagoLandingEncounter,
   markHarborBefriendUsed,
   onWildEncounterResolved,
   onZoneEnter,
@@ -97,8 +95,9 @@ describe("habitatProfiles", () => {
     expect(HABITAT_PROFILES.emberfen.availability).toEqual({
       kind: "fleePersists",
     });
-    expect(HABITAT_PROFILES.archipelago.availability).toEqual({
-      kind: "onePerLanding",
+    expect(HABITAT_PROFILES.archipelago.trigger).toEqual({
+      kind: "chance",
+      chance: ARCHIPELAGO_ENCOUNTER_CHANCE,
     });
     expect(HABITAT_PROFILES.harbor.tableSource).toEqual({
       kind: "discoveredMinusParty",
@@ -253,28 +252,33 @@ describe("habitatRuntime behaviors", () => {
     expect(getEmberfenFleeChainId()).toBeNull();
   });
 
-  it("archipelago is one encounter per landing until boat leave", () => {
-    markArchipelagoLandingEncounter(0);
-    expect(hasArchipelagoLandingEncounter(0)).toBe(true);
+  it("archipelago can roll the island creature more than once without leaving", () => {
+    expect(ARCHIPELAGO_ENCOUNTER_CHANCE).toBe(0.08);
+    expect(ARCHIPELAGO_ENCOUNTER_CHANCE).toBeGreaterThan(0.05);
+    expect(ARCHIPELAGO_ENCOUNTER_CHANCE).toBeLessThan(GROVE_ENCOUNTER_CHANCE);
+    const archipelago = getHabitatProfile("archipelago");
     expect(
-      resolveWildEncounterCreature({
-        zoneId: "archipelago",
-        tileX: 1,
-        tileY: 1,
-        islandIndex: 0,
-        discoveredCreatureIds: [],
-      }),
-    ).toBeNull();
-    clearArchipelagoLandingEncounters();
+      rollWildTriggerChance(archipelago, () => ARCHIPELAGO_ENCOUNTER_CHANCE - 0.001),
+    ).toBe(true);
     expect(
-      resolveWildEncounterCreature({
-        zoneId: "archipelago",
-        tileX: 1,
-        tileY: 1,
-        islandIndex: 0,
-        discoveredCreatureIds: [],
-      }),
-    ).toBe("isle-fernling");
+      rollWildTriggerChance(archipelago, () => ARCHIPELAGO_ENCOUNTER_CHANCE),
+    ).toBe(false);
+    const first = resolveWildEncounterCreature({
+      zoneId: "archipelago",
+      tileX: 1,
+      tileY: 1,
+      islandIndex: 0,
+      discoveredCreatureIds: [],
+    });
+    const second = resolveWildEncounterCreature({
+      zoneId: "archipelago",
+      tileX: 1,
+      tileY: 1,
+      islandIndex: 0,
+      discoveredCreatureIds: [],
+    });
+    expect(first).toBe("isle-fernling");
+    expect(second).toBe("isle-fernling");
   });
 
   it("harbor rolls discovered−party only on pier/dock/East Landing", () => {

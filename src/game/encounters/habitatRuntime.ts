@@ -30,14 +30,10 @@ let overworldFleeFollowSpent = false;
 /** Session: emberfen Flee keeps this creature until Spar/Befriend/leave zone. */
 let emberfenFleeChainId: string | null = null;
 
-/** Session: island indices that already rolled an encounter this landing. */
-const archipelagoLandingEncountered = new Set<number>();
-
 export function resetHabitatEncounterStateForTest(): void {
   overworldFleeFollowId = null;
   overworldFleeFollowSpent = false;
   emberfenFleeChainId = null;
-  archipelagoLandingEncountered.clear();
 }
 
 export function getOverworldFleeFollowId(): string | null {
@@ -58,19 +54,6 @@ export function setEmberfenFleeChainId(creatureId: string | null): void {
 
 export function clearEmberfenFleeChain(): void {
   emberfenFleeChainId = null;
-}
-
-export function hasArchipelagoLandingEncounter(islandIndex: number): boolean {
-  return archipelagoLandingEncountered.has(islandIndex);
-}
-
-export function markArchipelagoLandingEncounter(islandIndex: number): void {
-  archipelagoLandingEncountered.add(islandIndex);
-}
-
-/** Boat leave resets per-landing quiet; return+disembark can roll again. */
-export function clearArchipelagoLandingEncounters(): void {
-  archipelagoLandingEncountered.clear();
 }
 
 export function isHarborBefriendUsed(creatureId: string): boolean {
@@ -144,16 +127,6 @@ export function resolveWildEncounterCreature(
     overworldFleeFollowId = null;
     overworldFleeFollowSpent = true;
     return follow;
-  }
-
-  if (profile.availability.kind === "onePerLanding") {
-    const index = context.islandIndex;
-    if (index == null || index < 0) {
-      return null;
-    }
-    if (archipelagoLandingEncountered.has(index)) {
-      return null;
-    }
   }
 
   if (profile.tableSource.kind === "discoveredMinusParty") {
@@ -343,13 +316,5 @@ export function onZoneEnter(
 ): void {
   if (previousZoneId === "emberfen" && zoneId !== "emberfen") {
     clearEmberfenFleeChain();
-  }
-}
-
-export function onArchipelagoEncounterStarted(
-  islandIndex: number | null,
-): void {
-  if (islandIndex != null && islandIndex >= 0) {
-    markArchipelagoLandingEncounter(islandIndex);
   }
 }

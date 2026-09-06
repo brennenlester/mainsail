@@ -60,8 +60,6 @@ import {
 } from "../encounters/tables";
 import { getHabitatProfile } from "../encounters/habitatProfiles";
 import {
-  clearArchipelagoLandingEncounters,
-  onArchipelagoEncounterStarted,
   onZoneEnter,
   resolveWildEncounterCreature,
   rollWildTriggerChance,
@@ -609,10 +607,6 @@ export class IsometricScene extends Phaser.Scene {
     });
     if (!creatureId) {
       return;
-    }
-
-    if (profile.availability.kind === "onePerLanding") {
-      onArchipelagoEncounterStarted(islandIndex);
     }
 
     this.inEncounter = true;
@@ -1830,7 +1824,6 @@ export class IsometricScene extends Phaser.Scene {
 
     const result = tryEmbark(this.currentZoneId, tileX, tileY);
     if (result.ok && result.embarked && result.playerX !== undefined && result.playerY !== undefined) {
-      clearArchipelagoLandingEncounters();
       this.playerGridX = result.playerX;
       this.playerGridY = result.playerY;
       updateHostPosition(
