@@ -200,6 +200,7 @@ import {
 } from "../world/archipelagoStream";
 import { CAIRN_ISLAND_INDEX } from "../world/cairnIsland";
 import { HERMIT_ISLAND_INDEX } from "../world/hermitIsland";
+import { VILLAGE_COTTAGE_ZONE_IDS } from "../world/villageGate";
 import { getItemCount } from "../inventory/playerInventory";
 import { isSovereignPlateSuppressingWild } from "../inventory/sovereignPlate";
 import {
@@ -1129,6 +1130,11 @@ export class IsometricScene extends Phaser.Scene {
     this.drawNpcs(zone);
     this.drawPlacedBoat(zone);
     recordQuestEvent({ type: "enter_zone", zoneId });
+    if (
+      (VILLAGE_COTTAGE_ZONE_IDS as readonly string[]).includes(zoneId)
+    ) {
+      recordQuestEvent({ type: "unlock_village_gate" });
+    }
 
     this.player = this.add
       .sprite(0, 0, ...imagineTexture(this, `player-${this.playerFacing}-0`))

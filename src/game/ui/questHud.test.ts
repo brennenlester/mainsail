@@ -76,7 +76,7 @@ describe("refreshQuestHud", () => {
     expect(hint.textContent).toContain("Spar");
   });
 
-  it("shows Act 1 NPC flavor on steps 3–4 only", () => {
+  it("shows Act 1 NPC flavor on steps 3–4 and Act 2 speaker lines after", () => {
     const npc = document.getElementById("quest-hud-npc")!;
 
     refreshQuestHud();
@@ -107,5 +107,18 @@ describe("refreshQuestHud", () => {
       /^Story 4\/18:/,
     );
     expect(npc.textContent).toContain("Weaver Sable:");
+
+    restoreQuestProgress({
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "active",
+    });
+    refreshQuestHud();
+    expect(document.getElementById("quest-hud-summary")!.textContent).toMatch(
+      /^Story 5\/18:/,
+    );
+    expect(npc.textContent).toContain("Warden Bryn:");
   });
 });

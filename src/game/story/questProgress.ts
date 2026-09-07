@@ -9,7 +9,6 @@ import { isCodexComplete } from "../progression/achievements";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { refreshQuestHud } from "../ui/questHud";
-import { playerParty } from "../creatures/party";
 import { hasClaimedMinigameWin } from "../minigames/progress";
 import { getSideQuestStatuses } from "../world/npcState";
 import { getMaterialName } from "../inventory/materials";
@@ -304,9 +303,6 @@ export function syncVillageGateForStoryQuest(): void {
   if (!worldState.villageGateUnlocked) {
     setVillageGateUnlocked(true);
   }
-  if (getActiveQuestId() === "open-village-gate") {
-    recordQuestEvent({ type: "unlock_village_gate" });
-  }
 }
 
 /**
@@ -326,10 +322,10 @@ export function syncMainQuestFromGameplay(): void {
     let advanced = false;
     switch (activeId) {
       case "odd-company":
-        if (playerParty.creatures.length >= 3) {
+        if (sideStatuses["odd-company"] === "complete") {
           advanced = recordQuestEvent({
             type: "party_size",
-            count: playerParty.creatures.length,
+            count: 3,
           });
         }
         break;

@@ -59,11 +59,22 @@ describe("quest registry", () => {
     expect(QUEST_ORDER[17]).toBe("fuse-horizon");
   });
 
-  it("keeps Act 1 NPC flavor on steps 3–4 only", () => {
+  it("keeps Act 1 NPC flavor on steps 3–4 and Act 2 speaker lines on steps 5–14", () => {
     expect(QUESTS["first-befriend"].npcLine).toBeUndefined();
     expect(QUESTS["first-spar"].npcLine).toBeUndefined();
     expect(QUESTS["reach-village"].npcLine?.speaker).toBe("Hearthkeep Odd");
     expect(QUESTS["shrine-craft"].npcLine?.speaker).toBe("Weaver Sable");
+    expect(QUESTS["evolve-bramblewarden"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["evolve-hearthflame"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["open-village-gate"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["odd-company"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["hearth-lots"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["bryn-ledger"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["ward-crossing"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["sable-thread"].npcLine?.speaker).toBe("Weaver Sable");
+    expect(QUESTS["loom-pattern"].npcLine?.speaker).toBe("Weaver Sable");
+    expect(QUESTS["craft-boat"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["obtain-tide-sovereign"].npcLine).toBeUndefined();
   });
 });
 
@@ -160,7 +171,7 @@ describe("recordQuestEvent", () => {
     expect(recordQuestEvent({ type: "craft_item" })).toBe(true);
     expect(getActiveQuestId()).toBe("evolve-bramblewarden");
     expect(getQuestSummary()).toMatch(/^Story 5\/18:/);
-    expect(getQuestNpcLine()).toBeNull();
+    expect(getQuestNpcLine()).toMatch(/^Warden Bryn:/);
   });
 
   it("activates evolve-bramblewarden after shrine-craft", () => {
@@ -211,7 +222,7 @@ describe("recordQuestEvent", () => {
     expect(worldState.villageGateUnlocked).toBe(true);
   });
 
-  it("unlocks the cottage gate when open-village-gate becomes active (#318)", () => {
+  it("leaves open-village-gate active until a cottage is entered (#317)", () => {
     restoreQuestProgress({
       ...lockedProgress(),
       "first-befriend": "complete",
@@ -231,6 +242,11 @@ describe("recordQuestEvent", () => {
     ).toBe(true);
 
     expect(worldState.villageGateUnlocked).toBe(true);
+    expect(questProgress["open-village-gate"]).toBe("active");
+    expect(getActiveQuestId()).toBe("open-village-gate");
+    expect(getQuestHint()).toMatch(/step inside a house/i);
+
+    expect(recordQuestEvent({ type: "unlock_village_gate" })).toBe(true);
     expect(questProgress["open-village-gate"]).toBe("complete");
     expect(getActiveQuestId()).toBe("odd-company");
   });
@@ -253,7 +269,7 @@ describe("Act 2 main quest bridge (#317)", () => {
     restoreQuestProgress(createEmptyQuestProgress());
   });
 
-  it("advances odd-company when the party has three companions", () => {
+  it("does not advance odd-company from party size alone", () => {
     restoreQuestProgress({
       ...createEmptyQuestProgress(),
       "first-befriend": "complete",
@@ -273,6 +289,26 @@ describe("Act 2 main quest bridge (#317)", () => {
       ],
       3,
     );
+
+    syncMainQuestFromGameplay();
+
+    expect(questProgress["odd-company"]).toBe("active");
+    expect(getActiveQuestId()).toBe("odd-company");
+  });
+
+  it("advances odd-company after Odd's village ask is turned in", () => {
+    restoreQuestProgress({
+      ...createEmptyQuestProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "complete",
+      "evolve-hearthflame": "complete",
+      "open-village-gate": "complete",
+      "odd-company": "active",
+    });
+    setSideQuestStatuses({ "odd-company": "complete" });
 
     syncMainQuestFromGameplay();
 

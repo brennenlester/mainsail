@@ -32,7 +32,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
+import { getActiveQuestId, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -328,19 +328,6 @@ export function confirmOddRest(): string[] {
   return ["There. Whole again. The hearth does not mind the work."];
 }
 
-function tryAdvanceOddCompanyMainQuest(): void {
-  if (getActiveQuestId() !== "odd-company") {
-    return;
-  }
-  if (playerParty.creatures.length < 3) {
-    return;
-  }
-  recordQuestEvent({
-    type: "party_size",
-    count: playerParty.creatures.length,
-  });
-}
-
 function partyHasGroveLine(starterId: BrynGroveStarterId): boolean {
   const ids = GROVE_STARTER_LINE[starterId];
   return playerParty.creatures.some(
@@ -381,6 +368,9 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
+    if (getActiveQuestId() !== quest.id) {
+      return null;
+    }
     return talk(activateSideQuest(quest));
   }
   if (status === "active") {
@@ -436,9 +426,6 @@ export function beginConversation(npc: NpcDefinition): Conversation {
 
   const sideQuest = sideQuestConversation(npc);
   if (sideQuest) {
-    if (npc.id === ODD_NPC_ID) {
-      tryAdvanceOddCompanyMainQuest();
-    }
     return sideQuest;
   }
 
