@@ -42,14 +42,14 @@ const LEGACY_SHRINE_ROWS = [
   {
     creatureId: "ember-wisp",
     itemId: "ember-charm",
-    minLevel: 5,
+    minLevel: 1,
     effectType: "evolution",
     evolvesTo: "hearthflame",
   },
   {
     creatureId: "mossling",
     itemId: "moss-salve",
-    minLevel: 5,
+    minLevel: 1,
     effectType: "evolution",
     evolvesTo: "bramblewarden",
   },
@@ -84,6 +84,19 @@ describe("SHRINE_EFFECTS matrix (#272)", () => {
 
   it("does not change the four legacy shrine rows", () => {
     expect(SHRINE_EFFECTS.slice(0, 4)).toEqual([...LEGACY_SHRINE_ROWS]);
+  });
+
+  it("allows Mossling and Ember Wisp evolution at Lv 1 (#315)", () => {
+    const evolutions = SHRINE_EFFECTS.filter(
+      (row) => row.effectType === "evolution",
+    );
+    expect(evolutions).toHaveLength(2);
+    expect(evolutions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ evolvesTo: "bramblewarden", minLevel: 1 }),
+        expect.objectContaining({ evolvesTo: "hearthflame", minLevel: 1 }),
+      ]),
+    );
   });
 
   it("surfaces Growth charm recipes in Recipes and Fusion UI lists", () => {

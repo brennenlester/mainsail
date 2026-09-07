@@ -78,7 +78,7 @@ Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done,
   - Warden Bryn: word of five different creatures → Brook Tonic ×2
   - Weaver Sable: Wood ×5 and Wild Fiber ×3 → Brook Tonic ×2
   - Hearthkeep Odd: travel with three companions → Moonwake Draught ×1
-- **Shrine growth:** Growth unlocks on specific companions — **evolution** (Mossling→Bramblewarden, Ember Wisp→Hearthflame at min Lv.5) or **presence** (cosmetic overworld tell: brightened sprite + moon-dot on Brook Nymph, Lantern Fox, Thunder Finch, Peat Sprite, Stone Hound via their charm recipes). Legacy cross-item buffs (Ember Charm on Mossling, Moss Salve on Ember Wisp) are not Growth unlocks. Fusion stays at the real shrine.
+- **Shrine growth:** Growth unlocks on specific companions — **evolution** (Mossling→Bramblewarden, Ember Wisp→Hearthflame from Lv.1) or **presence** (cosmetic overworld tell: brightened sprite + moon-dot on Brook Nymph, Lantern Fox, Thunder Finch, Peat Sprite, Stone Hound via their charm recipes). Legacy cross-item buffs (Ember Charm on Mossling, Moss Salve on Ember Wisp) are not Growth unlocks. Fusion stays at the real shrine.
 - **Sovereign line:** Sovereign Seal fuses Tide Sovereign + Cairn Sovereign → Horizon Sovereign (up to twice). Two Horizons fuse into Eclipse Sovereign.
 - **Map unlocks:** Folklore Fields, Mistwood Reach, Emberfen Hollow, Moonwake Harbor, Archipelago (100×100 ocean, 9×9 island grid).
 
@@ -169,7 +169,7 @@ Active party max 7. Reserve holds the rest. Host-only befriend/spar/quest.
 
 Moon Shrine: stand on the moon altar, press E. 4×4 grid; drag materials into shape; tap the result.
 
-Relic effects on party creatures (Growth unlock examples shipped): Moss Salve evolves Mossling→Bramblewarden and Ember Charm evolves Ember Wisp→Hearthflame (min Lv.5); presence charms (Fox-fire, Storm, Fen, Nymph, Hound Collar) brighten overworld sprites with a moon-dot. Legacy cross buffs (Ember Charm on Mossling, Moss Salve on Ember Wisp) remain separate. [inferred: `shrineEffects.ts`, `presence.ts`]
+Relic effects on party creatures (Growth unlock examples shipped): Moss Salve evolves Mossling→Bramblewarden and Ember Charm evolves Ember Wisp→Hearthflame (from Lv.1); presence charms (Fox-fire, Storm, Fen, Nymph, Hound Collar) brighten overworld sprites with a moon-dot. Legacy cross buffs (Ember Charm on Mossling, Moss Salve on Ember Wisp) remain separate. [inferred: `shrineEffects.ts`, `presence.ts`]
 
 **Sovereigns:** Tide Sovereign and Cairn Sovereign fuse with a Sovereign Seal into Horizon Sovereign (max two Horizon fusions). Two Horizons fuse into Eclipse Sovereign (once). **Frozen endgame** — no new work; remain reachable.
 
