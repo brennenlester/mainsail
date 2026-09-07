@@ -28,7 +28,7 @@ import {
   setInventoryFromSnapshot,
 } from "../inventory/playerInventory";
 import { getEffectiveMaxHp, playerParty, setPartyFromSnapshot } from "../creatures/party";
-import { setDiscoveredCreatures } from "./worldState";
+import { setDiscoveredCreatures, setVillageGateUnlocked, worldState } from "./worldState";
 import { setVisitorMode } from "./worldSession";
 import { ZONES } from "./zones";
 import { TileType, type ZoneId } from "./zoneTypes";
@@ -43,6 +43,7 @@ beforeEach(() => {
   setDiscoveredCreatures([]);
   setPartyFromSnapshot([], 1);
   setVisitorMode(false);
+  setVillageGateUnlocked(false, false);
 });
 
 describe("npc placement", () => {
@@ -425,5 +426,167 @@ describe("Odd paid rest", () => {
     expect(getMaterialCount("wood")).toBe(40);
     expect(hasPurchasedOddRest()).toBe(false);
     expect(ODD_REST_FIRST_COST).toBe(20);
+  });
+});
+
+describe("Bryn Grove starter gift (#349)", () => {
+  function onlyMossling() {
+    setPartyFromSnapshot(
+      [
+        {
+          instanceId: "1",
+          definitionId: "mossling",
+          speciesId: "mossling",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
+      ],
+      2,
+    );
+  }
+
+  it("does not gift before the village gate opens", () => {
+    onlyMossling();
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(playerParty.creatures.map((c) => c.definitionId)).toEqual(["mossling"]);
+  });
+
+  it("gifts Ember Wisp when Mossling is the only Grove line", () => {
+    setVillageGateUnlocked(true, false);
+    onlyMossling();
+    setClaimedNpcGifts([BRYN.id]);
+    const lines = openConversation(BRYN);
+    expect(lines.join(" ")).toMatch(/Ember Wisp/);
+    expect(playerParty.creatures.map((c) => c.definitionId).sort()).toEqual([
+      "ember-wisp",
+      "mossling",
+    ]);
+    expect(playerParty.creatures.find((c) => c.definitionId === "ember-wisp")?.level).toBe(
+      1,
+    );
+  });
+
+  it("gifts Mossling when Ember Wisp is the only Grove line", () => {
+    setVillageGateUnlocked(true, false);
+    setPartyFromSnapshot(
+      [
+        {
+          instanceId: "1",
+          definitionId: "ember-wisp",
+          speciesId: "ember-wisp",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
+      ],
+      2,
+    );
+    setClaimedNpcGifts([BRYN.id]);
+    const lines = openConversation(BRYN);
+    expect(lines.join(" ")).toMatch(/Mossling/);
+    expect(playerParty.creatures.some((c) => c.definitionId === "mossling")).toBe(
+      true,
+    );
+  });
+
+  it("gifts one starter per talk when both Grove lines are missing", () => {
+    setVillageGateUnlocked(true, false);
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(playerParty.creatures.map((c) => c.definitionId)).toEqual(["mossling"]);
+    openConversation(BRYN);
+    expect(playerParty.creatures.map((c) => c.definitionId).sort()).toEqual([
+      "ember-wisp",
+      "mossling",
+    ]);
+    const third = openConversation(BRYN);
+    expect(third.join(" ")).not.toMatch(/Take this/);
+    expect(playerParty.creatures).toHaveLength(2);
+  });
+
+  it("does not gift when both Grove lines are already present", () => {
+    setVillageGateUnlocked(true, false);
+    setPartyFromSnapshot(
+      [
+        {
+          instanceId: "1",
+          definitionId: "mossling",
+          speciesId: "mossling",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
+        {
+          instanceId: "2",
+          definitionId: "ember-wisp",
+          speciesId: "ember-wisp",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
+      ],
+      3,
+    );
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(playerParty.creatures).toHaveLength(2);
+  });
+
+  it("counts evolved forms as having that Grove line", () => {
+    setVillageGateUnlocked(true, false);
+    setPartyFromSnapshot(
+      [
+        {
+          instanceId: "1",
+          definitionId: "bramblewarden",
+          speciesId: "mossling",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
+      ],
+      2,
+    );
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(playerParty.creatures.map((c) => c.definitionId).sort()).toEqual([
+      "bramblewarden",
+      "ember-wisp",
+    ]);
+    expect(playerParty.creatures.some((c) => c.definitionId === "mossling")).toBe(
+      false,
+    );
+  });
+
+  it("never gifts a visitor", () => {
+    setVillageGateUnlocked(true, false);
+    setVisitorMode(true);
+    openConversation(BRYN);
+    expect(playerParty.creatures).toHaveLength(0);
+  });
+
+  it("does not re-gift after save restore", () => {
+    setVillageGateUnlocked(true, false);
+    onlyMossling();
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(worldState.brynGroveStartersGifted).toEqual(["ember-wisp"]);
+    setPartyFromSnapshot(
+      [
+        {
+          instanceId: "1",
+          definitionId: "mossling",
+          speciesId: "mossling",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
+      ],
+      2,
+    );
+    openConversation(BRYN);
+    expect(playerParty.creatures.map((c) => c.definitionId)).toEqual(["mossling"]);
   });
 });

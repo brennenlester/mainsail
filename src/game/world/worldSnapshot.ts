@@ -45,6 +45,8 @@ import {
   setGodLandEncounterClaimed,
   setGodSailEncounterClaimed,
   setHarborBefriendUsed,
+  setBrynGroveStartersGifted,
+  isBrynGroveStarterId,
   setHorizonFusionCount,
   setOverworldUnlocked,
   setSovereignPlateActive,
@@ -161,6 +163,8 @@ export type WorldSnapshot = {
   story1BefriendGuaranteeConsumed?: boolean;
   /** Harbor once-per-species Befriend claims (#275). Optional for older saves. */
   harborBefriendUsed?: string[];
+  /** Grove starters Bryn already gifted (#349). Optional for older saves. */
+  brynGroveStartersGifted?: string[];
   /** Sovereign Plate wild-encounter suppress toggle (#289). Optional for older saves. */
   sovereignPlateActive?: boolean;
   /** Per-species spar win counts for wild level scaling (#287). Optional for older saves. */
@@ -777,6 +781,14 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
       }
     }
   }
+  if (s.brynGroveStartersGifted !== undefined) {
+    if (!Array.isArray(s.brynGroveStartersGifted)) return false;
+    for (const creatureId of s.brynGroveStartersGifted) {
+      if (typeof creatureId !== "string" || !isBrynGroveStarterId(creatureId)) {
+        return false;
+      }
+    }
+  }
   if (s.sparWinsBySpecies !== undefined) {
     if (typeof s.sparWinsBySpecies !== "object" || s.sparWinsBySpecies === null) {
       return false;
@@ -1015,6 +1027,7 @@ export function exportWorldSnapshot(
     godSailEncounterClaimed: worldState.godSailEncounterClaimed,
     story1BefriendGuaranteeConsumed: worldState.story1BefriendGuaranteeConsumed,
     harborBefriendUsed: [...worldState.harborBefriendUsed],
+    brynGroveStartersGifted: [...worldState.brynGroveStartersGifted],
     sovereignPlateActive: worldState.sovereignPlateActive,
     sparWinsBySpecies: { ...sparWinsBySpecies },
     firstIslandLanded: worldState.firstIslandLanded,
@@ -1107,6 +1120,7 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
     false,
   );
   setHarborBefriendUsed(snapshot.harborBefriendUsed ?? []);
+  setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
   setSovereignPlateActive(snapshot.sovereignPlateActive === true, false);
   setSparWinsBySpecies(snapshot.sparWinsBySpecies ?? {}, false);
   setFirstIslandLanded(snapshot.firstIslandLanded === true, false);
