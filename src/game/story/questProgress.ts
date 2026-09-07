@@ -9,11 +9,11 @@ import { isCodexComplete } from "../progression/achievements";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { refreshQuestHud } from "../ui/questHud";
-import { playerParty } from "../creatures/party";
 import { hasClaimedMinigameWin } from "../minigames/progress";
 import { getSideQuestStatuses } from "../world/npcState";
 import { getMaterialName } from "../inventory/materials";
 import { addMaterial, SOVEREIGN_SEAL_ID } from "../inventory/playerInventory";
+import type { ZoneId } from "../world/zoneTypes";
 import { QUEST_ORDER, QUESTS } from "./quests";
 import type {
   QuestEvent,
@@ -304,9 +304,29 @@ export function syncVillageGateForStoryQuest(): void {
   if (!worldState.villageGateUnlocked) {
     setVillageGateUnlocked(true);
   }
-  if (getActiveQuestId() === "open-village-gate") {
-    recordQuestEvent({ type: "unlock_village_gate" });
+}
+
+const VILLAGE_GATE_BEAT_ZONES: ReadonlySet<ZoneId> = new Set([
+  "village",
+  "warden-cottage",
+  "weaver-cottage",
+  "hearthkeep-cottage",
+]);
+
+/**
+ * Zone entry for story: Act 1 reach-village, plus the readable step-7
+ * Crossing beat (gate already open from Act 2 start).
+ */
+export function noteZoneEntered(zoneId: ZoneId): boolean {
+  const reached = recordQuestEvent({ type: "enter_zone", zoneId });
+  if (
+    !reached &&
+    getActiveQuestId() === "open-village-gate" &&
+    VILLAGE_GATE_BEAT_ZONES.has(zoneId)
+  ) {
+    return recordQuestEvent({ type: "unlock_village_gate" });
   }
+  return reached;
 }
 
 /**
@@ -326,10 +346,10 @@ export function syncMainQuestFromGameplay(): void {
     let advanced = false;
     switch (activeId) {
       case "odd-company":
-        if (playerParty.creatures.length >= 3) {
+        if (sideStatuses["odd-company"] === "complete") {
           advanced = recordQuestEvent({
             type: "party_size",
-            count: playerParty.creatures.length,
+            count: 3,
           });
         }
         break;
@@ -397,6 +417,10 @@ function completeQuest(questId: QuestId): void {
   if (quest.unlocksOverworld) {
     setOverworldUnlocked(true);
     lastCompletionMessage += " — Overworld gate opened!";
+  }
+
+  if (questId === "craft-boat") {
+    lastCompletionMessage += " — village work is done.";
   }
 
   activateNextQuest(questId);

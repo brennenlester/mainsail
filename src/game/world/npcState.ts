@@ -332,12 +332,12 @@ function tryAdvanceOddCompanyMainQuest(): void {
   if (getActiveQuestId() !== "odd-company") {
     return;
   }
-  if (playerParty.creatures.length < 3) {
+  if (getSideQuestStatus("odd-company") !== "complete") {
     return;
   }
   recordQuestEvent({
     type: "party_size",
-    count: playerParty.creatures.length,
+    count: 3,
   });
 }
 
@@ -374,6 +374,10 @@ function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
   return ask?.npcId === npcId && ask.status !== "complete";
 }
 
+function canOfferSideQuest(quest: SideQuestDefinition): boolean {
+  return getActiveQuestId() === quest.id;
+}
+
 function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   const quest = getSideQuestForNpc(npc.id);
   if (!quest) {
@@ -381,6 +385,9 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
+    if (!canOfferSideQuest(quest)) {
+      return null;
+    }
     return talk(activateSideQuest(quest));
   }
   if (status === "active") {

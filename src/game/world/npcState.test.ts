@@ -33,10 +33,53 @@ import { applyWorldSnapshot, exportWorldSnapshot } from "./worldSnapshot";
 import { setVisitorMode } from "./worldSession";
 import { ZONES } from "./zones";
 import { TileType, type ZoneId } from "./zoneTypes";
+import {
+  createEmptyQuestProgress,
+  getActiveQuestId,
+  restoreQuestProgress,
+} from "../story/questProgress";
+import { QUEST_ORDER } from "../story/quests";
+import type { QuestId } from "../story/questTypes";
 
 const BRYN = getNpcById("warden-bryn")!;
 const SABLE = getNpcById("weaver-sable")!;
 const ODD = getNpcById("hearthkeep-odd")!;
+
+function activateMainQuest(questId: QuestId): void {
+  const progress = createEmptyQuestProgress();
+  for (const id of QUEST_ORDER) {
+    progress[id] = "complete";
+    if (id === questId) {
+      progress[id] = "active";
+      break;
+    }
+  }
+  restoreQuestProgress(progress);
+}
+
+function bothGroveStarters(): void {
+  setPartyFromSnapshot(
+    [
+      {
+        instanceId: "1",
+        definitionId: "mossling",
+        speciesId: "mossling",
+        currentHp: 10,
+        level: 1,
+        xp: 0,
+      },
+      {
+        instanceId: "2",
+        definitionId: "ember-wisp",
+        speciesId: "ember-wisp",
+        currentHp: 10,
+        level: 1,
+        xp: 0,
+      },
+    ],
+    3,
+  );
+}
 
 beforeEach(() => {
   resetNpcStateForTest();
@@ -45,6 +88,7 @@ beforeEach(() => {
   setPartyFromSnapshot([], 1);
   setVisitorMode(false);
   setVillageGateUnlocked(false, false);
+  restoreQuestProgress(createEmptyQuestProgress());
 });
 
 describe("npc placement", () => {
@@ -108,6 +152,8 @@ describe("openConversation gifts then side quests", () => {
   });
 
   it("offers the side quest on the next visit after the gift", () => {
+    activateMainQuest("bryn-ledger");
+    bothGroveStarters();
     openConversation(BRYN);
     const offer = openConversation(BRYN);
     expect(offer).toEqual(SIDE_QUESTS["bryn-ledger"].offerLines);
@@ -116,6 +162,8 @@ describe("openConversation gifts then side quests", () => {
   });
 
   it("nudges progress while the objective is unmet", () => {
+    activateMainQuest("bryn-ledger");
+    bothGroveStarters();
     setClaimedNpcGifts([BRYN.id]);
     openConversation(BRYN); // offer
     expect(openConversation(BRYN)).toEqual([
@@ -124,6 +172,8 @@ describe("openConversation gifts then side quests", () => {
   });
 
   it("turns in and rewards once the objective is met", () => {
+    activateMainQuest("bryn-ledger");
+    bothGroveStarters();
     setClaimedNpcGifts([BRYN.id]);
     openConversation(BRYN);
     setDiscoveredCreatures(["a", "b", "c", "d", "e"]);
@@ -160,6 +210,7 @@ describe("delivery side quest", () => {
   });
 
   it("consumes materials exactly once on turn-in", () => {
+    activateMainQuest("sable-thread");
     setClaimedNpcGifts([SABLE.id]);
     openConversation(SABLE);
     setInventoryFromSnapshot({ wood: 5, "wild-fiber": 3 }, {});
@@ -174,6 +225,7 @@ describe("delivery side quest", () => {
 
 describe("party-size side quest", () => {
   it("turns in when the party has three companions", () => {
+    activateMainQuest("odd-company");
     setClaimedNpcGifts([ODD.id]);
     openConversation(ODD);
     setPartyFromSnapshot(
@@ -213,6 +265,36 @@ describe("party-size side quest", () => {
     expect(restTalk.prompt).toEqual({ kind: "advance" });
     expect(restTalk.lines[0]).toContain("Wood ×20");
     expect(getItemCount("moonwake-draught")).toBe(1);
+  });
+});
+
+describe("Act 2 side-ask order (#317)", () => {
+  it("does not offer Bryn's ledger while Odd's ask is the active main step", () => {
+    activateMainQuest("odd-company");
+    bothGroveStarters();
+    setClaimedNpcGifts([BRYN.id, ODD.id]);
+    setVillageGateUnlocked(true, false);
+    expect(openConversation(BRYN)).toEqual([BRYN.idleLines[0]]);
+    expect(getSideQuestStatus("bryn-ledger")).toBe("locked");
+    expect(openConversation(ODD)).toEqual(SIDE_QUESTS["odd-company"].offerLines);
+    expect(getSideQuestStatus("odd-company")).toBe("active");
+    expect(getActiveQuestId()).toBe("odd-company");
+  });
+
+  it("does not offer Sable's thread while Bryn's ledger is the active main step", () => {
+    activateMainQuest("bryn-ledger");
+    bothGroveStarters();
+    setClaimedNpcGifts([BRYN.id, SABLE.id]);
+    expect(openConversation(SABLE)).toEqual([SABLE.idleLines[0]]);
+    expect(getSideQuestStatus("sable-thread")).toBe("locked");
+    expect(openConversation(BRYN)).toEqual(SIDE_QUESTS["bryn-ledger"].offerLines);
+  });
+
+  it("does not offer Odd's ask before the cottage-gate beat", () => {
+    activateMainQuest("open-village-gate");
+    setClaimedNpcGifts([ODD.id]);
+    expect(openConversation(ODD)).toEqual([ODD.idleLines[0]]);
+    expect(getSideQuestStatus("odd-company")).toBe("locked");
   });
 });
 
@@ -294,6 +376,7 @@ describe("Odd paid rest", () => {
   }
 
   it("does not offer rest before the side quest is complete", () => {
+    activateMainQuest("odd-company");
     setClaimedNpcGifts([ODD.id]);
     setInventoryFromSnapshot(restMaterials, {});
     injuredCompanions();
