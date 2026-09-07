@@ -5,3 +5,5 @@ dist
 .vercel
 .env*
 .gstack/
+/playwright-report/
+/test-results/

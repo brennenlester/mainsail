@@ -45,4 +45,6 @@ Rules:
 
 ## Repo-specific conventions
 
-<!-- Add project-specific rules here as the codebase grows -->
+**Pixels / SFX / atlas:** read `.cursor/skills/ivyward-assets/SKILL.md` when the work is a sprite, Imagine PNG, walk cycle, WAV, SFX, or atlas pack.
+
+**Visual QA / HUD / browser:** read `.cursor/skills/ivyward-browser-qa/SKILL.md` when the work is visual QA, HUD, a screenshot, canvas check, or a browser playtest.
