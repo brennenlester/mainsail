@@ -1,6 +1,7 @@
 /**
  * Hearth Crossing village gate (#291): east gate into the cottages.
- * Unlocks automatically at main-quest step 7 (open-village-gate) — no code entry.
+ * Unlocks automatically at Act 2 start (evolve-bramblewarden) so Bryn can
+ * gift a missing Grove starter before steps 5–6 (#349). No code entry.
  * Overworld (north) still opens via Story 2 / first-spar.
  */
 

@@ -5,8 +5,14 @@ import {
   getMaterialCount,
 } from "../inventory/playerInventory";
 import { getItemName, getMaterialName } from "../inventory/materials";
-import { getEffectiveMaxHp, playerParty } from "../creatures/party";
-import { getTideSovereignObtained, worldState } from "./worldState";
+import { addToParty, getEffectiveMaxHp, playerParty } from "../creatures/party";
+import { getCreatureDefinition } from "../creatures/catalog";
+import {
+  getTideSovereignObtained,
+  markCreatureDiscovered,
+  type BrynGroveStarterId,
+  worldState,
+} from "./worldState";
 import { notifyWorldChanged } from "./worldSaveSchedule";
 import { isVisitorMode } from "./worldSession";
 import { ALL_NPC_IDS, type NpcDefinition, type NpcGift } from "./npcs";
@@ -33,6 +39,15 @@ const giftsClaimed = new Set<string>();
 const sideQuestStatus = new Map<SideQuestId, SideQuestStatus>();
 
 const ODD_NPC_ID = "hearthkeep-odd";
+const BRYN_NPC_ID = "warden-bryn";
+const GROVE_STARTER_ORDER: readonly BrynGroveStarterId[] = [
+  "mossling",
+  "ember-wisp",
+];
+const GROVE_STARTER_LINE: Record<BrynGroveStarterId, readonly string[]> = {
+  mossling: ["mossling", "bramblewarden"],
+  "ember-wisp": ["ember-wisp", "hearthflame"],
+};
 const ODD_REST_MATERIALS = ["wood", "wild-fiber", "pebble"] as const;
 export const ODD_REST_FIRST_COST = 20;
 export const ODD_REST_REPEAT_COST = 5;
@@ -326,6 +341,34 @@ function tryAdvanceOddCompanyMainQuest(): void {
   });
 }
 
+function partyHasGroveLine(starterId: BrynGroveStarterId): boolean {
+  const ids = GROVE_STARTER_LINE[starterId];
+  return playerParty.creatures.some(
+    (creature) =>
+      ids.includes(creature.definitionId) || ids.includes(creature.speciesId),
+  );
+}
+
+/** Host-only Grove starter from Bryn after the village gate opens (#349). */
+function tryGrantBrynGroveStarter(npc: NpcDefinition): string | null {
+  if (npc.id !== BRYN_NPC_ID || isVisitorMode() || !worldState.villageGateUnlocked) {
+    return null;
+  }
+  const next = GROVE_STARTER_ORDER.find(
+    (id) =>
+      !worldState.brynGroveStartersGifted.includes(id) && !partyHasGroveLine(id),
+  );
+  if (!next) {
+    return null;
+  }
+  addToParty(next, 1);
+  markCreatureDiscovered(next);
+  worldState.brynGroveStartersGifted.push(next);
+  notifyWorldChanged();
+  const name = getCreatureDefinition(next).name;
+  return `You're short a Grove companion. Take this ${name} — both lines walk the shrine path.`;
+}
+
 function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
   const ask = getDailyAskState() ?? ensureDailyAsk();
   return ask?.npcId === npcId && ask.status !== "complete";
@@ -375,11 +418,20 @@ export function beginConversation(npc: NpcDefinition): Conversation {
     if (giftLine) {
       lines.push(giftLine);
     }
+    const starterLine = tryGrantBrynGroveStarter(npc);
+    if (starterLine) {
+      lines.push(starterLine);
+    }
     return talk(lines);
   }
 
   if (isVisitorMode()) {
     return talk([nextIdleLine(npc)]);
+  }
+
+  const starterLine = tryGrantBrynGroveStarter(npc);
+  if (starterLine) {
+    return talk([starterLine]);
   }
 
   const sideQuest = sideQuestConversation(npc);
@@ -466,6 +518,7 @@ export function resetNpcStateForTest(): void {
   giftsClaimed.clear();
   idleCursor.clear();
   oddRestPurchased = false;
+  worldState.brynGroveStartersGifted = [];
   for (const [id, status] of defaultSideQuestStatus()) {
     sideQuestStatus.set(id, status);
   }

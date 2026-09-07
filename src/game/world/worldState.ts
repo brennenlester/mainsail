@@ -31,6 +31,8 @@ export const worldState = {
   firstIslandLanded: false,
   /** Harbor once-per-species Befriend claims (#275). */
   harborBefriendUsed: [] as string[],
+  /** Grove starters Bryn already gifted this save (#349). */
+  brynGroveStartersGifted: [] as string[],
   /** Sovereign Plate toggle: suppress wild encounters while owned + active (#289). */
   sovereignPlateActive: false,
 };
@@ -63,6 +65,19 @@ export function setDiscoveredCreatures(creatureIds: string[]): void {
 
 export function setHarborBefriendUsed(creatureIds: string[]): void {
   worldState.harborBefriendUsed = [...new Set(creatureIds)];
+}
+
+export const BRYN_GROVE_STARTER_IDS = ["mossling", "ember-wisp"] as const;
+export type BrynGroveStarterId = (typeof BRYN_GROVE_STARTER_IDS)[number];
+
+export function isBrynGroveStarterId(id: string): id is BrynGroveStarterId {
+  return (BRYN_GROVE_STARTER_IDS as readonly string[]).includes(id);
+}
+
+export function setBrynGroveStartersGifted(creatureIds: string[]): void {
+  worldState.brynGroveStartersGifted = [
+    ...new Set(creatureIds.filter(isBrynGroveStarterId)),
+  ];
 }
 
 export function isSovereignPlateActive(): boolean {
