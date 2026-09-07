@@ -297,7 +297,7 @@ function isAtOrPastVillageGateQuest(): boolean {
 }
 
 /** Act 2 start: east cottage gate opens so Bryn can gift a missing Grove starter (#349). */
-function syncVillageGateForStoryQuest(): void {
+export function syncVillageGateForStoryQuest(): void {
   if (isVisitorMode() || !isAtOrPastVillageGateQuest()) {
     return;
   }

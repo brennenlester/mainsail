@@ -467,6 +467,7 @@ describe("Bryn Grove starter gift (#349)", () => {
     expect(playerParty.creatures.find((c) => c.definitionId === "ember-wisp")?.level).toBe(
       1,
     );
+    expect(worldState.discoveredCreatures).toContain("ember-wisp");
   });
 
   it("gifts Mossling when Ember Wisp is the only Grove line", () => {

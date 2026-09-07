@@ -19,6 +19,7 @@ import {
   questProgress,
   isFullQuestProgress,
   isLegacyQuestProgress,
+  syncVillageGateForStoryQuest,
 } from "../story/questProgress";
 import {
   getHudChromeSnapshot,
@@ -1055,6 +1056,7 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   restoreQuestProgress(snapshot.questProgress);
   setOverworldUnlocked(questProgress["first-spar"] === "complete");
   setVillageGateUnlocked(snapshot.villageGateUnlocked === true, false);
+  syncVillageGateForStoryQuest();
   setDiscoveredZones(snapshot.discoveredZones ?? [snapshot.position.zoneId]);
   // Older saves lack discoveredCreatures — treat party species as known.
   const fromParty = snapshot.party

@@ -9,6 +9,7 @@ import { addToParty, getEffectiveMaxHp, playerParty } from "../creatures/party";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
   getTideSovereignObtained,
+  markCreatureDiscovered,
   type BrynGroveStarterId,
   worldState,
 } from "./worldState";
@@ -361,6 +362,7 @@ function tryGrantBrynGroveStarter(npc: NpcDefinition): string | null {
     return null;
   }
   addToParty(next, 1);
+  markCreatureDiscovered(next);
   worldState.brynGroveStartersGifted.push(next);
   notifyWorldChanged();
   const name = getCreatureDefinition(next).name;

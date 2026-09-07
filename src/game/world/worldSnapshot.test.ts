@@ -643,6 +643,22 @@ describe("applyWorldSnapshot codex achievement", () => {
     ).toBe(false);
   });
 
+  it("reopens the cottage gate for Act 2 saves that stored it locked (#349)", () => {
+    applyWorldSnapshot(
+      validSnapshot({
+        villageGateUnlocked: false,
+        questProgress: questProgress({
+          "first-befriend": "complete",
+          "first-spar": "complete",
+          "reach-village": "complete",
+          "shrine-craft": "complete",
+          "evolve-bramblewarden": "active",
+        }),
+      }),
+    );
+    expect(worldState.villageGateUnlocked).toBe(true);
+  });
+
   it("grandfathers village gate for legacy cottage / villager saves (#291)", () => {
     const inCottage = validSnapshot({
       position: { zoneId: "warden-cottage", x: 3, y: 3 },
