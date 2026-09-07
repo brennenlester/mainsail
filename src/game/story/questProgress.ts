@@ -284,7 +284,7 @@ function objectiveMatches(
   }
 }
 
-const VILLAGE_GATE_QUEST_INDEX = QUEST_ORDER.indexOf("open-village-gate");
+const VILLAGE_GATE_QUEST_INDEX = QUEST_ORDER.indexOf("evolve-bramblewarden");
 
 function isAtOrPastVillageGateQuest(): boolean {
   for (let i = VILLAGE_GATE_QUEST_INDEX; i < QUEST_ORDER.length; i += 1) {
@@ -296,7 +296,7 @@ function isAtOrPastVillageGateQuest(): boolean {
   return false;
 }
 
-/** Story step 7+: east cottage gate opens without a code (#318). */
+/** Act 2 start: east cottage gate opens so Bryn can gift a missing Grove starter (#349). */
 function syncVillageGateForStoryQuest(): void {
   if (isVisitorMode() || !isAtOrPastVillageGateQuest()) {
     return;

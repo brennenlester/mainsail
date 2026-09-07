@@ -199,6 +199,18 @@ describe("recordQuestEvent", () => {
     expect(getActiveQuestId()).toBe("evolve-hearthflame");
   });
 
+  it("unlocks the cottage gate when Act 2 evolutions become active (#349)", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "active",
+    });
+    expect(worldState.villageGateUnlocked).toBe(true);
+  });
+
   it("unlocks the cottage gate when open-village-gate becomes active (#318)", () => {
     restoreQuestProgress({
       ...lockedProgress(),
@@ -209,7 +221,7 @@ describe("recordQuestEvent", () => {
       "evolve-bramblewarden": "complete",
       "evolve-hearthflame": "active",
     });
-    expect(worldState.villageGateUnlocked).toBe(false);
+    expect(worldState.villageGateUnlocked).toBe(true);
 
     expect(
       recordQuestEvent({
