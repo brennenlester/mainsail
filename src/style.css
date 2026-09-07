@@ -84,6 +84,17 @@ body,
   display: none;
 }
 
+.quest-hud-npc {
+  margin-top: 4px;
+  color: #4d6a62;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.quest-hud-npc:empty {
+  display: none;
+}
+
 #status-panel {
   flex: 0 1 auto;
   margin-top: 8px;

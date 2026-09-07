@@ -51,14 +51,14 @@ Repeating cycle (**spine loop**):
 
 **In spine:** overworld walk and encounters; befriend; spars with party present; gather nodes that feed craft; Moon Shrine pattern craft and growth.
 
-**FTUE close (once):** four story quests on the HUD (`Story N/4` + Next hint):
+**FTUE close (once):** first four beats of the 18-step main line on the HUD (`Story N/18` + Next hint; NPC flavor on steps 3–4):
 
 1. Befriend a wild creature.
 2. Win a training spar — this **opens the overworld gate** (Folklore Fields / Harbor / Archipelago).
 3. Reach Hearth Crossing plaza (Grove → Shrine → Village).
-4. Craft a relic at Moon Shrine (stand on the moon altar, press E, craft any relic).
+4. Craft a relic at Moon Shrine (stand on the moon altar, press E, craft any relic). Step 5 activates next.
 
-Gate status reads `Overworld: LOCKED (Story 2/4) · Village: LOCKED (code)` until each unlocks; village unlock is not a Story beat.
+Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done, then `OPEN`.
 
 **Session loop:** Hybrid. A good short session lands a Session set (spar with companions present + one craft/shrine step). Longer sit-downs can chain more loops, including frozen satellites, without being the promise.
 
@@ -70,7 +70,7 @@ Gate status reads `Overworld: LOCKED (Story 2/4) · Village: LOCKED (code)` unti
 
 **Shipped progression** [moved from README + inferred from `src/game/`]:
 
-- **Story 4/4** as above. Skill/content gate: first spar win unlocks the overworld. Village cottages unlock via hermit code after Tide Sovereign.
+- **Story 18/18** as the full main line; Act 1 (steps 1–4) is the FTUE on-ramp. Skill/content gate: first spar win unlocks the overworld. Village cottages unlock via hermit code after Tide Sovereign.
 - **Party:** active party max 7; extras in reserve. [inferred: `ACTIVE_PARTY_LIMIT`]
 - **Levels:** creatures level from shared spar XP (actives only). Catalog HP/ATK are Lv 1 baselines; effective combat stats use `floor(base * (1 + (level-1)*(2.25/49)))` plus shrine bonuses → ~3.25× at Lv 50. XP to reach level N is `5 * (N - 1)²` (`MAX_LEVEL` = 50; `XP_PER_SPAR_WIN` = 70 shared). No heal on level-up. Wilds scale with per-species spar wins: `min(50, 1 + floor(wins/2) + rarityBias)` where rarityBias is +0 / +3 / +6 from max encounter weight (≥40 / 13–39 / ≤12); sovereigns excluded. Befriend inherits the wild’s effective level.
 - **Codex:** encountering a creature once lists it under every habitat that can spawn it. 27 encounter-table species required for the hidden **Codex Keeper** achievement (evolution-only `Bramblewarden` and `Hearthflame` are not required). Once per save: Brook Tonic ×5 and Moonwake Draught ×5.
@@ -248,7 +248,7 @@ Local Vite only: **U** toggles the overworld gate; `?encounter=` / `?spar=` prev
 
 **Post-milestone (also shipped, not in original freeze):** level-scaled combat (#287), overworld encounter fixes (#300, #301). Contract assumption on holding #287 was superseded after feel gate — prep-gated spars coexist with level drip; shrine remains the big spike.
 
-**Next (not started):** FTUE Story 1–4 rewrite; campaign Spine-quality on remaining catalog; bond meter only if ownership still weak. Open backlog: #218 (item art), #232 (Greg slice, separate gate).
+**Next:** campaign Spine-quality on remaining catalog; bond meter only if ownership still weak. Open backlog: #218 (item art), #232 (Greg slice, separate gate). FTUE Story 1–4 is the on-ramp of the 18-step main line (#316).
 
 **Smallest showable version:** surpassed — core loop and first milestone bar both met.
 

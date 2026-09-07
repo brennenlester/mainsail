@@ -49,12 +49,19 @@ export type QuestObjective =
   | { type: "obtain_creature"; creatureId: string }
   | { type: "fuse_horizon" };
 
+/** Short attributed line shown on the quest HUD (hybrid delivery). */
+export type QuestNpcLine = {
+  speaker: string;
+  text: string;
+};
+
 export type QuestDefinition = {
   id: QuestId;
   title: string;
   hint: string;
   objective: QuestObjective;
   unlocksOverworld?: boolean;
+  npcLine?: QuestNpcLine;
 };
 
 export type QuestEvent =

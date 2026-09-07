@@ -190,6 +190,18 @@ export function getQuestSummary(): string {
   return `Story ${index}/${STORY_QUEST_COUNT}: ${QUESTS[activeId].title}`;
 }
 
+export function getQuestNpcLine(): string | null {
+  const activeId = getActiveQuestId();
+  if (!activeId) {
+    return null;
+  }
+  const line = QUESTS[activeId].npcLine;
+  if (!line) {
+    return null;
+  }
+  return `${line.speaker}: ${line.text}`;
+}
+
 export function getQuestHint(): string {
   const activeId = getActiveQuestId();
   if (!activeId) {

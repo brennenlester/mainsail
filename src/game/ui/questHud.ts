@@ -1,5 +1,6 @@
 import {
   getQuestHint,
+  getQuestNpcLine,
   getQuestSummary,
   peekQuestCompletionMessage,
 } from "../story/questProgress";
@@ -27,6 +28,7 @@ export function syncQuestHudPosition(): void {
 export function refreshQuestHud(): void {
   const questEl = document.getElementById("quest-hud-summary");
   const questHintEl = document.getElementById("quest-hud-hint");
+  const questNpcEl = document.getElementById("quest-hud-npc");
   const completion = peekQuestCompletionMessage();
 
   if (questEl) {
@@ -38,6 +40,9 @@ export function refreshQuestHud(): void {
     questHintEl.textContent = villageAsk
       ? `${storyHint} · ${villageAsk}`
       : storyHint;
+  }
+  if (questNpcEl) {
+    questNpcEl.textContent = getQuestNpcLine() ?? "";
   }
   syncQuestHudPosition();
 }

@@ -25,6 +25,7 @@ import {
   createEmptyQuestProgress,
   getActiveQuestId,
   getQuestHint,
+  getQuestNpcLine,
   getQuestSummary,
   initQuestProgress,
   isFullQuestProgress,
@@ -36,7 +37,7 @@ import {
   restoreQuestProgress,
   syncMainQuestFromGameplay,
 } from "./questProgress";
-import { QUEST_ORDER } from "./quests";
+import { QUEST_ORDER, QUESTS } from "./quests";
 import type { QuestId, QuestStatus } from "./questTypes";
 
 function lockedProgress(): Record<QuestId, QuestStatus> {
@@ -54,7 +55,15 @@ describe("quest registry", () => {
     expect(STORY_QUEST_COUNT).toBe(18);
     expect(QUEST_ORDER).toHaveLength(18);
     expect(QUEST_ORDER[0]).toBe("first-befriend");
+    expect(QUEST_ORDER[3]).toBe("shrine-craft");
     expect(QUEST_ORDER[17]).toBe("fuse-horizon");
+  });
+
+  it("keeps Act 1 NPC flavor on steps 3–4 only", () => {
+    expect(QUESTS["first-befriend"].npcLine).toBeUndefined();
+    expect(QUESTS["first-spar"].npcLine).toBeUndefined();
+    expect(QUESTS["reach-village"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["shrine-craft"].npcLine?.speaker).toBe("Weaver Sable");
   });
 });
 
@@ -108,6 +117,50 @@ describe("recordQuestEvent", () => {
     expect(questProgress["first-spar"]).toBe("complete");
     expect(worldState.overworldUnlocked).toBe(true);
     expect(getActiveQuestId()).toBe("reach-village");
+  });
+
+  it("completes reach-village on entering the village zone", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "active",
+    });
+    expect(recordQuestEvent({ type: "enter_zone", zoneId: "grove" })).toBe(
+      false,
+    );
+    expect(recordQuestEvent({ type: "enter_zone", zoneId: "village" })).toBe(
+      true,
+    );
+    expect(questProgress["reach-village"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("shrine-craft");
+  });
+
+  it("plays Act 1 as Story 1–4 of 18 then activates step 5", () => {
+    expect(getQuestSummary()).toMatch(/^Story 1\/18:/);
+    expect(getQuestNpcLine()).toBeNull();
+
+    expect(recordQuestEvent({ type: "befriend_creature" })).toBe(true);
+    expect(getQuestSummary()).toMatch(/^Story 2\/18:/);
+    expect(getQuestNpcLine()).toBeNull();
+
+    expect(recordQuestEvent({ type: "win_spar" })).toBe(true);
+    expect(worldState.overworldUnlocked).toBe(true);
+    expect(getQuestSummary()).toMatch(/^Story 3\/18:/);
+    expect(getQuestSummary()).toContain("Reach Hearth Crossing");
+    expect(getQuestNpcLine()).toMatch(/^Hearthkeep Odd:/);
+
+    expect(recordQuestEvent({ type: "enter_zone", zoneId: "village" })).toBe(
+      true,
+    );
+    expect(getQuestSummary()).toMatch(/^Story 4\/18:/);
+    expect(getQuestSummary()).toContain("Craft a relic at Moon Shrine");
+    expect(getQuestNpcLine()).toMatch(/^Weaver Sable:/);
+
+    expect(recordQuestEvent({ type: "craft_item" })).toBe(true);
+    expect(getActiveQuestId()).toBe("evolve-bramblewarden");
+    expect(getQuestSummary()).toMatch(/^Story 5\/18:/);
+    expect(getQuestNpcLine()).toBeNull();
   });
 
   it("activates evolve-bramblewarden after shrine-craft", () => {
