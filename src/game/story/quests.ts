@@ -43,7 +43,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
     objective: { type: "enter_zone", zoneId: "village" },
     npcLine: {
       speaker: "Hearthkeep Odd",
-      text: "You found the Crossing. The plaza will hold you — east cottages keep to themselves a while yet.",
+      text: "Keep on through the shrine. The Crossing plaza is ahead — east cottages keep to themselves a while yet.",
     },
   },
   "shrine-craft": {
