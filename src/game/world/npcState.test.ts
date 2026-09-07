@@ -29,6 +29,7 @@ import {
 } from "../inventory/playerInventory";
 import { getEffectiveMaxHp, playerParty, setPartyFromSnapshot } from "../creatures/party";
 import { setDiscoveredCreatures, setVillageGateUnlocked, worldState } from "./worldState";
+import { applyWorldSnapshot, exportWorldSnapshot } from "./worldSnapshot";
 import { setVisitorMode } from "./worldSession";
 import { ZONES } from "./zones";
 import { TileType, type ZoneId } from "./zoneTypes";
@@ -567,12 +568,8 @@ describe("Bryn Grove starter gift (#349)", () => {
     expect(playerParty.creatures).toHaveLength(0);
   });
 
-  it("does not re-gift after save restore", () => {
+  it("does not gift a Grove line that is only in reserve", () => {
     setVillageGateUnlocked(true, false);
-    onlyMossling();
-    setClaimedNpcGifts([BRYN.id]);
-    openConversation(BRYN);
-    expect(worldState.brynGroveStartersGifted).toEqual(["ember-wisp"]);
     setPartyFromSnapshot(
       [
         {
@@ -583,10 +580,56 @@ describe("Bryn Grove starter gift (#349)", () => {
           level: 1,
           xp: 0,
         },
+        {
+          instanceId: "2",
+          definitionId: "brook-nymph",
+          speciesId: "brook-nymph",
+          currentHp: 10,
+          level: 1,
+          xp: 0,
+        },
       ],
-      2,
+      3,
+      ["2"],
     );
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(playerParty.creatures.map((c) => c.definitionId).sort()).toEqual([
+      "brook-nymph",
+      "ember-wisp",
+      "mossling",
+    ]);
+    expect(playerParty.creatures.filter((c) => c.definitionId === "mossling")).toHaveLength(
+      1,
+    );
+  });
+
+  it("does not re-gift after save restore", () => {
+    setVillageGateUnlocked(true, false);
+    onlyMossling();
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    const snap = exportWorldSnapshot({ zoneId: "warden-cottage", x: 3, y: 2 });
+    const mosslingOnly = snap.party.filter((c) => c.definitionId === "mossling");
+    applyWorldSnapshot({
+      ...snap,
+      party: mosslingOnly,
+      activePartyIds: mosslingOnly.map((c) => c.instanceId),
+      nextInstanceId: 2,
+    });
     openConversation(BRYN);
     expect(playerParty.creatures.map((c) => c.definitionId)).toEqual(["mossling"]);
+    expect(worldState.brynGroveStartersGifted).toEqual(["ember-wisp"]);
+  });
+
+  it("adds the starter on first talk after the gate opens", () => {
+    setVillageGateUnlocked(true, false);
+    onlyMossling();
+    const lines = openConversation(BRYN);
+    expect(lines.join(" ")).toMatch(/Wild Fiber/);
+    expect(lines.join(" ")).toMatch(/Ember Wisp/);
+    expect(playerParty.creatures.some((c) => c.definitionId === "ember-wisp")).toBe(
+      true,
+    );
   });
 });
