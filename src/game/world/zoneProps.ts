@@ -141,9 +141,19 @@ export function getZoneProps(zoneId: ZoneId): ZoneProp[] {
   return ZONE_PROPS[zoneId] ?? [];
 }
 
-export function propTextureKey(kind: PropKind, gateOpen = true): string {
+export function propTextureKey(
+  kind: PropKind,
+  gateOpen = true,
+  zoneId?: ZoneId,
+): string {
   if (kind === "gate") {
     return gateOpen ? "prop-gate" : "prop-gate-locked";
+  }
+  if (kind === "tree" && zoneId === "mistwood") {
+    return "prop-tree-mistwood";
+  }
+  if (kind === "tree" && zoneId === "emberfen") {
+    return "prop-tree-emberfen";
   }
   return `prop-${kind}`;
 }

@@ -1578,7 +1578,7 @@ export class IsometricScene extends Phaser.Scene {
     zoneId: ZoneId,
   ): void {
     const screen = this.toScreen(x, y);
-    const key = propTextureKey(kind, kind === "gate" ? gateOpen : true);
+    const key = propTextureKey(kind, kind === "gate" ? gateOpen : true, zoneId);
     const propSprite = this.add
       .image(screen.x, screen.y + TILE_HEIGHT / 2 - 2, ...imagineTexture(this, key))
       .setOrigin(0.5, 1);

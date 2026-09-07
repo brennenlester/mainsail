@@ -9,7 +9,7 @@ export const IMAGINE_ATLAS_KEY = "imagine-atlas";
  * Trainer frames (hybrid #134/#135): E/W idle+walk1–4 → `player-{east|west}-0..4`
  * (east = hflip west). S/N idle+walk1–2 → `player-{south|north}-0..2` (south-2
  * keeps staff side). Distance-synced multi-frame gait is wired in #136.
- * Mistwood/Emberfen floors+borders are recolored Style D tiles (no unique Imagine sheets yet).
+ * Grove/Mistwood/Emberfen floors, borders, and canopy props are unique packed sheets (#345).
  */
 export function preloadImagineAssets(scene: Phaser.Scene): void {
   scene.load.atlas(

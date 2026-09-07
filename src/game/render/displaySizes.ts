@@ -6,6 +6,8 @@ export const CREATURE_DISPLAY = { width: 48, height: 52 } as const;
 
 export const PROP_DISPLAY: Record<string, { width: number; height: number }> = {
   "prop-tree": { width: 48, height: 50 },
+  "prop-tree-mistwood": { width: 48, height: 50 },
+  "prop-tree-emberfen": { width: 48, height: 50 },
   "prop-fern": { width: 40, height: 32 },
   "prop-shrine-altar": { width: 48, height: 40 },
   "prop-standing-stone": { width: 42, height: 38 },
