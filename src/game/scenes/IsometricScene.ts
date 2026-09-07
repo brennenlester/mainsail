@@ -1,4 +1,4 @@
-import { imagineTexture } from "../render/imagineAssets";
+import { hasWorldTexture, imagineTexture } from "../render/imagineAssets";
 import Phaser from "phaser";
 import {
   ensureGroveMusic,
@@ -151,7 +151,7 @@ import { cottageFrame } from "../world/cottageWalls";
 import {
   getZoneProps,
   isGatePropOpen,
-  propTextureKey,
+  resolvePropTextureKey,
 } from "../world/zoneProps";
 import { findNpcNearPlayer, getZoneNpcs, nearestNpcDistance } from "../world/npcs";
 import {
@@ -1573,12 +1573,17 @@ export class IsometricScene extends Phaser.Scene {
   private spawnPropSprite(
     x: number,
     y: number,
-    kind: Parameters<typeof propTextureKey>[0],
+    kind: Parameters<typeof resolvePropTextureKey>[0],
     gateOpen: boolean,
     zoneId: ZoneId,
   ): void {
     const screen = this.toScreen(x, y);
-    const key = propTextureKey(kind, kind === "gate" ? gateOpen : true, zoneId);
+    const key = resolvePropTextureKey(
+      kind,
+      kind === "gate" ? gateOpen : true,
+      zoneId,
+      (textureKey) => hasWorldTexture(this, textureKey),
+    );
     const propSprite = this.add
       .image(screen.x, screen.y + TILE_HEIGHT / 2 - 2, ...imagineTexture(this, key))
       .setOrigin(0.5, 1);

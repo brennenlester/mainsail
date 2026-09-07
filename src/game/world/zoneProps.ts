@@ -158,6 +158,20 @@ export function propTextureKey(
   return `prop-${kind}`;
 }
 
+/** Prefer biome canopy sheets; fall back to `prop-tree` when those frames are missing. */
+export function resolvePropTextureKey(
+  kind: PropKind,
+  gateOpen: boolean,
+  zoneId: ZoneId | undefined,
+  hasTexture: (key: string) => boolean,
+): string {
+  const key = propTextureKey(kind, gateOpen, zoneId);
+  if (hasTexture(key)) {
+    return key;
+  }
+  return kind === "tree" ? "prop-tree" : key;
+}
+
 /** Which unlock flag drives a village/overworld gate prop (#291). */
 export function isGatePropOpen(
   zoneId: ZoneId,
