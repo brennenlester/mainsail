@@ -49,14 +49,14 @@ export const SHRINE_EFFECTS: ShrineEffect[] = [
   {
     creatureId: "ember-wisp",
     itemId: "ember-charm",
-    minLevel: 5,
+    minLevel: 1,
     effectType: "evolution",
     evolvesTo: "hearthflame",
   },
   {
     creatureId: "mossling",
     itemId: "moss-salve",
-    minLevel: 5,
+    minLevel: 1,
     effectType: "evolution",
     evolvesTo: "bramblewarden",
   },

@@ -50,6 +50,38 @@ describe("Growth unlock fusion (#296)", () => {
     setVisitorMode(false);
   });
 
+  it("evolves ember wisp at Lv 1 (#315)", () => {
+    const wisp = member({
+      instanceId: "c-e1",
+      definitionId: "ember-wisp",
+      level: 1,
+      xp: 0,
+    });
+    setPartyFromSnapshot([wisp], 1);
+    setInventoryFromSnapshot({}, { "ember-charm": 1 });
+
+    expect(applyShrineFusion(wisp.instanceId, "ember-charm")).toEqual({
+      ok: true,
+      message: "Ember Wisp evolved into Hearthflame!",
+    });
+  });
+
+  it("evolves mossling at Lv 1 (#315)", () => {
+    const mossling = member({
+      instanceId: "c-m1",
+      definitionId: "mossling",
+      level: 1,
+      xp: 0,
+    });
+    setPartyFromSnapshot([mossling], 1);
+    setInventoryFromSnapshot({}, { "moss-salve": 1 });
+
+    expect(applyShrineFusion(mossling.instanceId, "moss-salve")).toEqual({
+      ok: true,
+      message: "Mossling evolved into Bramblewarden!",
+    });
+  });
+
   it("evolves mossling with moss-salve and persists through save round-trip", () => {
     const mossling = member({ instanceId: "c-m", definitionId: "mossling" });
     setPartyFromSnapshot([mossling], 1);
