@@ -39,14 +39,22 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "reach-village": {
     id: "reach-village",
     title: "Reach Hearth Crossing",
-    hint: "Follow the paths through Moon Shrine to Hearth Crossing.",
+    hint: "Follow the paths through Moon Shrine to the Hearth Crossing plaza.",
     objective: { type: "enter_zone", zoneId: "village" },
+    npcLine: {
+      speaker: "Hearthkeep Odd",
+      text: "You found the Crossing. The plaza will hold you — east cottages keep to themselves a while yet.",
+    },
   },
   "shrine-craft": {
     id: "shrine-craft",
     title: "Craft a relic at Moon Shrine",
     hint: "Stand on the moon altar and press E, then craft any relic in the shrine.",
     objective: { type: "craft_item" },
+    npcLine: {
+      speaker: "Weaver Sable",
+      text: "First relic at the Moon Shrine settles the path. Any offering counts.",
+    },
   },
   "evolve-bramblewarden": {
     id: "evolve-bramblewarden",

@@ -34,14 +34,14 @@ Start in **Whisper Grove**, then walk map exits through **Moon Shrine** to **Hea
 
 ### Story quests
 
-The HUD shows `Story N/4: …` and a short “Next” hint. Host progress saves automatically.
+The HUD shows `Story N/18: …` and a short “Next” hint. Steps 3–4 also show a short villager line. Host progress saves automatically.
 
 1. **Befriend a wild creature** — walk until an encounter appears, then choose **Befriend**.
 2. **Win a training spar** — choose **Spar** and win. This **opens the overworld gate**.
-3. **Reach Hearth Crossing** — follow the path Grove → Shrine → Village.
+3. **Reach Hearth Crossing** — follow the path Grove → Shrine → Village plaza.
 4. **Craft a relic at Moon Shrine** — stand on the moon altar, press **E**, craft any relic.
 
-Gate status reads `Overworld gate: LOCKED (Story 2/4)` until the spar quest is done, then `OPEN`.
+Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done, then `OPEN`. Relic craft starts step 5.
 
 ### Hearth Crossing villagers
 
