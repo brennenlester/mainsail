@@ -52,11 +52,18 @@ function showInvalidInviteScreen(): void {
 }
 
 const inviteResult = parseInviteParam();
+const bootParams = new URLSearchParams(window.location.search);
+
 if (inviteResult.status === "invalid") {
-  // Blocking error — do not boot, clear saves, or write quest progress.
-  showInvalidInviteScreen();
+  // Explicit fresh start beats a stale/broken ?join= (#334).
+  if (bootParams.has("new")) {
+    clearHostSave();
+    clearJoinParamAndReload();
+  } else {
+    showInvalidInviteScreen();
+  }
 } else {
-  const params = new URLSearchParams(window.location.search);
+  const params = bootParams;
   // Only honor ?new= when the URL carries no invite at all — a shared ?join=
   // link with &new=1 appended must not wipe the recipient's save (#189).
   if (shouldResetHostSave(inviteResult.status, params)) {

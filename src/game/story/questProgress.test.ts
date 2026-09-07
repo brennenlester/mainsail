@@ -34,7 +34,10 @@ import {
   recordCraftOutputQuestEvents,
   recordQuestEvent,
   restoreQuestProgress,
+  shouldSuppressAct1TravelEncounters,
   syncMainQuestFromGameplay,
+  getGateStatusText,
+  ACT1_QUEST_COUNT,
 } from "./questProgress";
 import { QUEST_ORDER } from "./quests";
 import type { QuestId, QuestStatus } from "./questTypes";
@@ -334,14 +337,26 @@ describe("post-story HUD Next", () => {
     expect(getQuestSummary()).toBe("Next: sail east for Folklore Dust");
   });
 
-  it("leaves pre-complete Story N/18 display unchanged", () => {
+  it("shows Act 1 framing for steps 1–4", () => {
     restoreQuestProgress({
       ...lockedProgress(),
       "first-befriend": "complete",
       "first-spar": "active",
     });
-    expect(getQuestSummary()).toMatch(/^Story 2\/18:/);
+    expect(getQuestSummary()).toMatch(/^Act 1 · 2\/4:/);
     expect(getQuestHint().startsWith("Next:")).toBe(true);
+  });
+
+  it("shows Story N/18 after Act 1", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "active",
+    });
+    expect(getQuestSummary()).toMatch(/^Story 5\/18:/);
   });
 
   it("grants Folklore Dust on first island land and clears Next (AC2)", () => {
@@ -381,6 +396,51 @@ describe("post-story HUD Next", () => {
     expect(getMaterialCount(SECOND_ACT_WANT_MATERIAL_ID)).toBe(0);
     expect(worldState.firstIslandLanded).toBe(true);
     expect(consumeQuestToast()).toBeNull();
+  });
+});
+
+describe("Act 1 travel encounter suppress (#334)", () => {
+  beforeEach(() => {
+    setVisitorMode(false);
+    restoreQuestProgress(lockedProgress());
+    initQuestProgress();
+  });
+
+  it("does not suppress before first spar win", () => {
+    expect(shouldSuppressAct1TravelEncounters()).toBe(false);
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "active",
+    });
+    expect(shouldSuppressAct1TravelEncounters()).toBe(false);
+  });
+
+  it("suppresses after spar until shrine craft completes", () => {
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "active",
+    });
+    expect(shouldSuppressAct1TravelEncounters()).toBe(true);
+    questProgress["shrine-craft"] = "complete";
+    expect(shouldSuppressAct1TravelEncounters()).toBe(false);
+  });
+
+  it("labels overworld gate with Act 1 step during FTUE", () => {
+    expect(getGateStatusText()).toContain("Act 1 · 2/4");
+    restoreQuestProgress({
+      ...lockedProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "active",
+    });
+    expect(getGateStatusText()).toContain("Overworld: OPEN");
+  });
+
+  it("exports ACT1_QUEST_COUNT as 4", () => {
+    expect(ACT1_QUEST_COUNT).toBe(4);
   });
 });
 

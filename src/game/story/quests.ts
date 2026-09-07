@@ -39,13 +39,13 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "reach-village": {
     id: "reach-village",
     title: "Reach Hearth Crossing",
-    hint: "Follow the paths through Moon Shrine to Hearth Crossing.",
+    hint: "From Whisper Grove, walk east to Moon Shrine, then east again to the Hearth Crossing plaza.",
     objective: { type: "enter_zone", zoneId: "village" },
   },
   "shrine-craft": {
     id: "shrine-craft",
     title: "Craft a relic at Moon Shrine",
-    hint: "Stand on the moon altar and press E, then craft any relic in the shrine.",
+    hint: "Stand on the moon altar at Moon Shrine and press E, then craft any relic on the grid.",
     objective: { type: "craft_item" },
   },
   "evolve-bramblewarden": {

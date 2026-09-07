@@ -42,6 +42,27 @@ let lastCompletionMessage: string | null = null;
 
 export const STORY_QUEST_COUNT = QUEST_ORDER.length;
 
+/** Main-quest steps 1–4: FTUE spine (befriend → spar → village → shrine craft). */
+export const ACT1_QUEST_COUNT = 4;
+
+const FIRST_SPAR_INDEX = QUEST_ORDER.indexOf("first-spar");
+
+/** True while Act 1 travel should stay soft (no random wild rolls). */
+export function shouldSuppressAct1TravelEncounters(): boolean {
+  if (questProgress["shrine-craft"] === "complete") {
+    return false;
+  }
+  return questProgress["first-spar"] === "complete";
+}
+
+function act1StepIndex(questId: QuestId): number | null {
+  const index = QUEST_ORDER.indexOf(questId);
+  if (index < 0 || index >= ACT1_QUEST_COUNT) {
+    return null;
+  }
+  return index + 1;
+}
+
 /** #270 second-act Want: Folklore Dust (accepted currency; not a parallel id). */
 export const SECOND_ACT_WANT_MATERIAL_ID = "folklore-dust";
 
@@ -185,6 +206,10 @@ export function getQuestSummary(): string {
     }
     const done = QUEST_ORDER.every((id) => questProgress[id] === "complete");
     return done ? "Story: complete" : "Story: —";
+  }
+  const act1Step = act1StepIndex(activeId);
+  if (act1Step !== null) {
+    return `Act 1 · ${act1Step}/${ACT1_QUEST_COUNT}: ${QUESTS[activeId].title}`;
   }
   const index = QUEST_ORDER.indexOf(activeId) + 1;
   return `Story ${index}/${STORY_QUEST_COUNT}: ${QUESTS[activeId].title}`;
@@ -384,7 +409,8 @@ function completeQuest(questId: QuestId): void {
 
   if (quest.unlocksOverworld) {
     setOverworldUnlocked(true);
-    lastCompletionMessage += " — Overworld gate opened!";
+    lastCompletionMessage +=
+      " — Overworld gate opened! Walk east through Moon Shrine toward Hearth Crossing.";
   }
 
   activateNextQuest(questId);
@@ -421,11 +447,11 @@ export function recordQuestEvent(event: QuestEvent): boolean {
 }
 
 export function getGateStatusText(): string {
-  const sparIndex = QUEST_ORDER.indexOf("first-spar") + 1;
+  const sparStep = FIRST_SPAR_INDEX + 1;
   const overworld =
     questProgress["first-spar"] === "complete"
       ? "Overworld: OPEN"
-      : `Overworld: LOCKED (Story ${sparIndex}/${STORY_QUEST_COUNT})`;
+      : `Overworld: LOCKED (Act 1 · ${sparStep}/${ACT1_QUEST_COUNT})`;
   const village = worldState.villageGateUnlocked
     ? "Village: OPEN"
     : "Village: LOCKED (story)";

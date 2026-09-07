@@ -93,6 +93,7 @@ import {
   consumeQuestToast,
   getActiveQuestId,
   recordQuestEvent,
+  shouldSuppressAct1TravelEncounters,
 } from "../story/questProgress";
 import { consumeAchievementToast } from "../progression/achievements";
 import {
@@ -566,7 +567,9 @@ export class IsometricScene extends Phaser.Scene {
     }
     if (
       !shouldAttemptWildEncounter(sailing, {
-        suppressWild: isSovereignPlateSuppressingWild(),
+        suppressWild:
+          isSovereignPlateSuppressingWild() ||
+          shouldSuppressAct1TravelEncounters(),
       })
     ) {
       return;
