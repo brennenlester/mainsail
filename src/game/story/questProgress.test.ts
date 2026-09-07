@@ -50,6 +50,18 @@ function allQuestsComplete(): Record<QuestId, QuestStatus> {
   ) as Record<QuestId, QuestStatus>;
 }
 
+function progressThrough(activeId: QuestId): Record<QuestId, QuestStatus> {
+  const progress = createEmptyQuestProgress();
+  for (const id of QUEST_ORDER) {
+    if (id === activeId) {
+      progress[id] = "active";
+      break;
+    }
+    progress[id] = "complete";
+  }
+  return progress;
+}
+
 describe("quest registry", () => {
   it("defines 18 linear main-quest steps (#312)", () => {
     expect(STORY_QUEST_COUNT).toBe(18);
@@ -267,6 +279,8 @@ describe("Act 2 main quest bridge (#317)", () => {
   beforeEach(() => {
     setVisitorMode(false);
     restoreQuestProgress(createEmptyQuestProgress());
+    setClaimedMinigameWins([]);
+    setSideQuestStatuses({});
   });
 
   it("does not advance odd-company from party size alone", () => {
@@ -316,25 +330,51 @@ describe("Act 2 main quest bridge (#317)", () => {
     expect(getActiveQuestId()).toBe("hearth-lots");
   });
 
+  it("does not skip odd-company when hearth-lots is already won", () => {
+    restoreQuestProgress(progressThrough("odd-company"));
+    setClaimedMinigameWins(["hearth-lots"]);
+    syncMainQuestFromGameplay();
+    expect(getActiveQuestId()).toBe("odd-company");
+  });
+
   it("catches up minigame wins on restore", () => {
-    restoreQuestProgress({
-      ...createEmptyQuestProgress(),
-      "first-befriend": "complete",
-      "first-spar": "complete",
-      "reach-village": "complete",
-      "shrine-craft": "complete",
-      "evolve-bramblewarden": "complete",
-      "evolve-hearthflame": "complete",
-      "open-village-gate": "complete",
-      "odd-company": "complete",
-      "hearth-lots": "active",
-    });
+    restoreQuestProgress(progressThrough("hearth-lots"));
     setClaimedMinigameWins(["hearth-lots"]);
 
     syncMainQuestFromGameplay();
 
     expect(questProgress["hearth-lots"]).toBe("complete");
     expect(getActiveQuestId()).toBe("bryn-ledger");
+  });
+
+  it("does not skip bryn-ledger when ward-crossing is already won", () => {
+    restoreQuestProgress(progressThrough("bryn-ledger"));
+    setClaimedMinigameWins(["ward-crossing"]);
+    syncMainQuestFromGameplay();
+    expect(getActiveQuestId()).toBe("bryn-ledger");
+  });
+
+  it("catches up ward-crossing when that story step is active", () => {
+    restoreQuestProgress(progressThrough("ward-crossing"));
+    setClaimedMinigameWins(["ward-crossing"]);
+    syncMainQuestFromGameplay();
+    expect(questProgress["ward-crossing"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("sable-thread");
+  });
+
+  it("does not skip sable-thread when loom-pattern is already won", () => {
+    restoreQuestProgress(progressThrough("sable-thread"));
+    setClaimedMinigameWins(["loom-pattern"]);
+    syncMainQuestFromGameplay();
+    expect(getActiveQuestId()).toBe("sable-thread");
+  });
+
+  it("catches up loom-pattern when that story step is active", () => {
+    restoreQuestProgress(progressThrough("loom-pattern"));
+    setClaimedMinigameWins(["loom-pattern"]);
+    syncMainQuestFromGameplay();
+    expect(questProgress["loom-pattern"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("craft-boat");
   });
 });
 

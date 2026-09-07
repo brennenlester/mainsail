@@ -1,5 +1,12 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
-import { VILLAGE_CODE_GATE, VILLAGE_COTTAGE_DOORS } from "./villageGate";
+import {
+  VILLAGE_CODE_GATE,
+  VILLAGE_COTTAGE_DOORS,
+  VILLAGE_COTTAGE_ZONE_IDS,
+} from "./villageGate";
 import { beginConversation, resetNpcStateForTest } from "./npcState";
 import { getNpcById } from "./npcs";
 import { HERMIT_NPC_ID } from "./hermitIsland";
@@ -13,6 +20,19 @@ describe("village gate layout", () => {
   it("keeps stable cottage gate and door coordinates", () => {
     expect(VILLAGE_CODE_GATE).toEqual({ x: 8, y: 5 });
     expect(VILLAGE_COTTAGE_DOORS.hearthkeep).toEqual({ x: 11, y: 8 });
+  });
+
+  it("lists cottage interiors used to complete story step 7", () => {
+    expect([...VILLAGE_COTTAGE_ZONE_IDS]).toEqual([
+      "warden-cottage",
+      "weaver-cottage",
+      "hearthkeep-cottage",
+    ]);
+  });
+
+  it("does not ship a leftover villageGateCode module", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    expect(existsSync(path.join(here, "villageGateCode.ts"))).toBe(false);
   });
 });
 
