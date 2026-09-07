@@ -117,14 +117,32 @@ Host progress (party, inventory, quests, position, gate) lives in `localStorage`
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm test         # Vitest unit tests
-npm run build    # production build → dist/
-npm run preview  # serve dist locally
-npm run pack:atlas  # rebuild Imagine texture atlas after adding/replacing PNGs
+npm run test:e2e:install  # once: Playwright Chromium
+npm run dev               # http://localhost:5173
+npm test                  # Vitest unit tests
+npm run test:e2e          # Playwright boot/HUD smokes
+npm run build             # production build → dist/
+npm run preview           # serve dist locally
+npm run pack:atlas        # rebuild Imagine texture atlas after adding/replacing PNGs
 ```
 
-Pull requests to `main` run CI (`npm ci`, `npm test`, `npm run build`). Merges deploy via Vercel.
+Pull requests to `main` run CI (`npm ci`, `npm test`, Playwright Chromium smokes, `npm run build`). Merges deploy via Vercel.
+
+### Toolbelt
+
+Free apps and sites for art, audio, and browser QA. Agents follow `.cursor/skills/ivyward-assets/` and `.cursor/skills/ivyward-browser-qa/`. `./scripts/check-toolbelt.sh` reports what is installed.
+
+| Tool | Use |
+| --- | --- |
+| [Pixelorama](https://github.com/Orama-Interactive/Pixelorama/releases) (LibreSprite fallback) | Pixel sprites, walk cycles. Export PNG into `public/assets/`, then `npm run pack:atlas` for player/creatures/world. |
+| [Krita](https://krita.org) | Mood and paint-overs, not 16–32px sheets. `brew bundle --file=Brewfile` |
+| [Audacity](https://www.audacityteam.org) | Trim/resample SFX. `brew bundle --file=Brewfile` |
+| [ChipTone](https://sfbgames.itch.io/chiptone) / [jsfxr](https://sfxr.me) | New WAV SFX (16-bit PCM mono 22050 Hz, matching `public/assets/audio/`) |
+| [Lospec](https://lospec.com/palette-list) | Browse palettes only when starting a new art family; otherwise match existing Imagine sheets |
+| Chrome DevTools / Cursor browser | HUD snapshots, canvas screenshots, Local Storage, Performance |
+| Playwright | `npm run test:e2e` — boot name-intro and Inventory/Party. Not canvas combat. |
+
+Tiled is not in the toolbelt: zones stay TypeScript grids in `src/game/world/zones.ts`.
 
 ### Dev-only cheats
 
