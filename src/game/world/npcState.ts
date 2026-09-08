@@ -32,7 +32,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
+import { getActiveQuestId, questProgress, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -375,7 +375,12 @@ function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
 }
 
 function canOfferSideQuest(quest: SideQuestDefinition): boolean {
-  return getActiveQuestId() === quest.id;
+  if (getActiveQuestId() === quest.id) {
+    return true;
+  }
+  // Old saves may have auto-completed the main step from party size / deliver
+  // without talking; still offer so the reward and Odd's rest are reachable.
+  return questProgress[quest.id] === "complete";
 }
 
 function sideQuestConversation(npc: NpcDefinition): Conversation | null {

@@ -296,6 +296,15 @@ describe("Act 2 side-ask order (#317)", () => {
     expect(openConversation(ODD)).toEqual([ODD.idleLines[0]]);
     expect(getSideQuestStatus("odd-company")).toBe("locked");
   });
+
+  it("still offers Odd's ask if an old save already skipped the main step", () => {
+    activateMainQuest("hearth-lots");
+    bothGroveStarters();
+    setClaimedNpcGifts([ODD.id]);
+    expect(openConversation(ODD)).toEqual(SIDE_QUESTS["odd-company"].offerLines);
+    expect(getSideQuestStatus("odd-company")).toBe("active");
+    expect(getActiveQuestId()).toBe("hearth-lots");
+  });
 });
 
 describe("visitor side-quest lockout", () => {
