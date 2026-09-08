@@ -361,6 +361,10 @@ function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
   return ask?.npcId === npcId && ask.status !== "complete";
 }
 
+function isSideQuestOnCurrentBeat(questId: SideQuestId): boolean {
+  return getActiveQuestId() === questId || questProgress[questId] === "complete";
+}
+
 function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   const quest = getSideQuestForNpc(npc.id);
   if (!quest) {
@@ -368,13 +372,15 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
-    const activeId = getActiveQuestId();
-    if (activeId !== quest.id && questProgress[quest.id] !== "complete") {
+    if (!isSideQuestOnCurrentBeat(quest.id)) {
       return null;
     }
     return talk(activateSideQuest(quest));
   }
   if (status === "active") {
+    if (!isSideQuestOnCurrentBeat(quest.id)) {
+      return null;
+    }
     const turnIn = turnInSideQuest(quest);
     if (turnIn) {
       return talk(turnIn);
@@ -493,7 +499,10 @@ export function getActiveSideQuestHint(): string | null {
   if (daily && daily.status === "active") {
     return `Daily ask: bring ${daily.amount} ${getMaterialName(daily.materialId)}`;
   }
-  const id = SIDE_QUEST_IDS.find((questId) => getSideQuestStatus(questId) === "active");
+  const id = SIDE_QUEST_IDS.find(
+    (questId) =>
+      getSideQuestStatus(questId) === "active" && isSideQuestOnCurrentBeat(questId),
+  );
   if (!id) {
     return null;
   }

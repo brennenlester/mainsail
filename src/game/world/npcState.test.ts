@@ -283,6 +283,18 @@ describe("linear Act 2 village asks (#317)", () => {
     expect(openConversation(ODD)).toEqual(SIDE_QUESTS["odd-company"].offerLines);
     expect(getSideQuestStatus("odd-company")).toBe("active");
   });
+
+  it("does not turn in a future ask that was already active on an old save", () => {
+    activateMainQuest("odd-company");
+    setBrynGroveStartersGifted(["mossling", "ember-wisp"]);
+    setClaimedNpcGifts([BRYN.id]);
+    setSideQuestStatuses({ "bryn-ledger": "active" });
+    setDiscoveredCreatures(["a", "b", "c", "d", "e"]);
+    expect(openConversation(BRYN)).toEqual([BRYN.idleLines[0]]);
+    expect(getSideQuestStatus("bryn-ledger")).toBe("active");
+    expect(getItemCount("brook-tonic")).toBe(0);
+    expect(getActiveSideQuestHint()).toBeNull();
+  });
 });
 
 describe("visitor side-quest lockout", () => {
