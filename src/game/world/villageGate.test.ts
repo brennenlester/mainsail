@@ -6,6 +6,7 @@ import {
   VILLAGE_CODE_GATE,
   VILLAGE_COTTAGE_DOORS,
   VILLAGE_COTTAGE_ZONE_IDS,
+  isCottageEntryFromAnotherZone,
 } from "./villageGate";
 import { beginConversation, resetNpcStateForTest } from "./npcState";
 import { getNpcById } from "./npcs";
@@ -28,6 +29,18 @@ describe("village gate layout", () => {
       "weaver-cottage",
       "hearthkeep-cottage",
     ]);
+  });
+
+  it("only counts walking into a cottage from another zone as the step 7 beat", () => {
+    expect(isCottageEntryFromAnotherZone("village", "warden-cottage")).toBe(true);
+    expect(isCottageEntryFromAnotherZone("weaver-cottage", "warden-cottage")).toBe(
+      true,
+    );
+    expect(isCottageEntryFromAnotherZone("warden-cottage", "warden-cottage")).toBe(
+      false,
+    );
+    expect(isCottageEntryFromAnotherZone(undefined, "warden-cottage")).toBe(false);
+    expect(isCottageEntryFromAnotherZone("village", "village")).toBe(false);
   });
 
   it("does not ship a leftover villageGateCode module", () => {
