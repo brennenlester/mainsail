@@ -7,6 +7,7 @@ import {
 import { GATHERABLE_PROPS } from "../world/gatherNodes";
 import { setVisitorMode } from "../world/worldSession";
 import {
+  setDiscoveredCreatures,
   setDiscoveredZones,
   setFirstIslandLanded,
   setOverworldUnlocked,
@@ -340,6 +341,52 @@ describe("Act 2 main quest bridge (#317)", () => {
 
     expect(questProgress["odd-company"]).toBe("complete");
     expect(getActiveQuestId()).toBe("hearth-lots");
+  });
+
+  it("does not skip Bryn's ledger just because five creatures are already discovered", () => {
+    restoreQuestProgress({
+      ...createEmptyQuestProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "complete",
+      "evolve-hearthflame": "complete",
+      "open-village-gate": "complete",
+      "odd-company": "complete",
+      "hearth-lots": "complete",
+      "bryn-ledger": "active",
+    });
+    setDiscoveredCreatures(["a", "b", "c", "d", "e"]);
+
+    syncMainQuestFromGameplay();
+
+    expect(questProgress["bryn-ledger"]).toBe("active");
+    expect(getActiveQuestId()).toBe("bryn-ledger");
+  });
+
+  it("does not skip Sable's thread just because the materials are already in inventory", () => {
+    restoreQuestProgress({
+      ...createEmptyQuestProgress(),
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "reach-village": "complete",
+      "shrine-craft": "complete",
+      "evolve-bramblewarden": "complete",
+      "evolve-hearthflame": "complete",
+      "open-village-gate": "complete",
+      "odd-company": "complete",
+      "hearth-lots": "complete",
+      "bryn-ledger": "complete",
+      "ward-crossing": "complete",
+      "sable-thread": "active",
+    });
+    setInventoryFromSnapshot({ wood: 5, "wild-fiber": 3 }, {});
+
+    syncMainQuestFromGameplay();
+
+    expect(questProgress["sable-thread"]).toBe("active");
+    expect(getActiveQuestId()).toBe("sable-thread");
   });
 
   it("catches up minigame wins on restore", () => {
