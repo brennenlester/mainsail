@@ -305,6 +305,24 @@ describe("Act 2 side-ask order (#317)", () => {
     expect(getSideQuestStatus("odd-company")).toBe("active");
     expect(getActiveQuestId()).toBe("hearth-lots");
   });
+
+  it("does not turn in an already-accepted future ask until that main step is active", () => {
+    activateMainQuest("odd-company");
+    bothGroveStarters();
+    setClaimedNpcGifts([BRYN.id, ODD.id]);
+    setSideQuestStatuses({ "bryn-ledger": "active" });
+    setDiscoveredCreatures(["a", "b", "c", "d", "e"]);
+    expect(openConversation(BRYN)).toEqual([BRYN.idleLines[0]]);
+    expect(getSideQuestStatus("bryn-ledger")).toBe("active");
+    expect(getItemCount("brook-tonic")).toBe(0);
+    expect(getActiveSideQuestHint()).toBeNull();
+
+    activateMainQuest("bryn-ledger");
+    bothGroveStarters();
+    const lines = openConversation(BRYN);
+    expect(lines.at(0)).toContain("Five names");
+    expect(getSideQuestStatus("bryn-ledger")).toBe("complete");
+  });
 });
 
 describe("visitor side-quest lockout", () => {

@@ -374,7 +374,7 @@ function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
   return ask?.npcId === npcId && ask.status !== "complete";
 }
 
-function canOfferSideQuest(quest: SideQuestDefinition): boolean {
+function isSideAskOnCurrentBeat(quest: SideQuestDefinition): boolean {
   if (getActiveQuestId() === quest.id) {
     return true;
   }
@@ -390,12 +390,15 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
-    if (!canOfferSideQuest(quest)) {
+    if (!isSideAskOnCurrentBeat(quest)) {
       return null;
     }
     return talk(activateSideQuest(quest));
   }
   if (status === "active") {
+    if (!isSideAskOnCurrentBeat(quest)) {
+      return null;
+    }
     const turnIn = turnInSideQuest(quest);
     if (turnIn) {
       return talk(turnIn);
@@ -503,12 +506,14 @@ export function openConversation(npc: NpcDefinition): string[] {
 
 /** Active side quests for the status panel / HUD hint. */
 export function getActiveSideQuestSummaries(): string[] {
-  return SIDE_QUEST_IDS.filter((id) => getSideQuestStatus(id) === "active").map(
-    (id) => {
-      const quest = SIDE_QUESTS[id];
-      return `${quest.title}: ${quest.progressLine}`;
-    },
-  );
+  return SIDE_QUEST_IDS.filter(
+    (id) =>
+      getSideQuestStatus(id) === "active" &&
+      isSideAskOnCurrentBeat(SIDE_QUESTS[id]),
+  ).map((id) => {
+    const quest = SIDE_QUESTS[id];
+    return `${quest.title}: ${quest.progressLine}`;
+  });
 }
 
 /** Short HUD line for the first active village ask, if any. */
@@ -517,7 +522,11 @@ export function getActiveSideQuestHint(): string | null {
   if (daily && daily.status === "active") {
     return `Daily ask: bring ${daily.amount} ${getMaterialName(daily.materialId)}`;
   }
-  const id = SIDE_QUEST_IDS.find((questId) => getSideQuestStatus(questId) === "active");
+  const id = SIDE_QUEST_IDS.find(
+    (questId) =>
+      getSideQuestStatus(questId) === "active" &&
+      isSideAskOnCurrentBeat(SIDE_QUESTS[questId]),
+  );
   if (!id) {
     return null;
   }
