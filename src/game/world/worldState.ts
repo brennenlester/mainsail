@@ -5,7 +5,7 @@ import { evaluateCodexAchievement } from "../progression/achievements";
 /** Story progression flags — quest completion updates overworld access. */
 export const worldState = {
   overworldUnlocked: false,
-  /** East Hearth Crossing cottage gate — opens via hermit 4-digit code (#291). */
+  /** East Hearth Crossing cottage gate — opens at Act 2 start (#316). */
   villageGateUnlocked: false,
   /** Zones visited (kept for saves / invites; codex uses creature discoveries). */
   discoveredZones: [] as ZoneId[],

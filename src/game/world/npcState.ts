@@ -5,10 +5,11 @@ import {
   getMaterialCount,
 } from "../inventory/playerInventory";
 import { getItemName, getMaterialName } from "../inventory/materials";
-import { addToParty, getEffectiveMaxHp, playerParty } from "../creatures/party";
+import { addToParty, countCreatures, getEffectiveMaxHp, playerParty } from "../creatures/party";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
-  getTideSovereignObtained,
+  getHorizonFusionCount,
+  MAX_HORIZON_FUSIONS,
   markCreatureDiscovered,
   type BrynGroveStarterId,
   worldState,
@@ -34,6 +35,9 @@ import {
 } from "./dailyAsk";
 import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
+
+const TIDE_SOVEREIGN_ID = "tide-sovereign";
+const CAIRN_SOVEREIGN_ID = "cairn-sovereign";
 
 const giftsClaimed = new Set<string>();
 const sideQuestStatus = new Map<SideQuestId, SideQuestStatus>();
@@ -450,18 +454,50 @@ export function beginConversation(npc: NpcDefinition): Conversation {
   return talk([nextIdleLine(npc)]);
 }
 
+/**
+ * Fusion-sage follow-up after Reed's gift.
+ * Uses live party ownership, not lifetime obtained counters: fusion consumes parents.
+ */
+function hermitSageLines(): string[] {
+  const horizonCount = getHorizonFusionCount();
+  if (horizonCount >= MAX_HORIZON_FUSIONS) {
+    return [
+      "Horizon already answers you. The joining on this shore is finished.",
+    ];
+  }
+  const hasTide = countCreatures(TIDE_SOVEREIGN_ID) > 0;
+  const hasCairn = countCreatures(CAIRN_SOVEREIGN_ID) > 0;
+  if (hasTide && hasCairn) {
+    return [
+      "Tide and Stone walk with you. The joining is not mine to perform.",
+      "Return to the Moon Shrine. Lay the Sovereign Seal, and fuse them into Horizon.",
+    ];
+  }
+  if (hasTide) {
+    return [
+      "You met the Tide Sovereign. The water remembers.",
+      "Stone Sovereign keeps the cairn isle due south of here — sail south, not east, to the gray rock ringed with standing stones.",
+    ];
+  }
+  if (horizonCount > 0) {
+    return [
+      "Horizon already walks with you. Tide and Stone may return to these waters if you seek a second joining at the Moon Shrine.",
+    ];
+  }
+  return [];
+}
+
 function hermitConversation(npc: NpcDefinition): Conversation {
   if (!hasClaimedNpcGift(npc.id)) {
-    const lines = [...npc.introLines];
+    const sage = isVisitorMode() ? [] : hermitSageLines();
+    // Skip the static Horizon-braid intro when sage already has the live instruction.
+    const intro = sage.length > 0 ? npc.introLines.slice(0, 2) : npc.introLines;
+    const lines = [...intro];
     const giftLine = claimNpcGift(npc);
     if (giftLine) {
       lines.push(giftLine);
     }
-    if (!isVisitorMode() && getTideSovereignObtained() > 0) {
-      lines.push(
-        "You already met the Tide Sovereign. When the village story calls you back, the east gate opens on its own.",
-      );
-    }
+    lines.push(...sage);
     return talk(lines);
   }
 
@@ -469,17 +505,9 @@ function hermitConversation(npc: NpcDefinition): Conversation {
     return talk([nextIdleLine(npc)]);
   }
 
-  if (getTideSovereignObtained() > 0) {
-    const lines = [
-      "You met the Tide Sovereign. Good.",
-      "When the village story calls you back, the east gate at Hearth Crossing opens on its own.",
-    ];
-    if (getActiveQuestId() === "obtain-cairn-sovereign") {
-      lines.push(
-        "Stone Sovereign keeps the cairn isle due south of here — sail south, not east, to the gray rock ringed with standing stones.",
-      );
-    }
-    return talk(lines);
+  const sage = hermitSageLines();
+  if (sage.length > 0) {
+    return talk(sage);
   }
 
   return talk([nextIdleLine(npc)]);

@@ -63,7 +63,7 @@ const SHRINE: ZoneDefinition = {
   ],
 };
 
-/** Plaza west + code-locked cottages east (#291). */
+/** Plaza west + cottage yard east of the village gate (#291/#316). */
 const VILLAGE_WIDTH = 16;
 const VILLAGE_HEIGHT = 10;
 const villageTiles = borderedFloor(VILLAGE_WIDTH, VILLAGE_HEIGHT, [

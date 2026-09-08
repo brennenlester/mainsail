@@ -90,7 +90,7 @@ describe("cottage interiors", () => {
 describe("village doors", () => {
   const village = ZONES.village;
 
-  it("keeps cottages east of the code-locked village gate", () => {
+  it("keeps cottages east of the village gate", () => {
     expect(village.tiles[VILLAGE_CODE_GATE.y][VILLAGE_CODE_GATE.x]).toBe(
       TileType.VillageGate,
     );
@@ -205,5 +205,13 @@ describe("hermit island cottage", () => {
       targetY: door.y,
     });
     expect(getZoneNpcs("hermit-cottage")[0]?.id).toBe(HERMIT_NPC_ID);
+  });
+
+  it("keeps Reed as fusion sage without village-gate lore", () => {
+    const reed = getZoneNpcs("hermit-cottage")[0];
+    expect(reed?.id).toBe(HERMIT_NPC_ID);
+    const catalog = [...(reed?.introLines ?? []), ...(reed?.idleLines ?? [])].join(" ");
+    expect(catalog).toMatch(/Horizon|joining|Sovereign/i);
+    expect(catalog).not.toMatch(/east gate|village story|gate code|\d{4}/i);
   });
 });

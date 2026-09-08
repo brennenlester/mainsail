@@ -33,7 +33,7 @@ A folklore RPG where you spar with your odd little party, craft at the Moon Shri
 | Codex | Habitat codex: what lives where (fills in as you encounter creatures) |
 | Reset game | Wipe local host save and start fresh |
 
-**FTUE / confined region** [moved from README]: Start in **Whisper Grove**, walk map exits through **Moon Shrine** to **Hearth Crossing** (plaza). North of the plaza, **Folklore Fields** unlock after Story quest 2 (overworld gate). East of the plaza, the **cottage village** sits behind a **code-locked village gate**. From Harbor (north of Fields), sail east past East Landing into the open **Archipelago** sea. The top-right island holds a stranded hermit who reveals the village gate code after Tide Sovereign is spar-won or befriended.
+**FTUE / confined region** [moved from README]: Start in **Whisper Grove**, walk map exits through **Moon Shrine** to **Hearth Crossing** (plaza). North of the plaza, **Folklore Fields** unlock after Story quest 2 (overworld gate). East of the plaza, the **cottage village** sits behind a village gate that opens at Act 2 start. From Harbor (north of Fields), sail east past East Landing into the open **Archipelago** sea. The top-right island holds hermit **Reed**, a fusion sage who teaches Sovereign lore; Tide Sovereign is found on that island.
 
 ---
 
@@ -70,7 +70,7 @@ Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done,
 
 **Shipped progression** [moved from README + inferred from `src/game/`]:
 
-- **Story 18/18** as the full main line; Act 1 (steps 1–4) is the FTUE on-ramp. Skill/content gate: first spar win unlocks the overworld. Village cottages unlock via hermit code after Tide Sovereign.
+- **Story 18/18** as the full main line; Act 1 (steps 1–4) is the FTUE on-ramp. Skill/content gate: first spar win unlocks the overworld. Village cottages unlock when the main quest opens the east gate (Act 2).
 - **Party:** active party max 7; extras in reserve. [inferred: `ACTIVE_PARTY_LIMIT`]
 - **Levels:** creatures level from shared spar XP (actives only). Catalog HP/ATK are Lv 1 baselines; effective combat stats use `floor(base * (1 + (level-1)*(2.25/49)))` plus shrine bonuses → ~3.25× at Lv 50. XP to reach level N is `5 * (N - 1)²` (`MAX_LEVEL` = 50; `XP_PER_SPAR_WIN` = 70 shared). No heal on level-up. Wilds scale with per-species spar wins: `min(50, 1 + floor(wins/2) + rarityBias)` where rarityBias is +0 / +3 / +6 from max encounter weight (≥40 / 13–39 / ≤12); sovereigns excluded. Befriend inherits the wild’s effective level.
 - **Codex:** encountering a creature once lists it under every habitat that can spawn it. 27 encounter-table species required for the hidden **Codex Keeper** achievement (evolution-only `Bramblewarden` and `Hearthflame` are not required). Once per save: Brook Tonic ×5 and Moonwake Draught ×5.
@@ -183,14 +183,14 @@ From Folklore Fields, north gate into Moonwake Harbor. Press E near the west Har
 
 **Frozen:** cottages, NPC asks, and the three minigames (Ward / Loom / Hearth Lots) — no new work.
 
-Hearth Crossing plaza is west; a **code-locked gate** opens east into the cottage yard. Unlock with the 4-digit code from hermit **Reed** on the archipelago’s top-right island (after Tide Sovereign spar-win or befriend). Three cottages, enter via door + E; leave through the bottom doorway.
+Hearth Crossing plaza is west; an east gate into the cottage yard opens at Act 2 start (no code). Three cottages, enter via door + E; leave through the bottom doorway. Hermit **Reed** lives on the archipelago’s top-right island as a fusion sage (Sovereign lore; Moon Shrine Horizon after Tide and Stone).
 
 | Villager | Home | First-visit gift |
 | --- | --- | --- |
 | Warden Bryn | Warden's Cottage | Wild Fiber ×3 |
 | Weaver Sable | Weaver's Cottage | Moss Fiber ×3 |
 | Hearthkeep Odd | Hearthkeep Cottage | Brook Tonic ×1 |
-| Reed (hermit) | Island Cottage (archipelago top-right) | Wild Fiber ×2; gate code after Tide Sovereign |
+| Reed (hermit) | Island Cottage (archipelago top-right) | Wild Fiber ×2; fusion-sage Sovereign lore |
 
 Once per save, host only. Then local talk. Side asks as in section 3.
 
