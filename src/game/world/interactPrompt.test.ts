@@ -56,7 +56,7 @@ describe("pickInteractPrompt", () => {
     const labels = {
       shrine: "Press E — Moon Shrine",
       door: "Press E — Weaver's Cottage",
-      gate: "Press E — Enter gate code",
+      gate: "Press E — Cottage gate",
       minigame: "Press E — Hearth Lots",
       npc: "Press E — Talk to Odd",
       dock: "Press E — Board boat",

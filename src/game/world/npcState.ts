@@ -32,7 +32,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
+import { getActiveQuestId, questProgress, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -328,19 +328,6 @@ export function confirmOddRest(): string[] {
   return ["There. Whole again. The hearth does not mind the work."];
 }
 
-function tryAdvanceOddCompanyMainQuest(): void {
-  if (getActiveQuestId() !== "odd-company") {
-    return;
-  }
-  if (playerParty.creatures.length < 3) {
-    return;
-  }
-  recordQuestEvent({
-    type: "party_size",
-    count: playerParty.creatures.length,
-  });
-}
-
 function partyHasGroveLine(starterId: BrynGroveStarterId): boolean {
   const ids = GROVE_STARTER_LINE[starterId];
   return playerParty.creatures.some(
@@ -374,6 +361,10 @@ function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
   return ask?.npcId === npcId && ask.status !== "complete";
 }
 
+function isSideQuestOnCurrentBeat(questId: SideQuestId): boolean {
+  return getActiveQuestId() === questId || questProgress[questId] === "complete";
+}
+
 function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   const quest = getSideQuestForNpc(npc.id);
   if (!quest) {
@@ -381,9 +372,15 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
+    if (!isSideQuestOnCurrentBeat(quest.id)) {
+      return null;
+    }
     return talk(activateSideQuest(quest));
   }
   if (status === "active") {
+    if (!isSideQuestOnCurrentBeat(quest.id)) {
+      return null;
+    }
     const turnIn = turnInSideQuest(quest);
     if (turnIn) {
       return talk(turnIn);
@@ -436,9 +433,6 @@ export function beginConversation(npc: NpcDefinition): Conversation {
 
   const sideQuest = sideQuestConversation(npc);
   if (sideQuest) {
-    if (npc.id === ODD_NPC_ID) {
-      tryAdvanceOddCompanyMainQuest();
-    }
     return sideQuest;
   }
 
@@ -505,7 +499,10 @@ export function getActiveSideQuestHint(): string | null {
   if (daily && daily.status === "active") {
     return `Daily ask: bring ${daily.amount} ${getMaterialName(daily.materialId)}`;
   }
-  const id = SIDE_QUEST_IDS.find((questId) => getSideQuestStatus(questId) === "active");
+  const id = SIDE_QUEST_IDS.find(
+    (questId) =>
+      getSideQuestStatus(questId) === "active" && isSideQuestOnCurrentBeat(questId),
+  );
   if (!id) {
     return null;
   }

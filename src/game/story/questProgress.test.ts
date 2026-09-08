@@ -50,6 +50,18 @@ function allQuestsComplete(): Record<QuestId, QuestStatus> {
   ) as Record<QuestId, QuestStatus>;
 }
 
+function progressThrough(activeId: QuestId): Record<QuestId, QuestStatus> {
+  const progress = createEmptyQuestProgress();
+  for (const id of QUEST_ORDER) {
+    if (id === activeId) {
+      progress[id] = "active";
+      break;
+    }
+    progress[id] = "complete";
+  }
+  return progress;
+}
+
 describe("quest registry", () => {
   it("defines 18 linear main-quest steps (#312)", () => {
     expect(STORY_QUEST_COUNT).toBe(18);
@@ -59,11 +71,22 @@ describe("quest registry", () => {
     expect(QUEST_ORDER[17]).toBe("fuse-horizon");
   });
 
-  it("keeps Act 1 NPC flavor on steps 3–4 only", () => {
+  it("keeps Act 1 NPC flavor on steps 3–4 and Act 2 speaker lines on steps 5–14", () => {
     expect(QUESTS["first-befriend"].npcLine).toBeUndefined();
     expect(QUESTS["first-spar"].npcLine).toBeUndefined();
     expect(QUESTS["reach-village"].npcLine?.speaker).toBe("Hearthkeep Odd");
     expect(QUESTS["shrine-craft"].npcLine?.speaker).toBe("Weaver Sable");
+    expect(QUESTS["evolve-bramblewarden"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["evolve-hearthflame"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["open-village-gate"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["odd-company"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["hearth-lots"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["bryn-ledger"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["ward-crossing"].npcLine?.speaker).toBe("Warden Bryn");
+    expect(QUESTS["sable-thread"].npcLine?.speaker).toBe("Weaver Sable");
+    expect(QUESTS["loom-pattern"].npcLine?.speaker).toBe("Weaver Sable");
+    expect(QUESTS["craft-boat"].npcLine?.speaker).toBe("Hearthkeep Odd");
+    expect(QUESTS["obtain-tide-sovereign"].npcLine).toBeUndefined();
   });
 });
 
@@ -160,7 +183,7 @@ describe("recordQuestEvent", () => {
     expect(recordQuestEvent({ type: "craft_item" })).toBe(true);
     expect(getActiveQuestId()).toBe("evolve-bramblewarden");
     expect(getQuestSummary()).toMatch(/^Story 5\/18:/);
-    expect(getQuestNpcLine()).toBeNull();
+    expect(getQuestNpcLine()).toMatch(/^Warden Bryn:/);
   });
 
   it("activates evolve-bramblewarden after shrine-craft", () => {
@@ -211,7 +234,7 @@ describe("recordQuestEvent", () => {
     expect(worldState.villageGateUnlocked).toBe(true);
   });
 
-  it("unlocks the cottage gate when open-village-gate becomes active (#318)", () => {
+  it("leaves open-village-gate active until a cottage is entered (#317)", () => {
     restoreQuestProgress({
       ...lockedProgress(),
       "first-befriend": "complete",
@@ -231,6 +254,11 @@ describe("recordQuestEvent", () => {
     ).toBe(true);
 
     expect(worldState.villageGateUnlocked).toBe(true);
+    expect(questProgress["open-village-gate"]).toBe("active");
+    expect(getActiveQuestId()).toBe("open-village-gate");
+    expect(getQuestHint()).toMatch(/step inside a house/i);
+
+    expect(recordQuestEvent({ type: "unlock_village_gate" })).toBe(true);
     expect(questProgress["open-village-gate"]).toBe("complete");
     expect(getActiveQuestId()).toBe("odd-company");
   });
@@ -251,9 +279,11 @@ describe("Act 2 main quest bridge (#317)", () => {
   beforeEach(() => {
     setVisitorMode(false);
     restoreQuestProgress(createEmptyQuestProgress());
+    setClaimedMinigameWins([]);
+    setSideQuestStatuses({});
   });
 
-  it("advances odd-company when the party has three companions", () => {
+  it("does not advance odd-company from party size alone", () => {
     restoreQuestProgress({
       ...createEmptyQuestProgress(),
       "first-befriend": "complete",
@@ -276,11 +306,11 @@ describe("Act 2 main quest bridge (#317)", () => {
 
     syncMainQuestFromGameplay();
 
-    expect(questProgress["odd-company"]).toBe("complete");
-    expect(getActiveQuestId()).toBe("hearth-lots");
+    expect(questProgress["odd-company"]).toBe("active");
+    expect(getActiveQuestId()).toBe("odd-company");
   });
 
-  it("catches up minigame wins on restore", () => {
+  it("advances odd-company after Odd's village ask is turned in", () => {
     restoreQuestProgress({
       ...createEmptyQuestProgress(),
       "first-befriend": "complete",
@@ -290,15 +320,61 @@ describe("Act 2 main quest bridge (#317)", () => {
       "evolve-bramblewarden": "complete",
       "evolve-hearthflame": "complete",
       "open-village-gate": "complete",
-      "odd-company": "complete",
-      "hearth-lots": "active",
+      "odd-company": "active",
     });
+    setSideQuestStatuses({ "odd-company": "complete" });
+
+    syncMainQuestFromGameplay();
+
+    expect(questProgress["odd-company"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("hearth-lots");
+  });
+
+  it("does not skip odd-company when hearth-lots is already won", () => {
+    restoreQuestProgress(progressThrough("odd-company"));
+    setClaimedMinigameWins(["hearth-lots"]);
+    syncMainQuestFromGameplay();
+    expect(getActiveQuestId()).toBe("odd-company");
+  });
+
+  it("catches up minigame wins on restore", () => {
+    restoreQuestProgress(progressThrough("hearth-lots"));
     setClaimedMinigameWins(["hearth-lots"]);
 
     syncMainQuestFromGameplay();
 
     expect(questProgress["hearth-lots"]).toBe("complete");
     expect(getActiveQuestId()).toBe("bryn-ledger");
+  });
+
+  it("does not skip bryn-ledger when ward-crossing is already won", () => {
+    restoreQuestProgress(progressThrough("bryn-ledger"));
+    setClaimedMinigameWins(["ward-crossing"]);
+    syncMainQuestFromGameplay();
+    expect(getActiveQuestId()).toBe("bryn-ledger");
+  });
+
+  it("catches up ward-crossing when that story step is active", () => {
+    restoreQuestProgress(progressThrough("ward-crossing"));
+    setClaimedMinigameWins(["ward-crossing"]);
+    syncMainQuestFromGameplay();
+    expect(questProgress["ward-crossing"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("sable-thread");
+  });
+
+  it("does not skip sable-thread when loom-pattern is already won", () => {
+    restoreQuestProgress(progressThrough("sable-thread"));
+    setClaimedMinigameWins(["loom-pattern"]);
+    syncMainQuestFromGameplay();
+    expect(getActiveQuestId()).toBe("sable-thread");
+  });
+
+  it("catches up loom-pattern when that story step is active", () => {
+    restoreQuestProgress(progressThrough("loom-pattern"));
+    setClaimedMinigameWins(["loom-pattern"]);
+    syncMainQuestFromGameplay();
+    expect(questProgress["loom-pattern"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("craft-boat");
   });
 });
 

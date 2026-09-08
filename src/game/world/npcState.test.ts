@@ -28,15 +28,40 @@ import {
   setInventoryFromSnapshot,
 } from "../inventory/playerInventory";
 import { getEffectiveMaxHp, playerParty, setPartyFromSnapshot } from "../creatures/party";
-import { setDiscoveredCreatures, setVillageGateUnlocked, worldState } from "./worldState";
+import {
+  setBrynGroveStartersGifted,
+  setDiscoveredCreatures,
+  setVillageGateUnlocked,
+  worldState,
+} from "./worldState";
 import { applyWorldSnapshot, exportWorldSnapshot } from "./worldSnapshot";
 import { setVisitorMode } from "./worldSession";
 import { ZONES } from "./zones";
 import { TileType, type ZoneId } from "./zoneTypes";
+import {
+  createEmptyQuestProgress,
+  getActiveQuestId,
+  questProgress,
+  restoreQuestProgress,
+} from "../story/questProgress";
+import { QUEST_ORDER } from "../story/quests";
+import type { QuestId } from "../story/questTypes";
 
 const BRYN = getNpcById("warden-bryn")!;
 const SABLE = getNpcById("weaver-sable")!;
 const ODD = getNpcById("hearthkeep-odd")!;
+
+function activateMainQuest(id: QuestId): void {
+  const progress = createEmptyQuestProgress();
+  for (const questId of QUEST_ORDER) {
+    if (questId === id) {
+      progress[questId] = "active";
+      break;
+    }
+    progress[questId] = "complete";
+  }
+  restoreQuestProgress(progress);
+}
 
 beforeEach(() => {
   resetNpcStateForTest();
@@ -100,6 +125,11 @@ describe("claimNpcGift", () => {
 });
 
 describe("openConversation gifts then side quests", () => {
+  beforeEach(() => {
+    activateMainQuest("bryn-ledger");
+    setBrynGroveStartersGifted(["mossling", "ember-wisp"]);
+  });
+
   it("opens with the intro and the gift on a first visit", () => {
     const lines = openConversation(BRYN);
     expect(lines.slice(0, BRYN.introLines.length)).toEqual(BRYN.introLines);
@@ -151,6 +181,10 @@ describe("openConversation gifts then side quests", () => {
 describe("delivery side quest", () => {
   const quest = SIDE_QUESTS["sable-thread"];
 
+  beforeEach(() => {
+    activateMainQuest("sable-thread");
+  });
+
   it("does not consume materials until every stack is ready", () => {
     setInventoryFromSnapshot({ wood: 5, "wild-fiber": 2 }, {});
     expect(isSideQuestObjectiveMet(quest)).toBe(false);
@@ -173,6 +207,10 @@ describe("delivery side quest", () => {
 });
 
 describe("party-size side quest", () => {
+  beforeEach(() => {
+    activateMainQuest("odd-company");
+  });
+
   it("turns in when the party has three companions", () => {
     setClaimedNpcGifts([ODD.id]);
     openConversation(ODD);
@@ -209,10 +247,53 @@ describe("party-size side quest", () => {
     expect(lines.at(-1)).toContain("Moonwake Draught×1");
     expect(getItemCount("moonwake-draught")).toBe(1);
     expect(getSideQuestStatus("odd-company")).toBe("complete");
+    expect(questProgress["odd-company"]).toBe("complete");
+    expect(getActiveQuestId()).toBe("hearth-lots");
     const restTalk = beginConversation(ODD);
     expect(restTalk.prompt).toEqual({ kind: "advance" });
     expect(restTalk.lines[0]).toContain("Wood ×20");
     expect(getItemCount("moonwake-draught")).toBe(1);
+  });
+});
+
+describe("linear Act 2 village asks (#317)", () => {
+  it("does not offer Bryn's ledger while Odd's company ask is the active story step", () => {
+    activateMainQuest("odd-company");
+    setBrynGroveStartersGifted(["mossling", "ember-wisp"]);
+    setClaimedNpcGifts([BRYN.id]);
+    const lines = openConversation(BRYN);
+    expect(lines).toEqual([BRYN.idleLines[0]]);
+    expect(getSideQuestStatus("bryn-ledger")).toBe("locked");
+  });
+
+  it("offers Sable's thread only when that story step is active", () => {
+    activateMainQuest("odd-company");
+    setClaimedNpcGifts([SABLE.id]);
+    expect(openConversation(SABLE)).toEqual([SABLE.idleLines[0]]);
+    expect(getSideQuestStatus("sable-thread")).toBe("locked");
+    activateMainQuest("sable-thread");
+    expect(openConversation(SABLE)).toEqual(SIDE_QUESTS["sable-thread"].offerLines);
+    expect(getSideQuestStatus("sable-thread")).toBe("active");
+  });
+
+  it("still offers Odd's ask if the main step already completed without the side quest", () => {
+    activateMainQuest("hearth-lots");
+    setClaimedNpcGifts([ODD.id]);
+    expect(questProgress["odd-company"]).toBe("complete");
+    expect(openConversation(ODD)).toEqual(SIDE_QUESTS["odd-company"].offerLines);
+    expect(getSideQuestStatus("odd-company")).toBe("active");
+  });
+
+  it("does not turn in a future ask that was already active on an old save", () => {
+    activateMainQuest("odd-company");
+    setBrynGroveStartersGifted(["mossling", "ember-wisp"]);
+    setClaimedNpcGifts([BRYN.id]);
+    setSideQuestStatuses({ "bryn-ledger": "active" });
+    setDiscoveredCreatures(["a", "b", "c", "d", "e"]);
+    expect(openConversation(BRYN)).toEqual([BRYN.idleLines[0]]);
+    expect(getSideQuestStatus("bryn-ledger")).toBe("active");
+    expect(getItemCount("brook-tonic")).toBe(0);
+    expect(getActiveSideQuestHint()).toBeNull();
   });
 });
 
@@ -294,6 +375,7 @@ describe("Odd paid rest", () => {
   }
 
   it("does not offer rest before the side quest is complete", () => {
+    activateMainQuest("odd-company");
     setClaimedNpcGifts([ODD.id]);
     setInventoryFromSnapshot(restMaterials, {});
     injuredCompanions();

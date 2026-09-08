@@ -61,42 +61,70 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
     title: "Grow a Bramblewarden",
     hint: "Craft Moss Salve at the Moon Shrine and apply it to a Mossling.",
     objective: { type: "evolve_creature", evolvesTo: "bramblewarden" },
+    npcLine: {
+      speaker: "Warden Bryn",
+      text: "Mossling answers Moss Salve at the shrine. If you are missing one Grove friend, come east and ask me.",
+    },
   },
   "evolve-hearthflame": {
     id: "evolve-hearthflame",
     title: "Grow a Hearthflame",
     hint: "Craft Ember Charm at the Moon Shrine and apply it to an Ember Wisp.",
     objective: { type: "evolve_creature", evolvesTo: "hearthflame" },
+    npcLine: {
+      speaker: "Warden Bryn",
+      text: "Ember Wisp takes Ember Charm. Same shrine, same care — then the cottages will want your feet.",
+    },
   },
   "open-village-gate": {
     id: "open-village-gate",
     title: "Open the cottage gate",
-    hint: "Return to Hearth Crossing — the east cottage gate opens for your party.",
+    hint: "Walk east through the cottage gate and step inside a house.",
     objective: { type: "unlock_village_gate" },
+    npcLine: {
+      speaker: "Hearthkeep Odd",
+      text: "East gate is yours. Come through a door when you are ready for company.",
+    },
   },
   "odd-company": {
     id: "odd-company",
     title: "Company for the road",
     hint: "Travel with three companions, then speak with Hearthkeep Odd in the village.",
     objective: { type: "party_size", count: 3 },
+    npcLine: {
+      speaker: "Hearthkeep Odd",
+      text: "Three faces on the road. Talk to me at the hearth when the party is that thick.",
+    },
   },
   "hearth-lots": {
     id: "hearth-lots",
     title: "Tend the Hearth Lots",
     hint: "Enter Odd's cottage and complete the Hearth Lots minigame.",
     objective: { type: "complete_minigame", minigameId: "hearth-lots" },
+    npcLine: {
+      speaker: "Hearthkeep Odd",
+      text: "Stand by the hearth and play a round of Lots. I will not take your coin for keeps.",
+    },
   },
   "bryn-ledger": {
     id: "bryn-ledger",
     title: "Fill the ledger",
     hint: "Bring word of five different creatures to Warden Bryn.",
     objective: { type: "discover_creatures", count: 5 },
+    npcLine: {
+      speaker: "Warden Bryn",
+      text: "Five names for the ledger. Talk to me when you have walked that far.",
+    },
   },
   "ward-crossing": {
     id: "ward-crossing",
     title: "Ward the Crossing",
     hint: "Enter Bryn's cottage and complete the Ward the Crossing minigame.",
     objective: { type: "complete_minigame", minigameId: "ward-crossing" },
+    npcLine: {
+      speaker: "Warden Bryn",
+      text: "The shelf still holds the ward-map. Stand there and walk the lines with your party.",
+    },
   },
   "sable-thread": {
     id: "sable-thread",
@@ -109,18 +137,30 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
         { id: "wild-fiber", amount: 3 },
       ],
     },
+    npcLine: {
+      speaker: "Weaver Sable",
+      text: "Five wood, three wild fiber. Bring them to my door and the loom will eat well.",
+    },
   },
   "loom-pattern": {
     id: "loom-pattern",
     title: "Weave the pattern",
     hint: "Enter Sable's cottage and complete the Loom Pattern minigame.",
     objective: { type: "complete_minigame", minigameId: "loom-pattern" },
+    npcLine: {
+      speaker: "Weaver Sable",
+      text: "The loom wants a pattern. Stand at it and repeat the threads.",
+    },
   },
   "craft-boat": {
     id: "craft-boat",
     title: "Craft a boat",
     hint: "Craft a Boat at the Moon Shrine or inventory grid, then carry it to the harbor.",
     objective: { type: "craft_item_id", itemId: "boat" },
+    npcLine: {
+      speaker: "Hearthkeep Odd",
+      text: "Harbor wants a boat. Shape one at the shrine, then walk it north.",
+    },
   },
   "obtain-tide-sovereign": {
     id: "obtain-tide-sovereign",

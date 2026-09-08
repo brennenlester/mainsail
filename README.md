@@ -55,15 +55,15 @@ Each cottage is home to one villager you can talk to with **E**:
 | Weaver Sable | Weaver's Cottage | Moss Fiber ×3 |
 | Hearthkeep Odd | Hearthkeep Cottage | Brook Tonic ×1 |
 
-A villager hands over their gift the first time you speak to them, once per save. Once Act 2 starts (after the first shrine relic), the east cottage gate opens. **Warden Bryn** then also gives a Mossling or Ember Wisp if you do not already have that Grove line (Bramblewarden / Hearthflame count). After that they cycle through local talk — some of which is worth listening to. Visitors on an invite link can explore the cottages and talk to everyone, but never receive gifts.
+A villager hands over their gift the first time you speak to them, once per save. Once Act 2 starts (after the first shrine relic), the east cottage gate opens. **Warden Bryn** then also gives a Mossling or Ember Wisp if you do not already have that Grove line (Bramblewarden / Hearthflame count). After you grow both Grove evolutions, walk east through that gate and **step inside a cottage** to continue the story. Visitors on an invite link can explore the cottages and talk to everyone, but never receive gifts.
 
-Talk again after the gift and each villager will offer a **side ask**:
+When the story asks for a villager's help, talk to them after the gift. Those asks are the Act 2 main line (not optional extras you can start early):
 
-| Villager | Ask | Reward |
+| Villager | Story ask | Reward |
 | --- | --- | --- |
+| Hearthkeep Odd | Travel with three companions | Moonwake Draught ×1 |
 | Warden Bryn | Bring word of five different creatures | Brook Tonic ×2 |
 | Weaver Sable | Deliver Wood ×5 and Wild Fiber ×3 | Brook Tonic ×2 |
-| Hearthkeep Odd | Travel with three companions | Moonwake Draught ×1 |
 
 Active village asks show in the status panel as `Village ask: …`. Delivery asks only take materials when you successfully turn them in. Visitors cannot accept or complete side asks.
 
