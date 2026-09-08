@@ -142,6 +142,21 @@ describe("hermit Reed dialogue (#318)", () => {
     expect(text).not.toMatch(/fuse them into Horizon/i);
     expect(text).not.toMatch(GATE_LORE);
   });
+
+  it("does not teach a new Horizon braid on first meeting after the cap", () => {
+    setTideSovereignObtained(2, false);
+    setCairnSovereignObtained(2, false);
+    setHorizonFusionCount(2, false);
+    setPartyFromSnapshot(
+      [sovereign(HORIZON_SOVEREIGN_ID, "h1"), sovereign(HORIZON_SOVEREIGN_ID, "h2")],
+      3,
+    );
+    const first = beginConversation(reed);
+    const text = first.lines.join(" ");
+    expect(text).toMatch(/finished|already answers/i);
+    expect(text).not.toMatch(/braid them into Horizon/i);
+    expect(text).not.toMatch(GATE_LORE);
+  });
 });
 
 describe("villageGateUnlocked flag", () => {

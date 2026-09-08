@@ -489,14 +489,15 @@ function hermitSageLines(): string[] {
 
 function hermitConversation(npc: NpcDefinition): Conversation {
   if (!hasClaimedNpcGift(npc.id)) {
-    const lines = [...npc.introLines];
+    const sage = isVisitorMode() ? [] : hermitSageLines();
+    // Skip the static Horizon-braid intro when sage already has the live instruction.
+    const intro = sage.length > 0 ? npc.introLines.slice(0, 2) : npc.introLines;
+    const lines = [...intro];
     const giftLine = claimNpcGift(npc);
     if (giftLine) {
       lines.push(giftLine);
     }
-    if (!isVisitorMode()) {
-      lines.push(...hermitSageLines());
-    }
+    lines.push(...sage);
     return talk(lines);
   }
 
