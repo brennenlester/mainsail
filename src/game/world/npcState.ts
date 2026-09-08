@@ -32,7 +32,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { getActiveQuestId, syncMainQuestFromGameplay } from "../story/questProgress";
+import { getActiveQuestId, questProgress, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -368,7 +368,8 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
-    if (getActiveQuestId() !== quest.id) {
+    const activeId = getActiveQuestId();
+    if (activeId !== quest.id && questProgress[quest.id] !== "complete") {
       return null;
     }
     return talk(activateSideQuest(quest));

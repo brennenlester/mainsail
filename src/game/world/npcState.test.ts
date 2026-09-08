@@ -275,6 +275,14 @@ describe("linear Act 2 village asks (#317)", () => {
     expect(openConversation(SABLE)).toEqual(SIDE_QUESTS["sable-thread"].offerLines);
     expect(getSideQuestStatus("sable-thread")).toBe("active");
   });
+
+  it("still offers Odd's ask if the main step already completed without the side quest", () => {
+    activateMainQuest("hearth-lots");
+    setClaimedNpcGifts([ODD.id]);
+    expect(questProgress["odd-company"]).toBe("complete");
+    expect(openConversation(ODD)).toEqual(SIDE_QUESTS["odd-company"].offerLines);
+    expect(getSideQuestStatus("odd-company")).toBe("active");
+  });
 });
 
 describe("visitor side-quest lockout", () => {
