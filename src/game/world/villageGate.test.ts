@@ -114,6 +114,20 @@ describe("hermit Reed dialogue (#318)", () => {
     expect(text).not.toMatch(/fuse them into Horizon/i);
     expect(text).not.toMatch(GATE_LORE);
   });
+
+  it("does not send the player hunting after Horizon fusions are capped", () => {
+    beginConversation(reed);
+    setTideSovereignObtained(2, false);
+    setCairnSovereignObtained(2, false);
+    setHorizonFusionCount(2, false);
+    setPartyFromSnapshot([sovereign(HORIZON_SOVEREIGN_ID, "h1"), sovereign(HORIZON_SOVEREIGN_ID, "h2")], 3);
+    const talk = beginConversation(reed);
+    const text = talk.lines.join(" ");
+    expect(text).toMatch(/finished|already answers/i);
+    expect(text).not.toMatch(/Win its respect/i);
+    expect(text).not.toMatch(/fuse them into Horizon/i);
+    expect(text).not.toMatch(GATE_LORE);
+  });
 });
 
 describe("villageGateUnlocked flag", () => {

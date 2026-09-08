@@ -456,12 +456,14 @@ export function beginConversation(npc: NpcDefinition): Conversation {
 
 /** Fusion-sage follow-up after Reed's gift: cairn pointer, then Moon Shrine Horizon. */
 function hermitSageLines(): string[] {
+  if (getHorizonFusionCount() >= MAX_HORIZON_FUSIONS) {
+    return [
+      "Horizon already answers you. The joining on this shore is finished.",
+    ];
+  }
   const hasTide = countCreatures(TIDE_SOVEREIGN_ID) > 0;
   const hasCairn = countCreatures(CAIRN_SOVEREIGN_ID) > 0;
   if (hasTide && hasCairn) {
-    if (getHorizonFusionCount() >= MAX_HORIZON_FUSIONS) {
-      return [];
-    }
     return [
       "Tide and Stone walk with you. The joining is not mine to perform.",
       "Return to the Moon Shrine. Lay the Sovereign Seal, and fuse them into Horizon.",
