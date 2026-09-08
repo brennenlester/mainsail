@@ -110,9 +110,23 @@ describe("hermit Reed dialogue (#318)", () => {
     setPartyFromSnapshot([sovereign(HORIZON_SOVEREIGN_ID, "h")], 2);
     const talk = beginConversation(reed);
     const text = talk.lines.join(" ");
-    expect(text).not.toMatch(/walk with you/i);
+    expect(text).toMatch(/second joining/i);
+    expect(text).toMatch(/Moon Shrine/i);
+    expect(text).not.toMatch(/Tide and Stone walk with you/i);
+    expect(text).not.toMatch(/Win its respect/i);
     expect(text).not.toMatch(/fuse them into Horizon/i);
     expect(text).not.toMatch(GATE_LORE);
+  });
+
+  it("does not treat lifetime claims as current ownership", () => {
+    beginConversation(reed);
+    setTideSovereignObtained(1, false);
+    setCairnSovereignObtained(1, false);
+    setPartyFromSnapshot([], 1);
+    const talk = beginConversation(reed);
+    const text = talk.lines.join(" ");
+    expect(text).not.toMatch(/walk with you/i);
+    expect(text).not.toMatch(/fuse them into Horizon/i);
   });
 
   it("does not send the player hunting after Horizon fusions are capped", () => {

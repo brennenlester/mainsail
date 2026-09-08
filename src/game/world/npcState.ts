@@ -454,9 +454,13 @@ export function beginConversation(npc: NpcDefinition): Conversation {
   return talk([nextIdleLine(npc)]);
 }
 
-/** Fusion-sage follow-up after Reed's gift: cairn pointer, then Moon Shrine Horizon. */
+/**
+ * Fusion-sage follow-up after Reed's gift.
+ * Uses live party ownership, not lifetime obtained counters: fusion consumes parents.
+ */
 function hermitSageLines(): string[] {
-  if (getHorizonFusionCount() >= MAX_HORIZON_FUSIONS) {
+  const horizonCount = getHorizonFusionCount();
+  if (horizonCount >= MAX_HORIZON_FUSIONS) {
     return [
       "Horizon already answers you. The joining on this shore is finished.",
     ];
@@ -473,6 +477,11 @@ function hermitSageLines(): string[] {
     return [
       "You met the Tide Sovereign. The water remembers.",
       "Stone Sovereign keeps the cairn isle due south of here — sail south, not east, to the gray rock ringed with standing stones.",
+    ];
+  }
+  if (horizonCount > 0) {
+    return [
+      "Horizon already walks with you. Tide and Stone may return to these waters if you seek a second joining at the Moon Shrine.",
     ];
   }
   return [];
