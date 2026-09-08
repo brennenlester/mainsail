@@ -3,14 +3,31 @@ import { VILLAGE_CODE_GATE, VILLAGE_COTTAGE_DOORS } from "./villageGate";
 import { beginConversation, resetNpcStateForTest } from "./npcState";
 import { getNpcById } from "./npcs";
 import { HERMIT_NPC_ID } from "./hermitIsland";
+import { setPartyFromSnapshot } from "../creatures/party";
+import type { CreatureInstance } from "../creatures/types";
+import { CAIRN_SOVEREIGN_ID } from "../encounters/godLand";
+import { TIDE_SOVEREIGN_ID } from "../encounters/godSail";
+import { HORIZON_SOVEREIGN_ID } from "../shrine/godFusion";
 import {
   setCairnSovereignObtained,
+  setHorizonFusionCount,
   setTideSovereignObtained,
   setVillageGateUnlocked,
   worldState,
 } from "./worldState";
 
 const GATE_LORE = /east gate|village story|gate code|\d{4}/i;
+
+function sovereign(definitionId: string, instanceId: string): CreatureInstance {
+  return {
+    instanceId,
+    definitionId,
+    speciesId: definitionId,
+    currentHp: 10,
+    level: 1,
+    xp: 0,
+  };
+}
 
 describe("village gate layout", () => {
   it("keeps stable cottage gate and door coordinates", () => {
@@ -24,8 +41,10 @@ describe("hermit Reed dialogue (#318)", () => {
 
   beforeEach(() => {
     resetNpcStateForTest();
+    setPartyFromSnapshot([], 1);
     setTideSovereignObtained(0, false);
     setCairnSovereignObtained(0, false);
+    setHorizonFusionCount(0, false);
     setVillageGateUnlocked(false, false);
   });
 
@@ -43,9 +62,10 @@ describe("hermit Reed dialogue (#318)", () => {
     expect(again.lines.join(" ").length).toBeGreaterThan(0);
   });
 
-  it("points south to Stone Sovereign after Tide is obtained", () => {
+  it("points south to Stone Sovereign after Tide is in the party", () => {
     beginConversation(reed);
     setTideSovereignObtained(1, false);
+    setPartyFromSnapshot([sovereign(TIDE_SOVEREIGN_ID, "t")], 2);
     const talk = beginConversation(reed);
     const text = talk.lines.join(" ");
     expect(text).toMatch(/Tide Sovereign/i);
@@ -54,8 +74,9 @@ describe("hermit Reed dialogue (#318)", () => {
     expect(text).not.toMatch(GATE_LORE);
   });
 
-  it("uses cairn-south lines when Tide was already claimed", () => {
+  it("uses cairn-south lines when Tide is already in the party", () => {
     setTideSovereignObtained(1, false);
+    setPartyFromSnapshot([sovereign(TIDE_SOVEREIGN_ID, "t")], 2);
     const first = beginConversation(reed);
     const text = first.lines.join(" ");
     expect(text).toMatch(/south/i);
@@ -63,14 +84,34 @@ describe("hermit Reed dialogue (#318)", () => {
     expect(text).not.toMatch(GATE_LORE);
   });
 
-  it("points to Moon Shrine Horizon fusion after both sovereigns", () => {
+  it("points to Moon Shrine Horizon fusion when both sovereigns are in the party", () => {
     beginConversation(reed);
     setTideSovereignObtained(1, false);
     setCairnSovereignObtained(1, false);
+    setPartyFromSnapshot(
+      [
+        sovereign(TIDE_SOVEREIGN_ID, "t"),
+        sovereign(CAIRN_SOVEREIGN_ID, "c"),
+      ],
+      3,
+    );
     const talk = beginConversation(reed);
     const text = talk.lines.join(" ");
     expect(text).toMatch(/Moon Shrine/i);
     expect(text).toMatch(/Horizon/i);
+    expect(text).not.toMatch(GATE_LORE);
+  });
+
+  it("does not claim both sovereigns walk with you after they were fused", () => {
+    beginConversation(reed);
+    setTideSovereignObtained(1, false);
+    setCairnSovereignObtained(1, false);
+    setHorizonFusionCount(1, false);
+    setPartyFromSnapshot([sovereign(HORIZON_SOVEREIGN_ID, "h")], 2);
+    const talk = beginConversation(reed);
+    const text = talk.lines.join(" ");
+    expect(text).not.toMatch(/walk with you/i);
+    expect(text).not.toMatch(/fuse them into Horizon/i);
     expect(text).not.toMatch(GATE_LORE);
   });
 });
