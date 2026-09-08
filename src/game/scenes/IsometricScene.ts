@@ -92,7 +92,7 @@ import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
   getActiveQuestId,
-  recordQuestEvent,
+  noteZoneEntered,
 } from "../story/questProgress";
 import { consumeAchievementToast } from "../progression/achievements";
 import {
@@ -1128,7 +1128,7 @@ export class IsometricScene extends Phaser.Scene {
     }
     this.drawNpcs(zone);
     this.drawPlacedBoat(zone);
-    recordQuestEvent({ type: "enter_zone", zoneId });
+    noteZoneEntered(zoneId);
 
     this.player = this.add
       .sprite(0, 0, ...imagineTexture(this, `player-${this.playerFacing}-0`))

@@ -32,7 +32,7 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
+import { getActiveQuestId, questProgress, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const giftsClaimed = new Set<string>();
@@ -332,12 +332,12 @@ function tryAdvanceOddCompanyMainQuest(): void {
   if (getActiveQuestId() !== "odd-company") {
     return;
   }
-  if (playerParty.creatures.length < 3) {
+  if (getSideQuestStatus("odd-company") !== "complete") {
     return;
   }
   recordQuestEvent({
     type: "party_size",
-    count: playerParty.creatures.length,
+    count: 3,
   });
 }
 
@@ -374,6 +374,15 @@ function shouldYieldSideQuestToDailyAsk(npcId: string): boolean {
   return ask?.npcId === npcId && ask.status !== "complete";
 }
 
+function isSideAskOnCurrentBeat(quest: SideQuestDefinition): boolean {
+  if (getActiveQuestId() === quest.id) {
+    return true;
+  }
+  // Old saves may have auto-completed the main step from party size / deliver
+  // without talking; still offer so the reward and Odd's rest are reachable.
+  return questProgress[quest.id] === "complete";
+}
+
 function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   const quest = getSideQuestForNpc(npc.id);
   if (!quest) {
@@ -381,9 +390,15 @@ function sideQuestConversation(npc: NpcDefinition): Conversation | null {
   }
   const status = getSideQuestStatus(quest.id);
   if (status === "locked") {
+    if (!isSideAskOnCurrentBeat(quest)) {
+      return null;
+    }
     return talk(activateSideQuest(quest));
   }
   if (status === "active") {
+    if (!isSideAskOnCurrentBeat(quest)) {
+      return null;
+    }
     const turnIn = turnInSideQuest(quest);
     if (turnIn) {
       return talk(turnIn);
@@ -491,12 +506,14 @@ export function openConversation(npc: NpcDefinition): string[] {
 
 /** Active side quests for the status panel / HUD hint. */
 export function getActiveSideQuestSummaries(): string[] {
-  return SIDE_QUEST_IDS.filter((id) => getSideQuestStatus(id) === "active").map(
-    (id) => {
-      const quest = SIDE_QUESTS[id];
-      return `${quest.title}: ${quest.progressLine}`;
-    },
-  );
+  return SIDE_QUEST_IDS.filter(
+    (id) =>
+      getSideQuestStatus(id) === "active" &&
+      isSideAskOnCurrentBeat(SIDE_QUESTS[id]),
+  ).map((id) => {
+    const quest = SIDE_QUESTS[id];
+    return `${quest.title}: ${quest.progressLine}`;
+  });
 }
 
 /** Short HUD line for the first active village ask, if any. */
@@ -505,7 +522,11 @@ export function getActiveSideQuestHint(): string | null {
   if (daily && daily.status === "active") {
     return `Daily ask: bring ${daily.amount} ${getMaterialName(daily.materialId)}`;
   }
-  const id = SIDE_QUEST_IDS.find((questId) => getSideQuestStatus(questId) === "active");
+  const id = SIDE_QUEST_IDS.find(
+    (questId) =>
+      getSideQuestStatus(questId) === "active" &&
+      isSideAskOnCurrentBeat(SIDE_QUESTS[questId]),
+  );
   if (!id) {
     return null;
   }

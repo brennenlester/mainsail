@@ -34,14 +34,14 @@ Start in **Whisper Grove**, then walk map exits through **Moon Shrine** to **Hea
 
 ### Story quests
 
-The HUD shows `Story N/18: …` and a short “Next” hint. Steps 3–4 also show a short villager line. Host progress saves automatically.
+The HUD shows `Story N/18: …` and a short “Next” hint. Steps 3–14 also show a short villager line. Host progress saves automatically.
 
 1. **Befriend a wild creature** — walk until an encounter appears, then choose **Befriend**.
 2. **Win a training spar** — choose **Spar** and win. This **opens the overworld gate**.
 3. **Reach Hearth Crossing** — follow the path Grove → Shrine → Village plaza.
 4. **Craft a relic at Moon Shrine** — stand on the moon altar, press **E**, craft any relic.
 
-Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done, then `OPEN`. Relic craft starts step 5.
+Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done, then `OPEN`. Relic craft starts step 5. The east cottage gate opens at Act 2 start; returning to Hearth Crossing is the readable cottage-gate story beat. Crafting a boat closes Act 2.
 
 ### Hearth Crossing villagers
 
@@ -57,7 +57,7 @@ Each cottage is home to one villager you can talk to with **E**:
 
 A villager hands over their gift the first time you speak to them, once per save. Once Act 2 starts (after the first shrine relic), the east cottage gate opens. **Warden Bryn** then also gives a Mossling or Ember Wisp if you do not already have that Grove line (Bramblewarden / Hearthflame count). After that they cycle through local talk — some of which is worth listening to. Visitors on an invite link can explore the cottages and talk to everyone, but never receive gifts.
 
-Talk again after the gift and each villager will offer a **side ask**:
+Talk again after the gift and each villager will offer a **side ask** when that step is the active main-quest beat (Odd, then Bryn, then Sable — you cannot skip ahead):
 
 | Villager | Ask | Reward |
 | --- | --- | --- |
