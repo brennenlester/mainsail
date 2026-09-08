@@ -4,10 +4,13 @@ import { beginConversation, resetNpcStateForTest } from "./npcState";
 import { getNpcById } from "./npcs";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 import {
+  setCairnSovereignObtained,
   setTideSovereignObtained,
   setVillageGateUnlocked,
   worldState,
 } from "./worldState";
+
+const GATE_LORE = /east gate|village story|gate code|\d{4}/i;
 
 describe("village gate layout", () => {
   it("keeps stable cottage gate and door coordinates", () => {
@@ -22,32 +25,53 @@ describe("hermit Reed dialogue (#318)", () => {
   beforeEach(() => {
     resetNpcStateForTest();
     setTideSovereignObtained(0, false);
+    setCairnSovereignObtained(0, false);
     setVillageGateUnlocked(false, false);
   });
 
-  it("does not mention a numeric gate code before Tide Sovereign", () => {
+  it("teaches fusion-sage lore without village-gate copy", () => {
+    const catalog = [...reed.introLines, ...reed.idleLines].join(" ");
+    expect(catalog).toMatch(/joining|Horizon|Sovereign/i);
+    expect(catalog).not.toMatch(GATE_LORE);
+
     const first = beginConversation(reed);
     expect(first.lines.join(" ")).toMatch(/Sovereign/i);
-    expect(first.lines.join(" ")).not.toMatch(/\d{4}/);
+    expect(first.lines.join(" ")).not.toMatch(GATE_LORE);
 
     const again = beginConversation(reed);
-    expect(again.lines.join(" ")).not.toMatch(/\d{4}/);
+    expect(again.lines.join(" ")).not.toMatch(GATE_LORE);
     expect(again.lines.join(" ").length).toBeGreaterThan(0);
   });
 
-  it("points to story-driven gate unlock after Tide Sovereign", () => {
+  it("points south to Stone Sovereign after Tide is obtained", () => {
     beginConversation(reed);
     setTideSovereignObtained(1, false);
     const talk = beginConversation(reed);
-    expect(talk.lines.join(" ")).toMatch(/east gate/i);
-    expect(talk.lines.join(" ")).not.toMatch(/\d{4}/);
+    const text = talk.lines.join(" ");
+    expect(text).toMatch(/Tide Sovereign/i);
+    expect(text).toMatch(/south/i);
+    expect(text).toMatch(/cairn/i);
+    expect(text).not.toMatch(GATE_LORE);
   });
 
-  it("uses story-driven gate lines when Tide was already claimed", () => {
+  it("uses cairn-south lines when Tide was already claimed", () => {
     setTideSovereignObtained(1, false);
     const first = beginConversation(reed);
-    expect(first.lines.join(" ")).toMatch(/east gate/i);
-    expect(first.lines.join(" ")).not.toMatch(/\d{4}/);
+    const text = first.lines.join(" ");
+    expect(text).toMatch(/south/i);
+    expect(text).toMatch(/cairn/i);
+    expect(text).not.toMatch(GATE_LORE);
+  });
+
+  it("points to Moon Shrine Horizon fusion after both sovereigns", () => {
+    beginConversation(reed);
+    setTideSovereignObtained(1, false);
+    setCairnSovereignObtained(1, false);
+    const talk = beginConversation(reed);
+    const text = talk.lines.join(" ");
+    expect(text).toMatch(/Moon Shrine/i);
+    expect(text).toMatch(/Horizon/i);
+    expect(text).not.toMatch(GATE_LORE);
   });
 });
 

@@ -18,7 +18,7 @@ export const TileType = {
   OverworldGate: 2,
   Water: 3,
   Dock: 4,
-  /** Hearth Crossing east gate — opens with the hermit's 4-digit code (#291). */
+  /** Hearth Crossing east gate — opens with the Act 2 main quest (#316). */
   VillageGate: 5,
 } as const;
 

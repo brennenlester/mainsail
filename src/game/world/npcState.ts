@@ -8,6 +8,7 @@ import { getItemName, getMaterialName } from "../inventory/materials";
 import { addToParty, getEffectiveMaxHp, playerParty } from "../creatures/party";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
+  getCairnSovereignObtained,
   getTideSovereignObtained,
   markCreatureDiscovered,
   type BrynGroveStarterId,
@@ -450,6 +451,23 @@ export function beginConversation(npc: NpcDefinition): Conversation {
   return talk([nextIdleLine(npc)]);
 }
 
+/** Fusion-sage follow-up after Reed's gift: cairn pointer, then Moon Shrine Horizon. */
+function hermitSageLines(): string[] {
+  if (getTideSovereignObtained() <= 0) {
+    return [];
+  }
+  if (getCairnSovereignObtained() > 0) {
+    return [
+      "Tide and Stone walk with you. The joining is not mine to perform.",
+      "Return to the Moon Shrine. Lay the Sovereign Seal, and fuse them into Horizon.",
+    ];
+  }
+  return [
+    "You met the Tide Sovereign. The water remembers.",
+    "Stone Sovereign keeps the cairn isle due south of here — sail south, not east, to the gray rock ringed with standing stones.",
+  ];
+}
+
 function hermitConversation(npc: NpcDefinition): Conversation {
   if (!hasClaimedNpcGift(npc.id)) {
     const lines = [...npc.introLines];
@@ -457,10 +475,8 @@ function hermitConversation(npc: NpcDefinition): Conversation {
     if (giftLine) {
       lines.push(giftLine);
     }
-    if (!isVisitorMode() && getTideSovereignObtained() > 0) {
-      lines.push(
-        "You already met the Tide Sovereign. When the village story calls you back, the east gate opens on its own.",
-      );
+    if (!isVisitorMode()) {
+      lines.push(...hermitSageLines());
     }
     return talk(lines);
   }
@@ -469,17 +485,9 @@ function hermitConversation(npc: NpcDefinition): Conversation {
     return talk([nextIdleLine(npc)]);
   }
 
-  if (getTideSovereignObtained() > 0) {
-    const lines = [
-      "You met the Tide Sovereign. Good.",
-      "When the village story calls you back, the east gate at Hearth Crossing opens on its own.",
-    ];
-    if (getActiveQuestId() === "obtain-cairn-sovereign") {
-      lines.push(
-        "Stone Sovereign keeps the cairn isle due south of here — sail south, not east, to the gray rock ringed with standing stones.",
-      );
-    }
-    return talk(lines);
+  const sage = hermitSageLines();
+  if (sage.length > 0) {
+    return talk(sage);
   }
 
   return talk([nextIdleLine(npc)]);
