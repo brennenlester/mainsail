@@ -118,6 +118,14 @@ describe("isValidWorldSnapshot", () => {
     expect(isValidWorldSnapshot(validSnapshot())).toBe(true);
   });
 
+  it("accepts the optional rare variant flag only as true (#368)", () => {
+    expect(
+      isValidWorldSnapshot(validSnapshot({ party: [partyMember({ rare: true })] })),
+    ).toBe(true);
+    const bad = { ...partyMember(), rare: "yes" } as unknown as CreatureInstance;
+    expect(isValidWorldSnapshot(validSnapshot({ party: [bad] }))).toBe(false);
+  });
+
   it("accepts optional playerName when normalized", () => {
     expect(
       isValidWorldSnapshot(validSnapshot({ playerName: "Mira" })),

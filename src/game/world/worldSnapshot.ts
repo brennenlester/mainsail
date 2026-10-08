@@ -412,6 +412,9 @@ function isValidPartyMember(value: unknown): boolean {
   ) {
     return false;
   }
+  if (creature.rare !== undefined && creature.rare !== true) {
+    return false;
+  }
   if (creature.trait !== undefined) {
     if (typeof creature.trait !== "object" || creature.trait === null) {
       return false;

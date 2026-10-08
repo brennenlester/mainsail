@@ -22,7 +22,7 @@ import {
 } from "../render/pixelRatio";
 import { initNameIntro } from "../ui/nameIntro";
 import { getPlayerName } from "../world/playerName";
-import { clearHostSave } from "../world/worldSave";
+import { clearHostSave, isHostSaveLocked } from "../world/worldSave";
 
 /** Standalone Blender renders (`npm run render:title`), never atlas-packed. */
 export const TITLE_ART = {
@@ -909,6 +909,10 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private wipeAndRestart(): void {
+    // A visitor / share-card sandbox never wipes (its ?new=1 reload would).
+    if (isHostSaveLocked()) {
+      return;
+    }
     this.leaving = true;
     clearHostSave();
     const url = new URL(window.location.href);

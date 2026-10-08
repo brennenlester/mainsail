@@ -89,6 +89,14 @@ export function getPartyAverageLevel(): number {
   return Math.max(1, Math.round(total / pool.length));
 }
 
+/** Share-card ghost spars pin the opponent to the sharer's level (#368). */
+let wildLevelOverride: number | null = null;
+
+export function setWildLevelOverride(level: number | null): void {
+  wildLevelOverride =
+    level === null ? null : Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
+}
+
 /**
  * Wild effective level: party average + small rarity bias, capped at MAX_LEVEL (#370).
  * Spar win counts no longer raise wild level, so success is never punished.
@@ -101,6 +109,9 @@ export function getWildEffectiveLevel(
   const scripted = scriptedWildLevels.get(creatureId);
   if (scripted !== undefined) {
     return scripted;
+  }
+  if (wildLevelOverride !== null) {
+    return wildLevelOverride;
   }
   if (isDefeatScalingExcluded(creatureId)) {
     return 1;

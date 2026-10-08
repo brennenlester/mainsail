@@ -6,6 +6,7 @@ import {
   playerParty,
   removeFromParty,
 } from "../creatures/party";
+import { isRareVariant } from "../share/rareVariant";
 import {
   consumeItem,
   getItemCount,
@@ -127,9 +128,10 @@ export function applyGodFusion(
   }
 
   const level = Math.max(tide.level, cairn.level);
+  const rare = isRareVariant(tide) || isRareVariant(cairn);
   removeFromParty(tide.instanceId);
   removeFromParty(cairn.instanceId);
-  addFusedCreature(HORIZON_SOVEREIGN_ID, level);
+  addFusedCreature(HORIZON_SOVEREIGN_ID, level, { rare });
   recordHorizonFusion();
   reopenParentSovereignEncounters();
   return {
@@ -177,9 +179,10 @@ export function applyEclipseFusion(
   }
 
   const level = Math.max(first.level, second.level);
+  const rare = isRareVariant(first) || isRareVariant(second);
   removeFromParty(first.instanceId);
   removeFromParty(second.instanceId);
-  addFusedCreature(ECLIPSE_SOVEREIGN_ID, level);
+  addFusedCreature(ECLIPSE_SOVEREIGN_ID, level, { rare });
   setEclipseFusionCompleted(true);
   return {
     ok: true,

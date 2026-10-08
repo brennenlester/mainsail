@@ -26,6 +26,11 @@
   font-weight: 700;
 }
 
+.party-hp-rare {
+  color: #b07ad8;
+  font-weight: 700;
+}
+
 .party-hp-pips {
   display: inline-flex;
   align-items: center;

@@ -63,6 +63,8 @@ export type CreatureInstance = {
   appliedEffects?: string[];
   /** Rolled signature trait (immunity or damage-buff). */
   trait?: CreatureTrait;
+  /** Rare colour-shifted variant rolled at befriend (#368). Absent = normal. */
+  rare?: true;
   /** Personality rolled at befriend (#367). Backfilled on load for older saves. */
   personality?: PersonalityId;
   /** Bond points 0..BOND_MAX (#367). Missing = 0. */

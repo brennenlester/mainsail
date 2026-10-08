@@ -8,6 +8,7 @@ import {
 import { hasCraftedWeapon } from "../battle/wandererWeapons";
 import type { CreatureInstance } from "../creatures/types";
 import { hasPresenceGrowth } from "../shrine/presence";
+import { isRareVariant } from "../share/rareVariant";
 
 export const HP_PIP_SEGMENTS = 5;
 
@@ -65,6 +66,13 @@ function appendPipRow(parent: HTMLElement, creature: CreatureInstance): void {
     name.append(moon, document.createTextNode(` ${shortName(creature)}`));
   } else {
     name.textContent = shortName(creature);
+  }
+  if (isRareVariant(creature)) {
+    const star = document.createElement("span");
+    star.className = "party-hp-rare";
+    star.title = "Rare variant";
+    star.textContent = " ✦";
+    name.append(star);
   }
 
   const pips = document.createElement("span");

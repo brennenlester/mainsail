@@ -23,6 +23,7 @@ On a fresh save (or after Reset / `?new=1`), enter a display name (1–16 charac
 | **I** | Shortcut: copy a friend invite link (host only) |
 | **Copy invite link** (status panel) | Copy a friend invite link (host only; works on touch) |
 | **Party** (status panel) | Manage the active party (max 7) and scroll/swap reserve creatures |
+| **Share** (status panel) | Make a Companion Card of your party — share, copy, or download the PNG, or copy a challenge link |
 | **Inventory** (status panel) | Browse materials and items. After you craft a Portable Moonshrine, Inventory also has the 4×4 craft grid and **Use** on tonic / draught / crystal |
 | **Recipes** (status panel, Inventory, or Moon Shrine) | See every shaped crafting pattern |
 | **Codex** (status panel) | Open the habitat codex — what lives where (fills in as you encounter creatures) |
@@ -129,9 +130,18 @@ Filling every codex page (all 27 creatures that appear in habitat encounter tabl
 3. Visitors can explore the host snapshot but **cannot** trigger encounters, craft, or advance quests.
 4. Broken or tampered `?join=` links show an error screen and do not change your local save.
 
+### Companion Cards and challenge links
+
+1. Tap **Share** in the status panel (appears once you have a companion). The game paints a Companion Card PNG of your active party (up to 7, with levels, Evolved / Presence / ✦ Rare tags, bond, and date). **Share** uses the native share sheet with the image where the browser supports file sharing; otherwise use **Copy image**, **Download**, or **Copy link**.
+2. The link is `?card=<code>` — a compact, versioned party snapshot (no save data; v2 carries bond hearts, older v1 links still open). Card links skip the title screen, and no save-wipe path (title New Game, Reset, `?new=1`) works while a card or invite is open. Opening it shows the card with **Play now** (drops the link and boots normally: a fresh game for new players, your own save otherwise — never overwritten) and **Challenge** (practice spars against a ghost of that party at its levels; you use your own party, or a loaner trio if you have no save). Challenge runs sandboxed: nothing is written to your save, and reloading resets it.
+3. Broken, oversized, or tampered `?card=` links show an error notice and load nothing. A valid `?join=` invite takes precedence over `?card=`.
+4. **Rare variants:** roughly 1 in 16 befriended companions is a colour-shifted ✦ Rare. They are tinted in the overworld, starred in the party HUD, and highlighted on the card.
+
+**Link previews (Vercel):** `index.html` carries static Open Graph / Twitter tags pointing at `public/og-image.jpg` on the canonical play URL. Social crawlers do not run JavaScript, so every link — including `?card=` links and preview deploys — unfurls with that static image; the personal card travels as the shared PNG. Per-card preview images would need a server/edge function rendering the card from `?card=` (out of scope: no backend). If the canonical host changes, update the absolute `og:image` / `og:url` URLs in `index.html`.
+
 ### Save and resume
 
-Host progress (party, inventory, quests, position, gate) lives in `localStorage`. Append `?new=1` or use **Reset game** to start over. A valid `?join=` invite always takes precedence over the local save.
+Host progress (party, inventory, quests, position, gate) lives in `localStorage`. Append `?new=1` or use **Reset game** to start over (`?new=1` is ignored on `?join=` and `?card=` links). A valid `?join=` invite always takes precedence over the local save.
 
 ---
 
@@ -180,6 +190,7 @@ These are for local development only; they are not part of normal play:
 - `src/game/` — Phaser bootstrap and scenes
 - `src/game/story/` — quest definitions and progress
 - `src/game/world/` — zones, collision, invites, saves
+- `src/game/share/` — Companion Card, `?card=` share codes, ghost challenge, rare variants
 - `src/game/creatures/` — catalog and party
 - `src/game/companions/` — personality, bond, favorite materials, overworld abilities
 - `src/game/inventory/` / `src/game/crafting/` / `src/game/shrine/` — materials and Moon Shrine
