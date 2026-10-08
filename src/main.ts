@@ -10,6 +10,7 @@ import {
 } from "./game/opening/bootRoute";
 import { startOpeningBeat } from "./game/opening/openingCaption";
 import { initStatusPanelControls } from "./game/ui/statusPanel";
+import { initCanvasFocusReturn } from "./game/ui/canvasFocus";
 import { shouldResetHostSave } from "./game/world/bootParams";
 import {
   clearJoinParamAndReload,
@@ -129,6 +130,7 @@ if (inviteResult.status === "invalid") {
   setBootContext({ route, hasSave });
   const game = createGame("game");
   initStatusPanelControls();
+  initCanvasFocusReturn();
   initShareControls(game);
   if (shareResult.status === "ok") {
     // Card links skip the title (route is "play") and never show the name intro.
