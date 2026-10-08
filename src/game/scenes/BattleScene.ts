@@ -445,17 +445,21 @@ export class BattleScene extends Phaser.Scene {
 
     const cx = DESIGN_SIZE / 2;
 
-    this.add
-      .text(cx, 22, this.story?.def.title ?? "Training Spar", {
-        color: this.story ? "#ffd8a8" : "#fff7d8",
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "18px",
-        fontStyle: "bold",
-        stroke: "#1a2430",
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    // A warded story battle uses this strip for the Hearth Ward row (#399);
+    // its title already ran in the VS banner and the foe bar names the foe.
+    if (!this.story || this.story.ward >= 1) {
+      this.add
+        .text(cx, 22, this.story?.def.title ?? "Training Spar", {
+          color: this.story ? "#ffd8a8" : "#fff7d8",
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "18px",
+          fontStyle: "bold",
+          stroke: "#1a2430",
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5)
+        .setDepth(6);
+    }
 
     this.wildSprite = fitDisplay(
       this.add

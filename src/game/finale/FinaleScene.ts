@@ -38,6 +38,7 @@ const NAVY = 0x1a3048;
 const CELL_W = 136;
 const CELL_H = 150;
 const CELL_GAP = 12;
+const FAST_INPUT_GRACE_MS = 800;
 
 /** Credits-style closing card with a companion recap and Share (#393). */
 export class FinaleScene extends Phaser.Scene {
@@ -153,7 +154,10 @@ export class FinaleScene extends Phaser.Scene {
       this.ready = true;
     };
     if (fastBattleEnabled()) {
-      open();
+      // Everything visible at once, but keep a beat before input so the
+      // Enter-mash through the shrine dialogue can't dismiss the card unseen.
+      for (const obj of all) obj.setAlpha(1);
+      this.time.delayedCall(FAST_INPUT_GRACE_MS, open);
     } else {
       for (const obj of all) obj.setAlpha(0);
       this.tweens.add({ targets: header, alpha: 1, duration: 600 });
