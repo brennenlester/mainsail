@@ -235,8 +235,20 @@ Local Vite only: **U** toggles the overworld gate; `?encounter=` / `?spar=` prev
 - **Persistence:** host `localStorage`. Visitor mode is a snapshot (`?join=`), not a shared live simulation of encounters/crafting.
 - **Layout:** `src/game/` Phaser bootstrap and scenes; `story/` quests; `world/` zones, collision, invites, saves; `creatures/` catalog and party; `inventory/` / `crafting/` / `shrine/` materials and Moon Shrine.
 - **CI:** PRs to `main` run `npm ci`, `npm test`, `npm run build`. Merges deploy via Vercel.
-- **Assets:** Imagine texture atlas (`npm run pack:atlas`).
+- **Assets:** Blender renders (`npm run render:assets`) + legacy Imagine PNGs packed into a multi-page atlas (`npm run pack:atlas`). See Art direction.
 - **License:** Private project.
+
+### Art direction (#359)
+
+Decided 2026-10-07 in the Wow Pass art spike. New world art comes from `scripts/blender/`; legacy Imagine art stays until converted.
+
+- **Projection:** 3/4 top-down, not 2:1 isometric. The engine grid (48px square tiles, `gridY*1000+gridX` depth) is unchanged; only sprites change. Props and characters use an orthographic camera pitched 35° below horizontal; ground tiles are rendered straight down so they tile. Spar art uses a 22° pitch.
+- **Scale:** one world scale for the overworld: 1 tile = 1 Blender unit = 48 logical px, rendered at 4× (192 px per unit). Sprites keep the logical display sizes in `displaySizes.ts`; a creature is drawn at its true size next to the player instead of filling its box. Spar art: 1 unit = 100 design px, rendered at 3×.
+- **Filtering:** `pixelArt` stays off (smooth, antialiased). Atlas pages are power-of-two with mipmaps (`LINEAR_MIPMAP_LINEAR`) so 4× sprites downsample cleanly.
+- **Look:** stylized low-poly toon. 3-band ramp (navy-tinted shadow / base / cream highlight), dark-navy inverted-hull outline (~1 logical px), rim light on silhouettes, soft ground shadow. Characters are smooth-shaded; foliage and rocks are faceted.
+- **Light rig (fixed in world space for every asset):** warm key sun from the front-left (only shadow caster, shadows fall up-right), weak cool fill from the right, rim from back-right.
+- **Palette:** shared with the title screen. Navy `#1f2a44` (outline, shadow tint), cream `#f3ead3` (highlight), moss `#79ad55`, grass `#7fae5c`, leaf `#5c9a4c`, teal `#3f8f95`, roof `#4f7d88`, stone `#b7b2a5`, bark `#80553a`, scarf `#e6a34f`, moon `#e8eefc`. Full list in `scripts/blender/stage.py` `PALETTE`; add colors there, not per model.
+- **Animation:** creatures get idle (6f loop) for the overworld and idle/attack/hurt for spars; the player gets 4 facings (true east/west, no mirroring) × idle breath (4f) + walk (6f).
 
 ---
 

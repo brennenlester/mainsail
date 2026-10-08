@@ -1,0 +1,150 @@
+{
+  "anims": [
+    {
+      "key": "creature-mossling-battle__idle",
+      "frames": [
+        "creature-mossling-battle__idle_00",
+        "creature-mossling-battle__idle_01",
+        "creature-mossling-battle__idle_02",
+        "creature-mossling-battle__idle_03",
+        "creature-mossling-battle__idle_04",
+        "creature-mossling-battle__idle_05"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "creature-mossling-battle__attack",
+      "frames": [
+        "creature-mossling-battle__attack_00",
+        "creature-mossling-battle__attack_01",
+        "creature-mossling-battle__attack_02",
+        "creature-mossling-battle__attack_03",
+        "creature-mossling-battle__attack_04",
+        "creature-mossling-battle__attack_05"
+      ],
+      "frameRate": 14,
+      "repeat": 0
+    },
+    {
+      "key": "creature-mossling-battle__hurt",
+      "frames": [
+        "creature-mossling-battle__hurt_00",
+        "creature-mossling-battle__hurt_01",
+        "creature-mossling-battle__hurt_02",
+        "creature-mossling-battle__hurt_03"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-mossling__idle",
+      "frames": [
+        "creature-mossling__idle_00",
+        "creature-mossling__idle_01",
+        "creature-mossling__idle_02",
+        "creature-mossling__idle_03",
+        "creature-mossling__idle_04",
+        "creature-mossling__idle_05"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "player-east__idle",
+      "frames": [
+        "player-east__idle_00",
+        "player-east__idle_01",
+        "player-east__idle_02",
+        "player-east__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-east__walk",
+      "frames": [
+        "player-east-1",
+        "player-east-2",
+        "player-east-3",
+        "player-east-4",
+        "player-east-5",
+        "player-east-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "player-north__idle",
+      "frames": [
+        "player-north__idle_00",
+        "player-north__idle_01",
+        "player-north__idle_02",
+        "player-north__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-north__walk",
+      "frames": [
+        "player-north-1",
+        "player-north-2",
+        "player-north-3",
+        "player-north-4",
+        "player-north-5",
+        "player-north-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "player-south__idle",
+      "frames": [
+        "player-south__idle_00",
+        "player-south__idle_01",
+        "player-south__idle_02",
+        "player-south__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-south__walk",
+      "frames": [
+        "player-south-1",
+        "player-south-2",
+        "player-south-3",
+        "player-south-4",
+        "player-south-5",
+        "player-south-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "player-west__idle",
+      "frames": [
+        "player-west__idle_00",
+        "player-west__idle_01",
+        "player-west__idle_02",
+        "player-west__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-west__walk",
+      "frames": [
+        "player-west-1",
+        "player-west-2",
+        "player-west-3",
+        "player-west-4",
+        "player-west-5",
+        "player-west-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    }
+  ]
+}
