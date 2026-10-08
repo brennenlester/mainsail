@@ -28,7 +28,6 @@ import {
   befriendMissLine,
   formatBefriendBreakdown,
   formatBefriendPercent,
-  offeringLabel,
   FAVORITE_BAIT_ID,
   FOLK_SEAL_ID,
   type BefriendOffering,
@@ -41,6 +40,7 @@ import {
   cycleOffering,
   encounterLead,
   isFavoriteKnown,
+  offeringCostLine,
 } from "../encounters/befriendRuntime";
 import {
   canAffordBefriend,
@@ -70,6 +70,7 @@ import { isVisitorMode } from "../world/worldSession";
 import { markCreatureDiscovered } from "../world/worldState";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { unlockCodexHud } from "../ui/hudChrome";
+import { openingPersonalityLine } from "../opening/openingScript";
 import {
   addChip,
   CARD,
@@ -110,6 +111,7 @@ export class EncounterScene extends Phaser.Scene {
   private messageText?: Phaser.GameObjects.Text;
   private buttons: { verb: EncounterVerb; button: CardButton }[] = [];
   private focusIndex = -1;
+  private liveRegion?: HTMLElement;
   /** Befriend roll source (swappable for QA, like BattleScene.rng). */
   private rng: () => number = Math.random;
 
@@ -158,8 +160,16 @@ export class EncounterScene extends Phaser.Scene {
     }
 
     document.body.classList.add("encounter-active");
+    // Screen-reader mirror of the card (odds + event lines).
+    this.liveRegion = document.createElement("div");
+    this.liveRegion.className = "visually-hidden";
+    this.liveRegion.setAttribute("aria-live", "polite");
+    this.liveRegion.id = "encounter-live";
+    document.body.appendChild(this.liveRegion);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       document.body.classList.remove("encounter-active");
+      this.liveRegion?.remove();
+      this.liveRegion = undefined;
     });
 
     this.cameras.main.fadeIn(160, 11, 22, 38);
@@ -214,6 +224,8 @@ export class EncounterScene extends Phaser.Scene {
 
     this.refreshOdds();
     this.bindKeyboard();
+    // Enter works straight away on the first enabled verb.
+    this.moveFocus(1);
     this.playEntrance();
   }
 
@@ -387,10 +399,11 @@ export class EncounterScene extends Phaser.Scene {
         this.buttons[n - 1]!.button.activate();
         return;
       }
-      if (event.key === "ArrowRight" || event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey)) {
+      // Tab is left to the browser (no focus trap); arrows move between verbs.
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
         event.preventDefault();
         this.moveFocus(1);
-      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey)) {
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
         event.preventDefault();
         this.moveFocus(-1);
       } else if ((event.key === "Enter" || event.key === " ") && this.focusIndex >= 0) {
@@ -466,6 +479,7 @@ export class EncounterScene extends Phaser.Scene {
           fontSize: "17px",
           color: "#2c4058",
           lineSpacing: 2,
+          maxLines: 3,
           wordWrap: { width: left + width - breakdownX - 16, useAdvancedWrap: true },
         })
         .setOrigin(0, 0),
@@ -477,8 +491,15 @@ export class EncounterScene extends Phaser.Scene {
     divider.lineStyle(1, 0xd9cdb5, 1);
     divider.lineBetween(left + 14, footY - 18, left + width - 14, footY - 18);
     layer.add(divider);
-    this.addOfferingChip(layer, left + 18, footY);
-    this.addFavoriteHint(layer, left + width - 18, footY);
+    const chipRight = this.addOfferingChip(layer, left + 18, footY);
+    this.addFavoriteHint(layer, left + width - 18, footY, chipRight + 12);
+    this.announce(`${this.nameText?.text ?? ""}. ${caption.toLowerCase()} ${headline}. ${breakdown}`);
+  }
+
+  private announce(text: string): void {
+    if (this.liveRegion) {
+      this.liveRegion.textContent = text;
+    }
   }
 
   private oddsCopy(befriendShown: boolean): { headline: string; caption: string; breakdown: string } {
@@ -491,6 +512,13 @@ export class EncounterScene extends Phaser.Scene {
         headline: "Assured",
         caption: "BEFRIEND ODDS",
         breakdown: `Your first friend: ${this.revealed ? name : "it"} will join.`,
+      };
+    }
+    if (this.button("befriend")?.isEnabled() === false && !isGodCreature(this.creatureId)) {
+      return {
+        headline: "Spar it",
+        caption: "BEFRIEND",
+        breakdown: "One try per encounter card. Weaken or Root / Daze it in a spar, then Befriend mid-fight.",
       };
     }
     if (hasCreature(this.creatureId)) {
@@ -506,6 +534,11 @@ export class EncounterScene extends Phaser.Scene {
 
   /** Idle hint under the buttons (replaced by event lines like a miss). */
   private tipLine(): string {
+    // Opening beat (#363): the creature's one-line personality takes the slot.
+    const personality = this.revealed ? openingPersonalityLine(this.creatureId) : null;
+    if (personality) {
+      return personality;
+    }
     if (isGodCreature(this.creatureId)) {
       return "One befriend try — sovereigns rarely bow.";
     }
@@ -515,20 +548,20 @@ export class EncounterScene extends Phaser.Scene {
     return "Tip: weaken or Root / Daze it in a spar, then Befriend.";
   }
 
-  private addOfferingChip(layer: Phaser.GameObjects.Container, x: number, y: number): void {
+  /** Returns the chip's right edge so the favorite hint can avoid it. */
+  private addOfferingChip(layer: Phaser.GameObjects.Container, x: number, y: number): number {
     const options = availableOfferings(this.creatureId);
     const owned = getItemCount(FOLK_SEAL_ID) + getItemCount(FAVORITE_BAIT_ID) > 0;
     if (isGodCreature(this.creatureId) || !owned) {
-      layer.add(
-        this.add
-          .text(x, y, isGodCreature(this.creatureId) ? "No offerings" : "Shrine craft: Folk Seal +15%", {
-            fontFamily: CARD_FONT,
-            fontSize: "16px",
-            color: "#6a7a8c",
-          })
-          .setOrigin(0, 0.5),
-      );
-      return;
+      const hint = this.add
+        .text(x, y, isGodCreature(this.creatureId) ? "No offerings" : "Shrine craft: Folk Seal +15%", {
+          fontFamily: CARD_FONT,
+          fontSize: "16px",
+          color: "#6a7a8c",
+        })
+        .setOrigin(0, 0.5);
+      layer.add(hint);
+      return x + hint.width;
     }
     const offering = currentOffering(this.creatureId);
     const label =
@@ -536,7 +569,7 @@ export class EncounterScene extends Phaser.Scene {
         ? options.length > 1
           ? "Offer: nothing"
           : "Bait needs its favorite"
-        : `${offeringLabel(offering)} ×${getItemCount(offeringItemId(offering))}`;
+        : `${offeringCostLine(this.creatureId, offering)} (×${getItemCount(offeringItemId(offering))})`;
     const icon = offering !== "none" && this.textures.exists(iconKey(offeringItemId(offering)))
       ? iconKey(offeringItemId(offering))
       : undefined;
@@ -563,6 +596,7 @@ export class EncounterScene extends Phaser.Scene {
       chip.on("pointerup", () => this.toggleOffering());
     }
     layer.add(chip);
+    return x + chip.width;
   }
 
   private toggleOffering(): void {
@@ -574,7 +608,12 @@ export class EncounterScene extends Phaser.Scene {
     this.refreshOdds();
   }
 
-  private addFavoriteHint(layer: Phaser.GameObjects.Container, right: number, y: number): void {
+  private addFavoriteHint(
+    layer: Phaser.GameObjects.Container,
+    right: number,
+    y: number,
+    minLeft: number,
+  ): void {
     if (!this.revealed || !isFavoriteKnown(this.creatureId) || isGodCreature(this.creatureId)) {
       return;
     }
@@ -587,8 +626,13 @@ export class EncounterScene extends Phaser.Scene {
         color: "#a0466a",
       })
       .setOrigin(1, 0.5);
+    // Long names next to a wide offering chip: drop the icon, then the hint (bait already names it).
+    if (right - text.width < minLeft) {
+      text.destroy();
+      return;
+    }
     layer.add(text);
-    if (this.textures.exists(iconKey(materialId))) {
+    if (this.textures.exists(iconKey(materialId)) && right - text.width - 34 >= minLeft) {
       layer.add(
         this.add
           .image(right - text.width - 17, y, iconKey(materialId))
@@ -600,6 +644,7 @@ export class EncounterScene extends Phaser.Scene {
   /** Event line (miss, join, leave) in gold; replaces the idle tip. */
   private setMessage(message: string): void {
     this.messageText?.setColor(CARD.goldCss).setText(message);
+    this.announce(message);
     if (this.messageText && !prefersReducedMotion()) {
       this.tweens.add({ targets: this.messageText, scale: { from: 1.08, to: 1 }, duration: 180 });
     }
@@ -619,6 +664,9 @@ export class EncounterScene extends Phaser.Scene {
     this.portrait?.clearTint();
     this.refreshIdentity();
     this.refreshOdds();
+    if (this.messageText?.style.color === TIP_COLOR) {
+      this.messageText.setText(this.tipLine());
+    }
   }
 
   private tryBefriend(): void {
@@ -638,36 +686,28 @@ export class EncounterScene extends Phaser.Scene {
     }
 
     const odds = befriendOddsFor({ creatureId: this.creatureId, zoneId: this.zoneId });
-    const offering = currentOffering(this.creatureId);
+    // The Story 1 guarantee never eats an offering.
+    const offering = isStory1BefriendGuaranteed(this.creatureId) ? "none" : currentOffering(this.creatureId);
     consumeOffering(this.creatureId, offering);
     if (rollBefriendAttempt(this.creatureId, this.rng, odds.chance)) {
       this.befriendSucceeded(name);
       return;
     }
 
-    // Miss: readable cost, never a hard lock.
+    // Miss: one try on the card (#366 review). Befriend moves into the spar.
     this.actionTaken = false;
     this.shakePortrait();
+    this.button("befriend")?.setEnabled(false);
     if (isGodCreature(this.creatureId)) {
-      // Sovereigns keep their single roll; Spar / Flee stay open.
-      this.button("befriend")?.setEnabled(false);
       this.setMessage("Not this time.");
-      this.refreshOdds();
-      return;
+    } else {
+      const miss = afterBefriendMiss(this.befriendMisses);
+      this.befriendMisses = miss.misses;
+      this.wildOpens = true;
+      this.button("spar")?.setLabel("Spar · it strikes first");
+      this.setMessage(befriendMissLine(name, miss, false));
     }
-    const miss = afterBefriendMiss(this.befriendMisses);
-    this.befriendMisses = miss.misses;
-    this.setMessage(befriendMissLine(name, miss, false));
-    if (miss.fled) {
-      this.actionTaken = true;
-      if (this.zoneId) {
-        onWildEncounterResolved(this.zoneId, this.creatureId, "flee");
-      }
-      this.wildLeaves();
-      return;
-    }
-    this.wildOpens = true;
-    this.button("spar")?.setLabel("Spar · it strikes first");
+    this.moveFocus(1);
     this.refreshOdds();
   }
 
@@ -729,14 +769,6 @@ export class EncounterScene extends Phaser.Scene {
     }
   }
 
-  private wildLeaves(): void {
-    if (this.portrait && !prefersReducedMotion()) {
-      this.tweens.killTweensOf(this.portrait);
-      this.tweens.add({ targets: this.portrait, x: this.portrait.x + 220, alpha: 0, duration: 420, ease: "Cubic.easeIn" });
-    }
-    this.time.delayedCall(1300, () => this.endEncounter());
-  }
-
   private showResult(message: string): void {
     this.setMessage(message);
     this.time.delayedCall(1000, () => this.endEncounter());
@@ -760,6 +792,7 @@ export class EncounterScene extends Phaser.Scene {
         zoneId: this.zoneId,
         befriendMisses: this.befriendMisses,
         wildOpens: this.wildOpens,
+        allowBefriend: true,
       });
       this.scene.stop("EncounterScene");
     });

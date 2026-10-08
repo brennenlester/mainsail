@@ -14,6 +14,7 @@ import {
   refreshHudChromeButtons,
 } from "./hudChrome";
 import "./hudChrome.css";
+import { syncShareButton } from "../share/shareActions";
 
 let inviteFeedbackActive = false;
 let inviteFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,6 +92,7 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
   if (partyEl) {
     renderPartyHpHud(partyEl);
   }
+  syncShareButton();
   refreshHudChromeButtons();
   if (sessionEl && !inviteFeedbackActive) {
     sessionEl.textContent = defaultSessionText();
@@ -103,6 +105,7 @@ export function refreshPartyStatusLine(): void {
   if (partyEl) {
     renderPartyHpHud(partyEl);
   }
+  syncShareButton();
 }
 
 export function setInviteStatus(message: string, color: string): void {

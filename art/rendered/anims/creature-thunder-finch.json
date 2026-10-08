@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-thunder-finch__idle",
+      "frames": [
+        "creature-thunder-finch__idle_00",
+        "creature-thunder-finch__idle_01",
+        "creature-thunder-finch__idle_02",
+        "creature-thunder-finch__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

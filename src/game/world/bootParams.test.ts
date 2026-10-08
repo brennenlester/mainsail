@@ -23,4 +23,10 @@ describe("shouldResetHostSave", () => {
   it("does not reset without ?new", () => {
     expect(shouldResetHostSave("absent", new URLSearchParams(""))).toBe(false);
   });
+
+  it("never resets when a share card is present, even with ?new=1", () => {
+    expect(
+      shouldResetHostSave("absent", new URLSearchParams("card=abc&new=1")),
+    ).toBe(false);
+  });
 });

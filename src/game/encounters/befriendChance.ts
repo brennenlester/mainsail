@@ -13,9 +13,9 @@ export type BefriendOffering = "none" | "folk-seal" | "favorite-bait";
 export const FOLK_SEAL_ID = "folk-seal";
 export const FAVORITE_BAIT_ID = "favorite-bait";
 
-export const BEFRIEND_BASE = 0.35;
+export const BEFRIEND_BASE = 0.28;
 /** Per rarity step (uncommon +1, rare +2 from `getRarityBias`). */
-export const BEFRIEND_RARITY_PENALTY = 0.05;
+export const BEFRIEND_RARITY_PENALTY = 0.06;
 /** Per level the wild sits above the lead. */
 export const BEFRIEND_LEVEL_PENALTY = 0.04;
 export const BEFRIEND_LEVEL_PENALTY_CAP = 0.2;
@@ -23,7 +23,7 @@ export const BEFRIEND_LEVEL_PENALTY_CAP = 0.2;
 export const BEFRIEND_LEVEL_BONUS = 0.02;
 export const BEFRIEND_LEVEL_BONUS_CAP = 0.1;
 /** Full weakening bonus at 0 HP; scales linearly with missing HP. */
-export const BEFRIEND_WEAKEN_MAX = 0.45;
+export const BEFRIEND_WEAKEN_MAX = 0.4;
 export const BEFRIEND_STATUS_BONUS: Readonly<Record<StatusId, number>> = {
   rooted: 0.12,
   dazed: 0.12,
@@ -90,6 +90,34 @@ export function offeringLabel(offering: BefriendOffering): string {
   return OFFERING_LABEL[offering];
 }
 
+/** Keep breakdown lines short: long nicknames end in "…". */
+export function truncateLabel(label: string, max: number): string {
+  return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
+}
+
+export type BattleBefriendGate = {
+  /** Opt-in from the launcher: only wild-encounter spars set it (#366). */
+  allowBefriend?: boolean;
+  god: boolean;
+  tutorial: boolean;
+  visitor: boolean;
+  owned: boolean;
+  /** Habitat still offers befriend (harbor once-per-species). */
+  habitatOffers: boolean;
+};
+
+/** Story spars, ghost fights and anything else that doesn't opt in never show Befriend. */
+export function battleBefriendAllowed(gate: BattleBefriendGate): boolean {
+  return (
+    gate.allowBefriend === true &&
+    !gate.god &&
+    !gate.tutorial &&
+    !gate.visitor &&
+    !gate.owned &&
+    gate.habitatOffers
+  );
+}
+
 function clamp01(n: number): number {
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
 }
@@ -133,7 +161,7 @@ export function computeBefriendOdds(input: BefriendInputs): BefriendOdds {
   if (input.offering !== "none") {
     push(OFFERING_LABEL[input.offering], BEFRIEND_OFFERING_BONUS[input.offering]);
   }
-  const lead = input.leadName ?? "Lead";
+  const lead = truncateLabel(input.leadName ?? "Lead", 12);
   if (input.leadBondTier > 0) {
     push(`${lead}'s bond`, BEFRIEND_BOND_PER_TIER * input.leadBondTier);
   }
@@ -203,9 +231,14 @@ export function befriendMissLine(
   if (outcome.fled) {
     return `${wildName} slipped away into the brush.`;
   }
+  if (!inBattle) {
+    // One try on the card (#366 review): a miss pushes you to spar or flee.
+    return `${wildName} bristles! Spar to win it over (it strikes first) or Flee.`;
+  }
   const left = streak - outcome.misses;
   const warn = left === 1 ? "One more miss and it leaves." : `${left} more misses and it leaves.`;
-  return inBattle
-    ? `${wildName} shied away — it takes a free turn. ${warn}`
-    : `${wildName} bristles — it will strike first if you spar. ${warn}`;
+  return `${wildName} shied away — it takes a free turn. ${warn}`;
 }
+
+/** Card befriend: a single try per encounter; spars allow up to the streak. */
+export const CARD_BEFRIEND_TRIES = 1;

@@ -133,6 +133,18 @@ class Mossling(Rig):
             for ear in self.ears:
                 ear.rotation_euler.y = math.radians(-28) + 0.35
             return
+        if anim == "faint":
+            # Same slump as creatures.Creature (#361); last frame holds.
+            u = keyframes([(0, 0.15), (0.25, 0.45), (0.5, 0.8), (0.75, 1.0), (1, 1.0)], t)
+            body.scale = (1 + 0.08 * u, 1 + 0.08 * u, 1 - 0.24 * u)
+            body.rotation_euler = (0.12 * u, 0.38 * u, 0)
+            mv.location = (0.05 * u, 0.04 * u, 0)
+            for eye in self.eyes:
+                eye.scale = (0.063, 0.03, 0.075 * max(0.1, 1 - 1.2 * u))
+            for ear in self.ears:
+                ear.rotation_euler.y = math.radians(-28) + 0.55 * u
+            self.sprout.rotation_euler = (0, 0.6 * u, 0)
+            return
         body.scale = (1, 1, 1)
 
 
@@ -433,10 +445,25 @@ class GroundTile(Rig):
     items along the borders (wrapped 3x3), and keeps its own seeded details
     strictly inside, so any variant sits seamlessly next to any other."""
 
-    def __init__(self, seed: int = 1, flowers: int = 4, pebbles: int = 2, patches: int = 4, blades: int = 46, edge_seed: str = "grove"):
+    def __init__(
+        self,
+        seed: int = 1,
+        flowers: int = 4,
+        pebbles: int = 2,
+        patches: int = 4,
+        blades: int = 46,
+        edge_seed: str = "grove",
+        palette: tuple = ("grass", "grass_dark", "grass_light", "#79a858", "#85b360"),
+        petals: tuple = ("petal", "petal_lilac"),
+        path: bool = False,
+    ):
+        """`palette` = (base, blade dark, blade light, patch a, patch b).
+        `path` lays a horizontal dirt band across the middle (#361); the band
+        spans the full width so path tiles chain left-right, while the grass
+        edges stay shared with the plain variants."""
         root = empty("tile")
         super().__init__(root)
-        base = toon("grass", shadow=0.4, rim=0.0)
+        base = toon(palette[0], shadow=0.4, rim=0.0)
         box("ground", (0, 0, -0.05), (3.2, 3.2, 0.1), base, root, outline=False)
         reach = {"patch": 0.24, "blade": 0.05, "flower": 0.05, "pebble": 0.05}
         items = []
@@ -460,9 +487,44 @@ class GroundTile(Rig):
         scatter(rng, "blade", blades - 16, (0.7, 1.2), edge=False)
         scatter(rng, "flower", flowers, (0.8, 1.1), edge=False)
         scatter(rng, "pebble", pebbles, (0.8, 1.3), edge=False)
-        patch_mats = [toon("#79a858", shadow=0.4, rim=0.0), toon("#85b360", shadow=0.4, rim=0.0)]
-        blade_mats = [toon("grass_dark", shadow=0.5, rim=0.0), toon("grass_light", shadow=0.5, rim=0.0)]
+        patch_mats = [toon(palette[3], shadow=0.4, rim=0.0), toon(palette[4], shadow=0.4, rim=0.0)]
+        blade_mats = [toon(palette[1], shadow=0.5, rim=0.0), toon(palette[2], shadow=0.5, rim=0.0)]
         stone = toon("stone")
+        if path:
+            # path: True spans the tile; "west" / "east" is an end cap whose
+            # band starts mid-tile with a rounded, ragged tip (#361).
+            cap = path if path in ("west", "east") else None
+            side = 1 if cap == "west" else -1  # band lies on +X for a west cap
+
+            def on_band(x, margin=0.0):
+                return cap is None or side * x >= -0.06 - margin
+
+            dirt = toon("path", shadow=0.4, rim=0.0)
+            dirt_dark = toon("path_dark", shadow=0.4, rim=0.0)
+            if cap:
+                box("band", (side * 0.395, 0, -0.002), (0.91, 0.5, 0.004), dirt, root, outline=False)
+                sphere("bandcap", (side * -0.06, 0, -0.0015), (0.2, 0.25, 0.004), dirt, root, outline=False)
+            else:
+                box("band", (0, 0, -0.002), (1.7, 0.5, 0.004), dirt, root, outline=False)
+            prng = random.Random(f"path:{edge_seed}")
+            # Ragged band edges: wrap along X only (band is X-periodic).
+            for i in range(10):
+                u = (i + prng.uniform(0.1, 0.9)) / 10
+                for edge in (-1, 1):
+                    r = prng.uniform(0.07, 0.11)
+                    yy = edge * (0.25 + prng.uniform(-0.03, 0.02))
+                    for dx in (-1, 0, 1):
+                        x = u - 0.5 + dx
+                        if on_band(x):
+                            sphere(f"pe{i}{edge}_{dx}", (x, yy, -0.001), (r * 1.4, r, 0.004), dirt, root, outline=False)
+            for i in range(9):
+                u, w = (i + prng.uniform(0.1, 0.9)) / 9, prng.uniform(-0.17, 0.17)
+                r = prng.uniform(0.035, 0.06)
+                for dx in (-1, 0, 1):
+                    x = u - 0.5 + dx
+                    if on_band(x, -0.08):
+                        sphere(f"pd{i}_{dx}", (x, w, 0.0), (r * 1.3, r, 0.004), dirt_dark, root, outline=False)
+            items = [it for it in items if not (it[0] in ("blade", "flower", "patch") and abs(it[2] - 0.5) < 0.3 and on_band(it[1] - 0.5, 0.22))]
         for kind, u, v, rot, s, i in items:
             # 3x3 copies so anything crossing an edge reappears on the far side.
             for dx in (-1, 0, 1):
@@ -470,13 +532,16 @@ class GroundTile(Rig):
                     x, y = u - 0.5 + dx, v - 0.5 + dy
                     if abs(x) > 0.85 or abs(y) > 0.85:
                         continue
+                    if path and kind != "pebble" and abs(y) < 0.3 and on_band(x, 0.22):
+                        # Wrapped copies of edge grass must not paint over the band.
+                        continue
                     tag = f"{kind}{i}_{dx}{dy}"
                     if kind == "patch":
                         sphere(tag, (x, y, -0.004), (s, s * 0.7, 0.01), patch_mats[i % 2], root, outline=False, rot=(0, 0, rot))
                     elif kind == "blade":
                         sphere(tag, (x, y, 0.004), (0.045 * s, 0.009, 0.012), blade_mats[i % 2], root, outline=False, rot=(0, 0, rot))
                     elif kind == "flower":
-                        _flower(tag, (x, y, 0.012), root, ["petal", "petal_lilac"][i % 2], size=0.022 * s, outline=True)
+                        _flower(tag, (x, y, 0.012), root, petals[i % len(petals)], size=0.022 * s, outline=True)
                     else:
                         sphere(tag, (x, y, 0.008), (0.035 * s, 0.028 * s, 0.018), stone, root, low=True, smooth=False, outline=True, rot=(0, 0, rot))
 
@@ -510,17 +575,45 @@ def _gradient_sky(name, stops):
     return mat
 
 
+ARENA_VARIANTS = {
+    # Whisper Grove dusk (#359): meadow dais.
+    "grove": {
+        "sky": [(0.5, "sky_low"), (0.7, "#e9cfa8"), (0.84, "sky_mid"), (1.0, "sky_top")],
+        "cloud": ("#f6ead2", "#e4d2bd"), "hills": ("#7ea77a", "#a3bfa0"), "meadow": "grass",
+        "blade": "grass_dark", "trees": ("leaf", "leaf_dark", "leaf_light"), "top": "grass_light",
+        "ring": ("#8ab865", "grass_light"), "pblade": "grass", "moon": 1.0,
+    },
+    # Hearth Crossing / non-grove zones (#361): warm late afternoon, cobbled
+    # plaza dais, cottage roofs in the tree line, lantern posts.
+    "village": {
+        "sky": [(0.5, "#f7dcb0"), (0.68, "#f2bf8c"), (0.84, "#c9898a"), (1.0, "#4f5584")],
+        "cloud": ("#fbe6cc", "#efc9a8"), "hills": ("#a39a6a", "#c8b48e"), "meadow": "village_grass",
+        "blade": "village_grass_dark", "trees": ("leaf", "#7a9a48", "leaf_light"), "top": "cobble",
+        "ring": ("path_dark", "path"), "pblade": "village_grass", "moon": 0.0, "village": True,
+    },
+    # Night spar (#361): navy sky, stars, big moon, cool meadow.
+    "night": {
+        "sky": [(0.5, "#46577c"), (0.68, "#33416a"), (0.84, "#26314f"), (1.0, "#151c31")],
+        "cloud": ("#5d6d93", "#4b5a80"), "hills": ("#3c5a62", "#4c6b78"), "meadow": "#5a8a62",
+        "blade": "#3f6a4c", "trees": ("#3f6e55", "#2f5644", "#4f8060"), "top": "#7fa877",
+        "ring": ("#6c9468", "#7fa877"), "pblade": "#5a8a62", "moon": 1.35, "stars": True,
+    },
+}
+
+
 class Arena(Rig):
-    """Spar backdrop built from the overworld kit; pose(layer) shows one layer."""
+    """Spar backdrop built from the overworld kit; pose(layer) shows one layer.
+    `variant` picks an ARENA_VARIANTS palette (same geometry and seed)."""
 
     LAYERS = ("sky", "hills", "platform")
 
-    def __init__(self, pitch: float = 22.0, seed: int = 21):
+    def __init__(self, pitch: float = 22.0, seed: int = 21, variant: str = "grove"):
         from mathutils import Euler, Vector
 
         root = empty("arena")
         super().__init__(root)
         rng = random.Random(seed)
+        V = ARENA_VARIANTS[variant]
         self.groups = {name: empty(f"layer-{name}", parent=root) for name in self.LAYERS}
         cam_rot = Euler((math.radians(90 - pitch), 0, 0))
         rot = cam_rot.to_matrix()
@@ -534,27 +627,41 @@ class Arena(Rig):
 
         # --- sky: camera-facing gradient card + clouds + moon
         sky = self.groups["sky"]
-        card = box("skycard", screen(0, -100, 40), (14, 14, 0.01), _gradient_sky("sky", [(0.5, "sky_low"), (0.7, "#e9cfa8"), (0.84, "sky_mid"), (1.0, "sky_top")]), sky, outline=False)
+        card = box("skycard", screen(0, -100, 40), (14, 14, 0.01), _gradient_sky("sky", V["sky"]), sky, outline=False)
         card.rotation_euler = cam_rot
-        cloud = toon("#f6ead2", shadow=0.25, highlight=0.0, rim=0.0)
-        cloud_shade = toon("#e4d2bd", shadow=0.25, highlight=0.0, rim=0.0)
+        cloud = toon(V["cloud"][0], shadow=0.25, highlight=0.0, rim=0.0)
+        cloud_shade = toon(V["cloud"][1], shadow=0.25, highlight=0.0, rim=0.0)
         for cx, cy, w in ((-210, -150, 1.0), (190, -180, 0.8), (60, -110, 0.55), (-60, -95, 0.45)):
             for k in range(4):
                 r = 0.3 * w * rng.uniform(0.75, 1.15)
                 p = screen(cx + (k - 1.5) * 50 * w, cy + rng.uniform(-6, 6) - (12 * w if k in (1, 2) else 0), 30)
                 sphere(f"cloud{cx}{k}", p, (r * 1.5, r * 0.6, r), cloud if k % 2 else cloud_shade, sky, low=True, smooth=False, outline=False, rot=cam_rot)
         moon_p = screen(-215, -200, 25)
-        m = crescent_mesh("skymoon", 0.36, 0.05, toon("moon", emission=1.1), sky, outline=False)
-        m.location = moon_p
-        m.rotation_euler = Euler((math.radians(-pitch), 0, 0))
-        halo = disc("skyhalo", moon_p + fwd * 1.0, 0.95, radial_material("skyhalo", "moon_glow", 0.35), sky)
-        halo.rotation_euler = cam_rot
+        if V["moon"]:
+            m = crescent_mesh("skymoon", 0.36 * V["moon"], 0.05, toon("moon", emission=1.1), sky, outline=False)
+            m.location = moon_p
+            m.rotation_euler = Euler((math.radians(-pitch), 0, 0))
+            halo = disc("skyhalo", moon_p + fwd * 1.0, 0.95 * V["moon"], radial_material("skyhalo", "moon_glow", 0.35), sky)
+            halo.rotation_euler = cam_rot
+        else:
+            # Low warm sun behind the hills.
+            sun_p = screen(170, -150, 26)
+            sphere("sun", sun_p, (0.42, 0.42, 0.42), toon("#ffe3a8", emission=1.15), sky, outline=False)
+            glow = disc("sunglow", sun_p + fwd * 1.0, 1.4, radial_material("sunglow", "#ffd9a0", 0.5), sky)
+            glow.rotation_euler = cam_rot
+        if V.get("stars"):
+            srng = random.Random(seed + 7)
+            star = toon("#f3ead3", emission=1.3)
+            for i in range(46):
+                p = screen(srng.uniform(-320, 320), srng.uniform(-330, -70), 35)
+                r = srng.uniform(0.018, 0.04)
+                sphere(f"star{i}", p, (r, r, r), star, sky, outline=False, low=True)
 
         # --- hills: meadow, distant hills, tree line
         hills = self.groups["hills"]
-        far = toon("#7ea77a", shadow=0.35, highlight=0.1, rim=0.2)
-        farther = toon("#a3bfa0", shadow=0.3, highlight=0.1, rim=0.1)
-        meadow = toon("grass", shadow=0.4, rim=0.0)
+        far = toon(V["hills"][0], shadow=0.35, highlight=0.1, rim=0.2)
+        farther = toon(V["hills"][1], shadow=0.3, highlight=0.1, rim=0.1)
+        meadow = toon(V["meadow"], shadow=0.4, rim=0.0)
         box("meadow", (0, -4.5, -0.47), (9, 14.4, 0.1), meadow, hills, outline=False)
         for i in range(9):
             r = rng.uniform(0.9, 1.4)
@@ -562,7 +669,7 @@ class Arena(Rig):
         for i in range(8):
             r = rng.uniform(0.6, 0.9)
             sphere(f"hill{i}", (-3.6 + i * 1.05 + rng.uniform(-0.2, 0.2), 2.9, -0.6), (r * 1.3, 0.5, r * 0.55), far, hills, low=True, smooth=False, outline=False)
-        tree_mats = [toon(c, shadow=0.5, highlight=0.25) for c in ("leaf", "leaf_dark", "leaf_light")]
+        tree_mats = [toon(c, shadow=0.5, highlight=0.25) for c in V["trees"]]
         bark = toon("bark")
         for i in range(16):
             x = -4.2 + i * 0.56 + rng.uniform(-0.15, 0.15)
@@ -570,7 +677,7 @@ class Arena(Rig):
             r = rng.uniform(0.22, 0.34)
             cylinder(f"tt{i}", (x, y, -0.3), 0.05, 0.25, bark, hills, verts=5, smooth=False, outline=False)
             sphere(f"tc{i}", (x, y, -0.05 + r * 0.6), (r, r, r * 1.1), tree_mats[i % 3], hills, low=True, smooth=False, rot=(rng.random(), rng.random(), 0))
-        blade = toon("grass_dark", shadow=0.5, rim=0.0)
+        blade = toon(V["blade"], shadow=0.5, rim=0.0)
         for i in range(70):
             x, y = rng.uniform(-4, 4), rng.uniform(-10.5, 2.2)
             if x * x / 7.0 + y * y / 1.5 < 1:
@@ -587,12 +694,12 @@ class Arena(Rig):
 
         # --- platform: grassy stone dais the combatants stand on
         plat = self.groups["platform"]
-        grass_top = toon("grass_light", shadow=0.4, highlight=0.15, rim=0.0)
+        grass_top = toon(V["top"], shadow=0.4, highlight=0.15, rim=0.0)
         cylinder("dais", (0, 0, -0.22), 2.62, 0.44, toon("stone", shadow=0.5), plat, verts=16, smooth=False)
         cylinder("daistop", (0, 0, 0.0), 2.55, 0.04, grass_top, plat, verts=16, smooth=False, outline=False)
         # Flat self-lit decals: thin stacked cylinders shadow-acne under the sun.
-        disc("ring", (0, 0, 0.021), 1.9, toon("#8ab865", emission=1.0), plat)
-        disc("inner", (0, 0, 0.022), 1.8, toon("grass_light", emission=1.0), plat)
+        disc("ring", (0, 0, 0.021), 1.9, toon(V["ring"][0], emission=1.0), plat)
+        disc("inner", (0, 0, 0.022), 1.8, toon(V["ring"][1], emission=1.0), plat)
         stone_mats = [toon("stone"), toon("stone_dark"), toon("#c9c2b0")]
         for i in range(16):
             a = i * TAU / 16 + rng.uniform(-0.08, 0.08)
@@ -600,7 +707,7 @@ class Arena(Rig):
                 continue  # keep the front edge open
             r = rng.uniform(0.13, 0.22)
             sphere(f"rim{i}", (math.cos(a) * 2.55, math.sin(a) * 2.55, 0.02), (r * 1.2, r, r * 0.8), stone_mats[i % 3], plat, low=True, smooth=False, rot=(0, 0, a))
-        pblade = toon("grass", shadow=0.5, rim=0.0)
+        pblade = toon(V["pblade"], shadow=0.5, rim=0.0)
         for i in range(22):
             a, d = rng.uniform(0, TAU), rng.uniform(0.4, 2.4)
             x, y = math.cos(a) * d, math.sin(a) * d
@@ -613,6 +720,26 @@ class Arena(Rig):
         for x, y in ((-2.1, 1.5), (2.2, 1.3)):
             holder = empty(f"pbush{x}", (x, y, 0.0), plat)
             _canopy(holder, rng, 4, ["leaf", "leaf_light", "leaf_dark"], spread=0.22, z=0.18, radius=(0.17, 0.24))
+        if V.get("village"):
+            self._village_dressing(hills, plat, random.Random(seed + 3))
+
+    def _village_dressing(self, hills, plat, rng):
+        """Cottage roofs peeking over the tree line + lanterns on the dais."""
+        plaster, roof = toon("plaster", shadow=0.45), toon("roof", shadow=0.5)
+        glow = toon("window", emission=1.2)
+        for i, x in enumerate((-3.1, -1.6, 1.4, 3.0)):
+            y = 2.55 + rng.uniform(-0.1, 0.1)
+            box(f"vh{i}", (x, y, -0.2), (0.6, 0.5, 0.45), plaster, hills)
+            # Hipped roof (4-sided pyramid) reads cleanly at the 22° spar pitch.
+            cylinder(f"vr{i}", (x, y, 0.2), 0.5, 0.36, roof, hills, verts=4, radius_top=0.0, smooth=False, rot=(0, 0, math.pi / 4), scale=(1.0, 0.85, 1))
+            box(f"vw{i}", (x + 0.12, y - 0.26, -0.18), (0.12, 0.02, 0.1), glow, hills, outline=False)
+        post = toon("#4a4048")
+        for x, y in ((-2.3, 0.6), (2.35, 0.5)):
+            cylinder(f"lp{x}", (x, y, 0.45), 0.04, 0.9, post, plat, verts=8)
+            box(f"lpl{x}", (x, y, 0.95), (0.16, 0.16, 0.2), glow, plat)
+            box(f"lpc{x}", (x, y, 1.07), (0.2, 0.2, 0.04), post, plat)
+            halo = disc(f"lph{x}", (x, y - 0.2, 0.95), 0.45, radial_material(f"lph{x}", "window", 0.45), plat)
+            halo.rotation_euler = (math.pi / 2, 0, 0)
 
     def pose(self, anim, t):
         for name, group in self.groups.items():

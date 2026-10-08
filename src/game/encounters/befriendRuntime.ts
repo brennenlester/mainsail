@@ -14,6 +14,7 @@ import {
   getItemCount,
   getMaterialCount,
 } from "../inventory/playerInventory";
+import { getMaterialName } from "../inventory/materials";
 import { getPartyAverageLevel, getRarityBias, getWildEffectiveLevel } from "../progression/wildLevel";
 import type { ZoneId } from "../world/zoneTypes";
 import { worldState } from "../world/worldState";
@@ -53,15 +54,15 @@ export function canOffer(creatureId: string, offering: BefriendOffering): boolea
   return true;
 }
 
-/** Best first: bait, seal, nothing. */
+/** Nothing first (offerings are opt-in), then bait, seal. */
 export function availableOfferings(creatureId: string): BefriendOffering[] {
   const list: BefriendOffering[] = (["favorite-bait", "folk-seal"] as const).filter((o) =>
     canOffer(creatureId, o),
   );
-  return [...list, "none"];
+  return ["none", ...list];
 }
 
-// ponytail: session-only choice; null = auto (best available).
+// ponytail: session-only choice; null = nothing offered until the player picks.
 let offeringChoice: BefriendOffering | null = null;
 
 export function resetOfferingChoiceForTest(): void {
@@ -70,10 +71,18 @@ export function resetOfferingChoiceForTest(): void {
 
 export function currentOffering(creatureId: string): BefriendOffering {
   const options = availableOfferings(creatureId);
-  if (offeringChoice && options.includes(offeringChoice)) {
-    return offeringChoice;
+  return offeringChoice && options.includes(offeringChoice) ? offeringChoice : "none";
+}
+
+/** What one attempt spends, e.g. "Bait: −1 Bait, −1 Moss Fiber" (empty for none). */
+export function offeringCostLine(creatureId: string, offering: BefriendOffering): string {
+  if (offering === "folk-seal") {
+    return "Seal: −1 Folk Seal";
   }
-  return options[0]!;
+  if (offering === "favorite-bait") {
+    return `Bait: −1 Bait, −1 ${getMaterialName(getFavoriteMaterial(creatureId))}`;
+  }
+  return "";
 }
 
 /** Card chip: step to the next available offering (wraps through "none"). */

@@ -38,6 +38,7 @@ import {
 import { hasPresenceGrowth, presenceTintForCreature } from "../shrine/presence";
 import { ensureCreatureTextures } from "../creatures/sprites";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
+import { resolveArenaLayers } from "../render/arenaLayers";
 import { hasWorldTexture, imagineTexture } from "../render/imagineAssets";
 import {
   BATTLE_CREATURE_DISPLAY,
@@ -123,6 +124,7 @@ import { setPartyEditLocked } from "../ui/partyPanel";
 import { applyBondToCombatant } from "../companions/bond";
 import {
   afterBefriendMiss,
+  battleBefriendAllowed,
   befriendMissLine,
   formatBefriendBreakdown,
   formatBefriendOddsLabel,
@@ -133,6 +135,7 @@ import {
   befriendOddsFor,
   consumeOffering,
   currentOffering,
+  offeringCostLine,
 } from "../encounters/befriendRuntime";
 import {
   onWildEncounterResolved,
@@ -163,8 +166,12 @@ const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
 const INTENT_MIN_LEFT = 268;
 
 /** Feet positions (sprites are bottom-anchored so breathing / squash read from the ground). */
-const WILD_HOME = { x: DESIGN_SIZE / 2 + 116, y: 211 };
-const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 118, y: 299 };
+// Stage fills the upper ~70% (#361): dais centre at y=300, arena scaled 1.18x;
+// homes are the dais spots scaled with it; log + moves sit below the dais.
+const ARENA_STAGE = { y: 300, scale: 1.18 };
+const WILD_HOME = { x: DESIGN_SIZE / 2 + 137, y: 266 };
+const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 142, y: 370 };
+const LOG_Y = 440;
 
 // Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
 const HUD_FONT = '"Source Sans 3", system-ui, sans-serif';
@@ -202,6 +209,7 @@ export class BattleScene extends Phaser.Scene {
   private befriendMisses = 0;
   /** A missed card befriend made the wild bristle: it strikes first. */
   private wildOpens = false;
+  private allowBefriend = false;
   private befriendTip: Phaser.GameObjects.GameObject[] = [];
   private wild!: BattleCombatant;
   private player!: BattleCombatant;
@@ -273,7 +281,10 @@ export class BattleScene extends Phaser.Scene {
     zoneId?: ZoneId;
     befriendMisses?: number;
     wildOpens?: boolean;
+    /** Only wild-encounter spars (and the dev ?spar= preview) opt in to Befriend. */
+    allowBefriend?: boolean;
   }): void {
+    this.allowBefriend = data.allowBefriend === true;
     this.wildCreatureId = data.wildCreatureId;
     this.zoneId = data.zoneId;
     this.befriendMisses = data.befriendMisses ?? 0;
@@ -429,14 +440,14 @@ export class BattleScene extends Phaser.Scene {
 
     // Opponent plate top-left, player plate mid-right (clear of both sprites).
     this.wildHud = this.createHpHud(24, 48);
-    this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 222);
+    this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 304);
 
     this.add
-      .rectangle(cx, 316, 580, 40, 0x101820, 0.78)
+      .rectangle(cx, LOG_Y, 580, 40, 0x101820, 0.78)
       .setStrokeStyle(1, 0x6eb8a8, 0.6)
       .setDepth(4);
     this.logText = this.add
-      .text(cx, 316, "", {
+      .text(cx, LOG_Y, "", {
         color: "#f4ecd8",
         fontFamily: HUD_FONT,
         fontSize: "14px",
@@ -524,7 +535,7 @@ export class BattleScene extends Phaser.Scene {
     }
     const cx = DESIGN_SIZE / 2;
     this.matchupTeachText = this.add
-      .text(cx, 342, tip, {
+      .text(cx, LOG_Y + 26, tip, {
         color: "#ffe6a8",
         backgroundColor: "#101820cc",
         fontFamily: HUD_FONT,
@@ -545,23 +556,23 @@ export class BattleScene extends Phaser.Scene {
   private drawArena(): void {
     const w = DESIGN_SIZE;
     const h = DESIGN_SIZE;
-    const hasImagine =
-      hasWorldTexture(this, "arena-sky") &&
-      hasWorldTexture(this, "arena-hills") &&
-      hasWorldTexture(this, "arena-platform");
-
-    if (hasImagine) {
+    // Zone / night variant (#361); hills + dais scale around the dais centre
+    // (design y=240 in the layer) so the stage fills the frame.
+    const layers = resolveArenaLayers((key) => hasWorldTexture(this, key));
+    if (layers) {
+      const s = ARENA_STAGE.scale;
+      const stageY = ARENA_STAGE.y + (h / 2 - 240) * s;
       this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, "arena-sky"))
+        .image(w / 2, h / 2, ...imagineTexture(this, layers.sky))
         .setDisplaySize(w, h)
         .setDepth(-12);
       this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, "arena-hills"))
-        .setDisplaySize(w, h)
+        .image(w / 2, stageY, ...imagineTexture(this, layers.hills))
+        .setDisplaySize(w * s, h * s)
         .setDepth(-11);
       this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, "arena-platform"))
-        .setDisplaySize(w, h)
+        .image(w / 2, stageY, ...imagineTexture(this, layers.platform))
+        .setDisplaySize(w * s, h * s)
         .setDepth(-10);
       return;
     }
@@ -705,7 +716,7 @@ export class BattleScene extends Phaser.Scene {
 
     const cx = DESIGN_SIZE / 2;
     // 2-column move grid below the log (and the Story 2 hunter tip).
-    const top = 410;
+    const top = LOG_Y + 72;
     const colOffset = 146;
     const rowStep = 54;
     let buttonY = top;
@@ -739,16 +750,19 @@ export class BattleScene extends Phaser.Scene {
 
   // --- Befriend mid-spar (#366) ---------------------------------------------
 
-  /** Sovereigns, the Story 2 tutorial, owned / harbor-used species and visitors can't. */
+  /** Opt-in per launch (wild-encounter spars only); never sovereigns, tutorial, owned, visitors. */
   private canBefriendInBattle(): boolean {
     const id = this.wildCreatureId;
     return (
       !this.battleEnded &&
-      !isGodCreature(id) &&
-      !this.tutorialSpar &&
-      !isVisitorMode() &&
-      !hasCreature(id) &&
-      shouldOfferHarborBefriend(profileForEncounter(this.zoneId, id), id)
+      battleBefriendAllowed({
+        allowBefriend: this.allowBefriend,
+        god: isGodCreature(id),
+        tutorial: this.tutorialSpar,
+        visitor: isVisitorMode(),
+        owned: hasCreature(id),
+        habitatOffers: shouldOfferHarborBefriend(profileForEncounter(this.zoneId, id), id),
+      })
     );
   }
 
@@ -767,39 +781,71 @@ export class BattleScene extends Phaser.Scene {
   private addBefriendButton(x: number, y: number): Phaser.GameObjects.Text {
     const assured = isStory1BefriendGuaranteed(this.wildCreatureId);
     const odds = this.befriendOdds();
+    const offering = assured ? "none" : currentOffering(this.wildCreatureId);
+    // The cost rides on the label so touch players see it without a hover.
+    const tag = offering === "folk-seal" ? " · Seal" : offering === "favorite-bait" ? " · Bait" : "";
     const btn = this.addActionButton(
       x,
       y,
-      assured ? ASSURED_BEFRIEND_LABEL : formatBefriendOddsLabel(odds.chance),
-      () => this.attemptBefriend(),
+      assured ? ASSURED_BEFRIEND_LABEL : `${formatBefriendOddsLabel(odds.chance)}${tag}`,
+      () => this.onBefriendPressed(btn, assured ? null : odds),
     );
     btn.setBackgroundColor("#ffe2ec");
-    btn.on("pointerover", () => this.showBefriendTip(btn, assured ? null : odds));
-    btn.on("pointerout", () => this.hideBefriendTip());
+    btn.on("pointerover", () => {
+      if (!this.coarsePointer()) {
+        this.showBefriendTip(btn, assured ? null : odds);
+      }
+    });
+    btn.on("pointerout", () => {
+      if (!this.coarsePointer()) {
+        this.hideBefriendTip();
+      }
+    });
     return btn;
   }
 
-  /** Tooltip above the button: "Base 35% · Weakened +20% · Rooted +12%". */
-  private showBefriendTip(anchor: Phaser.GameObjects.Text, odds: BefriendOdds | null): void {
+  private coarsePointer(): boolean {
+    return window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  }
+
+  /** Touch: first tap shows the breakdown + cost, the second commits. Mouse: one click. */
+  private onBefriendPressed(btn: Phaser.GameObjects.Text, odds: BefriendOdds | null): void {
+    if (this.coarsePointer() && this.befriendTip.length === 0) {
+      this.showBefriendTip(btn, odds, true);
+      return;
+    }
+    this.attemptBefriend();
+  }
+
+  /** Breakdown above the button: "Base 28% · Weakened +20% · Rooted +12%". */
+  private showBefriendTip(
+    anchor: Phaser.GameObjects.Text,
+    odds: BefriendOdds | null,
+    confirm = false,
+  ): void {
     this.hideBefriendTip();
     const offering = currentOffering(this.wildCreatureId);
     const lines = odds
       ? formatBefriendBreakdown(odds).join(" · ")
       : "Story guarantee — this one will join.";
-    const footer = odds
-      ? offering !== "none"
-        ? `Uses 1 ${offeringLabel(offering)} · a miss gives the wild a free turn`
-        : "A miss gives the wild a free turn · weaken or Root / Daze it first"
-      : "";
+    const cost = odds ? offeringCostLine(this.wildCreatureId, offering) : "";
+    const footer = [
+      cost,
+      odds ? "A miss gives the wild a free turn" : "",
+      confirm ? "Tap again to befriend" : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    // 20px design ≈ 10.5 CSS px at 360 wide.
     const text = this.add
-      .text(DESIGN_SIZE / 2, anchor.y - 34, footer ? `${lines}\n${footer}` : lines, {
+      .text(DESIGN_SIZE / 2, anchor.y - 30, footer ? `${lines}\n${footer}` : lines, {
         color: "#fff7e0",
-        backgroundColor: "#101820ee",
+        backgroundColor: "#101820f2",
         fontFamily: HUD_FONT,
-        fontSize: "12px",
+        fontSize: "20px",
         align: "center",
-        padding: { x: 10, y: 6 },
-        wordWrap: { width: 520 },
+        padding: { x: 12, y: 8 },
+        wordWrap: { width: 600, useAdvancedWrap: true },
       })
       .setOrigin(0.5, 1)
       .setDepth(12);
@@ -830,8 +876,10 @@ export class BattleScene extends Phaser.Scene {
     for (const button of this.actionButtons) {
       (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
     }
+    const assured = isStory1BefriendGuaranteed(this.wildCreatureId);
     const odds = this.befriendOdds();
-    const offering = currentOffering(this.wildCreatureId);
+    // The Story 1 guarantee never eats an offering.
+    const offering = assured ? "none" : currentOffering(this.wildCreatureId);
     consumeOffering(this.wildCreatureId, offering);
     const joined = rollBefriendAttempt(this.wildCreatureId, this.rng, odds.chance);
     const name = this.wild.name;
@@ -867,7 +915,7 @@ export class BattleScene extends Phaser.Scene {
       line += this.tickEndOfTurn(this.player, "player");
       this.log(line);
       this.refreshHp();
-      this.buildActionButtons();
+      // Buttons stay dimmed through the wild's turn; finishWildTurn rebuilds them.
       this.renderIntent();
       if (isFainted(this.player)) {
         this.handlePlayerFainted();

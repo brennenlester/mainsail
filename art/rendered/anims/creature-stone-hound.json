@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-stone-hound__idle",
+      "frames": [
+        "creature-stone-hound__idle_00",
+        "creature-stone-hound__idle_01",
+        "creature-stone-hound__idle_02",
+        "creature-stone-hound__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

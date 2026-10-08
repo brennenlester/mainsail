@@ -34,6 +34,10 @@ function placeKnob(knob: HTMLElement, pad: HTMLElement): void {
   knob.style.transform = `translate(${axes.x * max}px, ${axes.y * max}px)`;
 }
 
+export function isTouchControlsEnabled(): boolean {
+  return inputEnabled;
+}
+
 export function setTouchControlsEnabled(enabled: boolean): void {
   inputEnabled = enabled;
   if (!enabled) {

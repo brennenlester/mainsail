@@ -1,4 +1,9 @@
-import { hasWorldTexture, imagineTexture } from "../render/imagineAssets";
+import {
+  IMAGINE_ATLAS_KEY,
+  hasImagineFrame,
+  hasWorldTexture,
+  imagineTexture,
+} from "../render/imagineAssets";
 import Phaser from "phaser";
 import {
   ensureGroveMusic,
@@ -111,6 +116,8 @@ import {
   WALK_HINT_TEXT,
   shouldShowWalkHint,
 } from "../ui/walkHint";
+import { scriptedOpeningCreature } from "../opening/openingScript";
+import { hideOpeningCaption } from "../opening/openingCaption";
 import {
   computeBoardDisplaySize,
   playfieldLayoutMode,
@@ -209,8 +216,10 @@ import {
   type OpenPortableShrineDetail,
 } from "../ui/craftingHud";
 import { OverworldFx } from "../render/fx/overworldFx";
+import { HUD_PILL_TEXT_STYLE, attachHudPill } from "../ui/hudPill";
 import { OverworldCompanions } from "../companions/overworldCompanions";
 import { floorTintAt } from "../render/fx/floorTint";
+import { floorVariantKey } from "../render/floorVariants";
 
 const FLOOR_LAYER = 0;
 const PROP_LAYER = 0.45;
@@ -610,9 +619,18 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
 
+    const travelled = this.travelSinceEncounter;
     this.travelSinceEncounter = 0;
     const profile = getHabitatProfile(this.currentZoneId);
-    const guaranteed = shouldGuaranteeWildTrigger(profile, this.currentZoneId);
+    // Opening beats (#363) script the first meet / first spar foe (one-shot,
+    // re-offered only after a walking cooldown).
+    const scripted = scriptedOpeningCreature(
+      this.currentZoneId,
+      isVisitorMode(),
+      travelled,
+    );
+    const guaranteed =
+      scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
     if (!guaranteed && !rollWildTriggerChance(profile)) {
       return;
     }
@@ -621,7 +639,7 @@ export class IsometricScene extends Phaser.Scene {
       this.currentZoneId === "archipelago"
         ? islandIndexAtTile(this.playerGridX, this.playerGridY)
         : null;
-    const creatureId = resolveWildEncounterCreature({
+    const creatureId = scripted ?? resolveWildEncounterCreature({
       zoneId: this.currentZoneId,
       tileX: Math.round(this.playerGridX),
       tileY: Math.round(this.playerGridY),
@@ -633,6 +651,7 @@ export class IsometricScene extends Phaser.Scene {
     }
 
     this.inEncounter = true;
+    hideOpeningCaption();
     setTouchControlsEnabled(false);
     this.cameras.main.fadeOut(140, 255, 255, 255);
     this.time.delayedCall(145, () => {
@@ -1376,6 +1395,13 @@ export class IsometricScene extends Phaser.Scene {
         const screen = this.toScreen(x, y);
         const light = (x + y) % 2 === 0;
         let textureKey = getFloorTextureKey(zone.id, light);
+        // Rendered ground variants (#361) replace the light/dark checker.
+        const variantKey = floorVariantKey(zone.id, x, y);
+        const variant =
+          tileType === TileType.Floor && hasWorldTexture(this, variantKey);
+        if (variant) {
+          textureKey = variantKey;
+        }
         if (tileType === TileType.Water) {
           textureKey = getWaterTextureKey(light);
         } else if (tileType === TileType.Dock) {
@@ -1390,7 +1416,12 @@ export class IsometricScene extends Phaser.Scene {
         if (tileType === TileType.Floor || tileType === TileType.Water) {
           // Break up the debug-grid checker (#362); biome/gate tints override.
           tile.setTint(
-            floorTintAt(x, y, light, tileType === TileType.Water ? 0.5 : 1),
+            floorTintAt(
+              x,
+              y,
+              light && !variant,
+              tileType === TileType.Water ? 0.5 : variant ? 0.6 : 1,
+            ),
           );
         }
 
@@ -1452,6 +1483,15 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
 
+    const canopyKey = `backdrop-${zone.id}`;
+    if (hasImagineFrame(this, canopyKey)) {
+      // Painted forest canopy around the clearing (#361) instead of a flat
+      // sky-colored void; world-space so it reads as ground, not sky.
+      g.destroy();
+      this.drawCanopyBackdrop(bounds, canopyKey);
+      return;
+    }
+
     g.fillStyle(colors.sky, 1);
     g.fillRect(bounds.minX - 800, bounds.minY - 500, bounds.width + 1600, bounds.height + 1000);
     g.fillStyle(colors.mist, 0.2);
@@ -1462,6 +1502,55 @@ export class IsometricScene extends Phaser.Scene {
     }
     g.fillStyle(colors.mist, 0.22);
     g.fillCircle(bounds.minX + bounds.width * 0.72, bounds.minY + 80, 42);
+  }
+
+  private drawCanopyBackdrop(
+    bounds: ReturnType<IsometricScene["getZoneWorldBounds"]>,
+    canopyKey: string,
+  ): void {
+    const pad = 900;
+    this.add
+      .tileSprite(
+        bounds.minX + bounds.width / 2,
+        bounds.minY + bounds.height / 2,
+        bounds.width + pad * 2,
+        bounds.height + pad * 2,
+        IMAGINE_ATLAS_KEY,
+        canopyKey,
+      )
+      .setTileScale(0.4)
+      .setTint(0xb4c0c4)
+      .setDepth(-1000);
+    // Soft navy vignette: deepens with distance from the tile edge (bounds
+    // carry an 80px margin around the tiles).
+    const edge = {
+      minX: bounds.minX + 80,
+      minY: bounds.minY + 80,
+      maxX: bounds.maxX - 80,
+      maxY: bounds.maxY - 80,
+      width: bounds.width - 160,
+      height: bounds.height - 160,
+    };
+    const v = this.add.graphics().setDepth(-999);
+    // The camera only shows ~80px past the tiles, so the falloff is tight.
+    const ring = 18;
+    const rings = 7;
+    for (let i = 0; i < rings; i += 1) {
+      const grow = ring / 2 + i * ring;
+      v.lineStyle(ring, 0x1f2a44, 0.14 + i * 0.05);
+      v.strokeRect(
+        edge.minX - grow,
+        edge.minY - grow,
+        edge.width + grow * 2,
+        edge.height + grow * 2,
+      );
+    }
+    const outer = rings * ring;
+    v.fillStyle(0x1f2a44, 0.14 + rings * 0.05);
+    v.fillRect(edge.minX - pad, edge.minY - pad, edge.width + pad * 2, pad - outer);
+    v.fillRect(edge.minX - pad, edge.maxY + outer, edge.width + pad * 2, pad - outer);
+    v.fillRect(edge.minX - pad, edge.minY - outer, pad - outer, edge.height + outer * 2);
+    v.fillRect(edge.maxX + outer, edge.minY - outer, pad - outer, edge.height + outer * 2);
   }
 
   private drawWalls(zone: ZoneDefinition): void {
@@ -1638,7 +1727,7 @@ export class IsometricScene extends Phaser.Scene {
     for (const npc of getZoneNpcs(zone.id)) {
       const screen = this.toScreen(npc.x, npc.y);
       const sprite = this.add
-        .image(screen.x, screen.y + TILE_HEIGHT / 2 - 2, npc.spriteKey)
+        .sprite(screen.x, screen.y + TILE_HEIGHT / 2 - 2, npc.spriteKey)
         .setOrigin(0.5, 1);
       applyNpcSprite(this, sprite, npc);
       sprite.setDepth(depthForGridCell(npc.x, npc.y, PROP_LAYER));
@@ -1675,17 +1764,12 @@ export class IsometricScene extends Phaser.Scene {
       placeWorldHudText(this, this.walkHint, "top", 56);
       return;
     }
-    this.walkHint = this.add
-      .text(0, 0, WALK_HINT_TEXT, {
-        color: "#1f4050",
-        backgroundColor: "#fff8ecdd",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
-        fontSize: "18px",
-        fontStyle: "bold",
-        padding: { x: 16, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setDepth(hudDepthAbovePlayer(this.playerDepth));
+    this.walkHint = attachHudPill(
+      this.add
+        .text(0, 0, WALK_HINT_TEXT, { ...HUD_PILL_TEXT_STYLE, fontSize: "17px" })
+        .setOrigin(0.5)
+        .setDepth(hudDepthAbovePlayer(this.playerDepth)),
+    );
     placeWorldHudText(this, this.walkHint, "top", 56);
   }
 
@@ -1723,17 +1807,12 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
 
-    this.shrinePrompt = this.add
-      .text(0, 0, label, {
-        color: "#1f4050",
-        backgroundColor: "#fff8ecdd",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
-        fontSize: "15px",
-        fontStyle: "bold",
-        padding: { x: 14, y: 8 },
-      })
-      .setOrigin(0.5)
-      .setDepth(hudDepthAbovePlayer(this.playerDepth));
+    this.shrinePrompt = attachHudPill(
+      this.add
+        .text(0, 0, label, { ...HUD_PILL_TEXT_STYLE, fontSize: "15px" })
+        .setOrigin(0.5)
+        .setDepth(hudDepthAbovePlayer(this.playerDepth)),
+    );
     placeWorldHudText(this, this.shrinePrompt, "bottom", 48);
   }
 

@@ -32,13 +32,14 @@ if (!blender) {
   process.exit(1);
 }
 
+const started = Date.now() - 1000;
 const result = spawnSync(
   blender,
   [
     "--background",
     "--factory-startup",
     "--python",
-    path.join(ROOT, "scripts", "blender", "render_assets.py"),
+    path.join(ROOT, "scripts", "blender", process.env.RENDER_ENTRY ?? "render_assets.py"),
     "--",
     ...process.argv.slice(2),
   ],
@@ -53,3 +54,22 @@ if (result.status !== 0 || /Traceback/.test(output)) {
   console.error(`Blender render failed (exit ${result.status}).`);
   process.exit(1);
 }
+
+// Quantize the frames this run wrote (libimagequant, deterministic) so the
+// committed source frames stay small (#361); the packer quantizes pages again.
+const outIdx = process.argv.indexOf("--out");
+const outDir = outIdx > 0 ? path.resolve(process.argv[outIdx + 1]) : path.join(ROOT, "art", "rendered");
+const sharp = (await import("sharp")).default;
+let quantized = 0;
+// Only the atlas source frames; other entries (render:title) write elsewhere.
+const entries = process.env.RENDER_ENTRY || !fs.existsSync(outDir) ? [] : fs.readdirSync(outDir, { recursive: true });
+for (const entry of entries) {
+  const file = path.join(outDir, String(entry));
+  if (!file.endsWith(".png") || fs.statSync(file).mtimeMs < started) continue;
+  const buf = await sharp(file)
+    .png({ palette: true, quality: 95, effort: 10, dither: 0.6, compressionLevel: 9 })
+    .toBuffer();
+  fs.writeFileSync(file, buf);
+  quantized += 1;
+}
+console.log(`[render] quantized ${quantized} frame(s)`);

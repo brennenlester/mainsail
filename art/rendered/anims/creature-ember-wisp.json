@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-ember-wisp__idle",
+      "frames": [
+        "creature-ember-wisp__idle_00",
+        "creature-ember-wisp__idle_01",
+        "creature-ember-wisp__idle_02",
+        "creature-ember-wisp__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

@@ -71,16 +71,22 @@ export class DialogueScene extends Phaser.Scene {
     panel.strokeRoundedRect(panelLeft, panelTop, PANEL_WIDTH, PANEL_HEIGHT, 20);
 
     const portrait = this.add
-      .image(
+      .sprite(
         panelLeft + PANEL_PADDING + 28,
         panelTop - 6,
         this.npc.spriteKey,
       )
       .setOrigin(0.5, 1);
-    applyNpcSprite(this, portrait, this.npc, {
-      width: NPC_DISPLAY.width * 1.8,
-      height: NPC_DISPLAY.height * 1.8,
-    });
+    applyNpcSprite(
+      this,
+      portrait,
+      this.npc,
+      {
+        width: NPC_DISPLAY.width * 1.8,
+        height: NPC_DISPLAY.height * 1.8,
+      },
+      "talk",
+    );
 
     this.add
       .text(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING, this.npc.name, {

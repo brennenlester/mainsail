@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-cinder-toad__idle",
+      "frames": [
+        "creature-cinder-toad__idle_00",
+        "creature-cinder-toad__idle_01",
+        "creature-cinder-toad__idle_02",
+        "creature-cinder-toad__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "anims": [
+    {
+      "key": "npc-weaver-sable__idle",
+      "frames": [
+        "npc-weaver-sable__idle_00",
+        "npc-weaver-sable__idle_01",
+        "npc-weaver-sable__idle_02",
+        "npc-weaver-sable__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-weaver-sable__talk",
+      "frames": [
+        "npc-weaver-sable__talk_00",
+        "npc-weaver-sable__talk_01",
+        "npc-weaver-sable__talk_02",
+        "npc-weaver-sable__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    }
+  ]
+}

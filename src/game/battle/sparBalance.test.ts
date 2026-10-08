@@ -237,27 +237,33 @@ describe("befriend in a spar (#366)", () => {
     return { recruitRate: recruitRate / n, attempts: attempts / n };
   }
 
-  it("a sensible player (weaken, then befriend) recruits commons in 1-3 attempts", () => {
-    const sensible = recruit(COMMON, { befriendAt: 0.6 });
+  // Realistic play: the single card try at full HP, then a spar (3-miss streak, the card miss counts).
+  const SENSIBLE: Partial<SparSetup> = { cardTry: true, befriendAt: 0.6 };
+  const NAIVE: Partial<SparSetup> = { cardTry: true, befriendAt: 0 };
+
+  it("a sensible player (card try, then weaken and befriend) recruits commons ~85% in 1-3 attempts", () => {
+    const sensible = recruit(COMMON, SENSIBLE);
     expect(sensible.recruitRate).toBeGreaterThanOrEqual(0.8);
+    expect(sensible.recruitRate).toBeLessThanOrEqual(0.93);
     expect(sensible.attempts).toBeGreaterThanOrEqual(1);
-    expect(sensible.attempts).toBeLessThanOrEqual(2);
+    expect(sensible.attempts).toBeLessThanOrEqual(3);
   }, HEAVY_TIMEOUT);
 
-  it("befriending at full HP is a gamble, not a sure thing", () => {
-    const naive = recruit(COMMON, { befriendAt: 0 });
-    const sensible = recruit(COMMON, { befriendAt: 0.6 });
-    expect(naive.recruitRate).toBeGreaterThanOrEqual(0.4);
-    expect(naive.recruitRate).toBeLessThanOrEqual(0.8);
-    expect(sensible.recruitRate - naive.recruitRate).toBeGreaterThanOrEqual(0.15);
+  it("befriending at full HP is a gamble (~50-60%), so weakening is worth it", () => {
+    const naive = recruit(COMMON, NAIVE);
+    const sensible = recruit(COMMON, SENSIBLE);
+    expect(naive.recruitRate).toBeGreaterThanOrEqual(0.45);
+    expect(naive.recruitRate).toBeLessThanOrEqual(0.65);
+    expect(sensible.recruitRate - naive.recruitRate).toBeGreaterThanOrEqual(0.2);
   }, HEAVY_TIMEOUT);
 
-  it("rare, higher-level wilds are harder; a Favorite Bait closes the gap", () => {
-    const common = recruit(COMMON, { befriendAt: 0.6 });
-    const rare = recruit(RARE, { befriendAt: 0.6 });
-    const baited = recruit(RARE, { befriendAt: 0.6, offering: "favorite-bait" });
-    expect(rare.recruitRate).toBeLessThan(common.recruitRate - 0.05);
-    expect(rare.recruitRate).toBeGreaterThanOrEqual(0.45);
-    expect(baited.recruitRate).toBeGreaterThan(rare.recruitRate);
+  it("rare, higher-level wilds are harder (~60% weakened); a Favorite Bait closes the gap", () => {
+    const common = recruit(COMMON, SENSIBLE);
+    const rare = recruit(RARE, SENSIBLE);
+    const baited = recruit(RARE, { ...SENSIBLE, offering: "favorite-bait" });
+    expect(rare.recruitRate).toBeLessThan(common.recruitRate - 0.15);
+    expect(rare.recruitRate).toBeGreaterThanOrEqual(0.5);
+    expect(rare.recruitRate).toBeLessThanOrEqual(0.7);
+    expect(baited.recruitRate).toBeGreaterThan(rare.recruitRate + 0.05);
   }, HEAVY_TIMEOUT);
 });

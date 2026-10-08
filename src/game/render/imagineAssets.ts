@@ -12,8 +12,9 @@ export const IMAGINE_ANIMS_KEY = "imagine-anims";
  *
  * Trainer frames: `player-{facing}-0` idle, `player-{facing}-1..N` walk
  * (Blender renders true east/west, #360), `player-{facing}__idle_NN` breath.
- * Grove floors/props, the Mossling, and the spar arena are Blender renders
- * that override legacy Imagine PNGs at pack time.
+ * Blender renders (art/rendered, #360/#361) override legacy Imagine PNGs at
+ * pack time: first-hour creatures, villagers, Grove/Shrine/Village floors,
+ * props and boundaries, canopy backdrops, and the spar arenas.
  */
 export function preloadImagineAssets(scene: Phaser.Scene): void {
   scene.load.multiatlas(
@@ -68,7 +69,8 @@ export function createImagineAnims(scene: Phaser.Scene): number {
   return created;
 }
 
-export type CreatureAnim = "idle" | "attack" | "hurt";
+/** Rendered creature anims (#360/#361); `faint` ends on its held last frame. */
+export type CreatureAnim = "idle" | "attack" | "hurt" | "faint";
 
 /** Phaser anim key for a creature pose key (`creature-mossling-battle`) + anim. */
 export function creatureAnimKey(poseKey: string, anim: CreatureAnim): string {

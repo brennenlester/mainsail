@@ -38,8 +38,9 @@ import { getRarityBias } from "../progression/wildLevel";
  *   and uses the free switch to leave a matchup where the foe hunts it.
  * - `befriend` (#366): skilled play that tries to recruit instead of KO —
  *   attempts Befriend once the odds reach `befriendAt` or the next hit
- *   would knock the wild out. A miss spends the turn (the wild acts);
- *   BEFRIEND_FLEE_STREAK misses and the wild slips away.
+ *   would knock the wild out. `cardTry` spends the encounter card's single
+ *   full-HP try first (a miss lets the wild open). A miss spends the turn;
+ *   BEFRIEND_FLEE_STREAK misses (card included) and the wild slips away.
  */
 export type SparPolicy = "random" | "max-damage" | "skilled" | "befriend";
 
@@ -58,6 +59,8 @@ export type SparSetup = {
   bond?: number;
   /** `befriend` policy: attempt once odds reach this (0 = attempt at once). Default 0.7. */
   befriendAt?: number;
+  /** `befriend` policy: spend the single encounter-card try first (full HP). */
+  cardTry?: boolean;
   /** `befriend` policy: offering used on every attempt. */
   offering?: BefriendOffering;
 };
@@ -238,6 +241,7 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
     fled: false,
   };
   const befriendAt = setup.befriendAt ?? 0.7;
+  const skilledLike = setup.policy === "skilled" || setup.policy === "befriend";
   const befriendChance = () =>
     computeBefriendOdds({
       rarityBias: getRarityBias(setup.wild),
@@ -262,16 +266,30 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
     if (options.length === 0) {
       return false;
     }
-    active = setup.policy === "skilled" ? bestBench()! : options[0];
+    active = skilledLike ? bestBench()! : options[0];
     player = roster[active];
     return true;
   };
 
   let intent = pickIntent();
+  if (setup.policy === "befriend" && setup.cardTry) {
+    // One try on the encounter card at full HP; a miss makes the wild open the spar.
+    result.befriendAttempts += 1;
+    if (rng() < befriendChance()) {
+      result.recruited = true;
+      return result;
+    }
+    executeMove(wild, intent, player, rng);
+    tickStatuses(wild);
+    if (isFainted(player) && !replaceFainted()) {
+      return result;
+    }
+    intent = pickIntent();
+  }
   while (result.turns < MAX_TURNS) {
     // Skilled play spends the free switch to leave a bad matchup (no turn spent;
     // the telegraphed move now lands on the newcomer).
-    if (setup.policy === "skilled" && freeSwitch) {
+    if (skilledLike && freeSwitch) {
       const candidate = bestBench();
       if (
         candidate !== undefined &&
@@ -295,7 +313,7 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
         result.recruited = true;
         return result;
       }
-      const miss = afterBefriendMiss(result.befriendAttempts);
+      const miss = afterBefriendMiss(result.befriendAttempts - 1);
       if (miss.fled) {
         result.fled = true;
         return result;
@@ -339,8 +357,8 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
 
 function hashSetup(setup: SparSetup): number {
   // Seeds for the pre-#366 fields are unchanged; new fields only extend the key.
-  const extra = [setup.bond, setup.befriendAt, setup.offering].some((v) => v !== undefined)
-    ? `|${setup.bond ?? ""}|${setup.befriendAt ?? ""}|${setup.offering ?? ""}`
+  const extra = [setup.bond, setup.befriendAt, setup.offering, setup.cardTry].some((v) => v !== undefined)
+    ? `|${setup.bond ?? ""}|${setup.befriendAt ?? ""}|${setup.offering ?? ""}|${setup.cardTry ? 1 : ""}`
     : "";
   const key = `${setup.party.join("+")}|${setup.wild}|${setup.level ?? 1}|${setup.wildLevel ?? ""}|${setup.tutorial ? 1 : 0}${extra}`;
   let h = 2166136261;

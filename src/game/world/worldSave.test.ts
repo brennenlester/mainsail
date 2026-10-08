@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearHostSave, loadHostSave, updateHostPosition } from "./worldSave";
+import { clearHostSave, loadHostSave, resetHostGame, updateHostPosition } from "./worldSave";
+import { resumeHostPersist, suspendHostPersist } from "./worldSaveSchedule";
 import { flushPendingHostSave } from "./worldSaveSchedule";
 import { setVisitorMode } from "./worldSession";
 import { STARTING_ZONE_ID as SPAWN_ZONE } from "./zones";
@@ -92,6 +93,50 @@ describe("loadHostSave repair path (#190)", () => {
     expect(loaded).toBeNull();
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(BACKUP_STORAGE_KEY)).toBe(raw);
+  });
+
+  it("clearHostSave / resetHostGame are no-ops in visitor or card sandboxes (#368)", () => {
+    const kept = JSON.stringify({ keep: 1 });
+    localStorage.setItem(STORAGE_KEY, kept);
+    suspendHostPersist();
+    try {
+      clearHostSave();
+      resetHostGame();
+      expect(localStorage.getItem(STORAGE_KEY)).toBe(kept);
+    } finally {
+      resumeHostPersist();
+    }
+    setVisitorMode(true, "x");
+    try {
+      clearHostSave();
+      expect(localStorage.getItem(STORAGE_KEY)).toBe(kept);
+    } finally {
+      setVisitorMode(false);
+    }
+    clearHostSave();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("readOnly load never writes storage (share-card sandbox, #368)", () => {
+    const snapshot = storedSnapshot({ zoneId: STARTING_ZONE_ID, x: 3, y: 7 });
+    snapshot.sailing = "garbage";
+    const raw = JSON.stringify(snapshot);
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadHostSave({ readOnly: true })).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    expect(localStorage.getItem(BACKUP_STORAGE_KEY)).toBeNull();
+
+    localStorage.clear();
+    localStorage.setItem(STORAGE_KEY, "{not json");
+    expect(loadHostSave({ readOnly: true })).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("{not json");
+
+    localStorage.clear();
+    const legacy = JSON.stringify(storedSnapshot({ zoneId: STARTING_ZONE_ID, x: 3, y: 7 }));
+    localStorage.setItem("poke-save-v1", legacy);
+    expect(loadHostSave({ readOnly: true })).not.toBeNull();
+    expect(localStorage.getItem("poke-save-v1")).toBe(legacy);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it("quarantines non-object JSON payloads", () => {

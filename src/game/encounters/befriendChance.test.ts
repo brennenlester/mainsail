@@ -1,6 +1,10 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   afterBefriendMiss,
+  battleBefriendAllowed,
+  truncateLabel,
   BEFRIEND_BASE,
   BEFRIEND_FLEE_STREAK,
   BEFRIEND_MAX,
@@ -18,6 +22,7 @@ import {
   consumeOffering,
   currentOffering,
   cycleOffering,
+  offeringCostLine,
   resetOfferingChoiceForTest,
 } from "./befriendRuntime";
 import { setInventoryFromSnapshot, getItemCount, getMaterialCount } from "../inventory/playerInventory";
@@ -41,8 +46,8 @@ describe("befriend chance model (#366)", () => {
   it("a fresh, common, peer-level wild sits at the base chance", () => {
     const odds = computeBefriendOdds(fresh);
     expect(odds.chance).toBeCloseTo(BEFRIEND_BASE);
-    expect(formatBefriendOddsLabel(odds.chance)).toBe("Befriend ~35%");
-    expect(formatBefriendBreakdown(odds)).toEqual(["Base 35%"]);
+    expect(formatBefriendOddsLabel(odds.chance)).toBe("Befriend ~28%");
+    expect(formatBefriendBreakdown(odds)).toEqual(["Base 28%"]);
   });
 
   it("weakening scales with missing HP", () => {
@@ -79,7 +84,7 @@ describe("befriend chance model (#366)", () => {
   it("rare and higher-level wilds are harder", () => {
     const rare = computeBefriendOdds({ ...fresh, rarityBias: 2, levelGap: 2 });
     expect(rare.chance).toBeLessThan(BEFRIEND_BASE - 0.1);
-    expect(formatBefriendBreakdown(rare)).toEqual(["Base 35%", "Rare −10%", "Wild +2 Lv −8%"]);
+    expect(formatBefriendBreakdown(rare)).toEqual(["Base 28%", "Rare −12%", "Wild +2 Lv −8%"]);
   });
 
   it("clamps to [min, max]", () => {
@@ -93,6 +98,42 @@ describe("befriend chance model (#366)", () => {
     expect(max.chance).toBe(BEFRIEND_MAX);
     const min = computeBefriendOdds({ ...fresh, rarityBias: 2, levelGap: 10, habitatEdge: -1 });
     expect(min.chance).toBe(BEFRIEND_MIN);
+  });
+
+  it("Befriend in battle is opt-in: story spars and ghost fights never show it", () => {
+    const open = { god: false, tutorial: false, visitor: false, owned: false, habitatOffers: true };
+    expect(battleBefriendAllowed({ ...open, allowBefriend: true })).toBe(true);
+    expect(battleBefriendAllowed(open)).toBe(false);
+    expect(battleBefriendAllowed({ ...open, allowBefriend: false })).toBe(false);
+    expect(battleBefriendAllowed({ ...open, allowBefriend: true, god: true })).toBe(false);
+    expect(battleBefriendAllowed({ ...open, allowBefriend: true, tutorial: true })).toBe(false);
+  });
+
+  it("only the wild-encounter spar (and the dev preview) launch BattleScene with allowBefriend", () => {
+    const root = path.join(process.cwd(), "src");
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (full.endsWith(".ts") && !full.endsWith(".test.ts")) files.push(full);
+      }
+    };
+    walk(root);
+    const launchers = files.filter((f) => readFileSync(f, "utf8").includes('launch("BattleScene"'));
+    // Story spars, ghost fights (share/challenge.ts) and future launchers default to false.
+    expect(launchers.length).toBeGreaterThanOrEqual(2);
+    for (const file of launchers) {
+      const optsIn = readFileSync(file, "utf8").includes("allowBefriend: true");
+      const allowed = file.endsWith("scenes/EncounterScene.ts") || file.endsWith("src/main.ts");
+      expect(optsIn, path.relative(root, file)).toBe(allowed);
+    }
+  });
+
+  it("long lead names are truncated so the breakdown never overflows", () => {
+    expect(truncateLabel("Sir Fluffington the Third", 12)).toBe("Sir Fluffin…");
+    const odds = computeBefriendOdds({ ...fresh, leadBondTier: 2, leadName: "Sir Fluffington the Third" });
+    expect(formatBefriendBreakdown(odds)[1]).toBe("Sir Fluffin…'s bond +4%");
   });
 
   it("sovereigns keep their flat chance", () => {
@@ -112,7 +153,7 @@ describe("befriend chance model (#366)", () => {
       const out = afterBefriendMiss(misses);
       expect(out.fled).toBe(false);
       misses = out.misses;
-      expect(befriendMissLine("Mossling", out, false)).toContain("strike first");
+      expect(befriendMissLine("Mossling", out, false)).toContain("strikes first");
       expect(befriendMissLine("Mossling", out, true)).toContain("free turn");
     }
     const last = afterBefriendMiss(misses);
@@ -129,13 +170,21 @@ describe("befriend runtime (offerings, story guarantee)", () => {
 
   it("offers bait only when the favorite material is in the bag", () => {
     setInventoryFromSnapshot({}, { "favorite-bait": 1, "folk-seal": 1 });
-    expect(availableOfferings("mossling")).toEqual(["folk-seal", "none"]);
+    expect(availableOfferings("mossling")).toEqual(["none", "folk-seal"]);
     setInventoryFromSnapshot({ "wild-fiber": 1 }, { "favorite-bait": 1, "folk-seal": 1 });
-    expect(availableOfferings("mossling")).toEqual(["favorite-bait", "folk-seal", "none"]);
-    expect(currentOffering("mossling")).toBe("favorite-bait");
+    expect(availableOfferings("mossling")).toEqual(["none", "favorite-bait", "folk-seal"]);
+    // Offerings are opt-in: nothing is spent until the player picks one.
+    expect(currentOffering("mossling")).toBe("none");
+    expect(cycleOffering("mossling")).toBe("favorite-bait");
     expect(cycleOffering("mossling")).toBe("folk-seal");
     expect(cycleOffering("mossling")).toBe("none");
     expect(befriendOddsFor({ creatureId: "mossling", lead: null, wildLevel: 1 }).terms.length).toBe(1);
+  });
+
+  it("spells out what an offering costs", () => {
+    expect(offeringCostLine("mossling", "favorite-bait")).toBe("Bait: −1 Bait, −1 Wild Fiber");
+    expect(offeringCostLine("mossling", "folk-seal")).toBe("Seal: −1 Folk Seal");
+    expect(offeringCostLine("mossling", "none")).toBe("");
   });
 
   it("spends the bait and one favorite material per attempt", () => {
