@@ -13,6 +13,7 @@ import {
   CRAFT_RECIPES,
   getRecipeMaterials,
   patternToMaterialRows,
+  type CraftContext,
   type CraftRecipe,
 } from "../crafting/recipes";
 
@@ -169,7 +170,7 @@ function renderRecipeCard(
  * Recipe book order (#402): the quest recipe first, then what the pack can
  * craft now, then everything still missing ingredients, collapsed.
  */
-function renderRecipesBody(): void {
+function renderRecipesBody(context: CraftContext): void {
   const body = document.getElementById("recipes-body");
   if (!body) {
     return;
@@ -178,7 +179,7 @@ function renderRecipesBody(): void {
   const pages = new Map(listRecipePages().map((page) => [page.id, page]));
   const groups = groupRecipesForBook({
     questId: getActiveQuestId(),
-    context: "altar",
+    context,
     // Count what is staged on an open craft grid too.
     materials: withStagedCraftingMaterials(playerInventory.materials),
     items: withStagedCraftingItems(playerInventory.items),
@@ -221,9 +222,13 @@ function renderRecipesBody(): void {
   }
 }
 
-export function openRecipes(): void {
+/**
+ * `context` is where the player is crafting: altar-only recipes only read as
+ * ready at the altar. Defaults to away from the altar.
+ */
+export function openRecipes(context: CraftContext = "inventory"): void {
   const root = ensureRecipesRoot();
-  renderRecipesBody();
+  renderRecipesBody(context);
   previouslyFocused =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;
   root.hidden = false;

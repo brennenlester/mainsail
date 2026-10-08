@@ -161,7 +161,7 @@ export class ShrineScene extends Phaser.Scene {
 
     this.panel = mountShrinePanel({
       onSelectTab: (tab) => this.switchTab(tab),
-      onRecipes: () => openRecipes(),
+      onRecipes: () => openRecipes(this.shrineMode),
       onClose: () => this.tryLeave(),
     });
     const panel = this.panel;

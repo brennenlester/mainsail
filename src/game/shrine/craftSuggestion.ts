@@ -32,6 +32,10 @@ export type CraftSuggestion =
       recipe: CraftRecipe;
       /** Every ingredient is in the pack right now. */
       ready: boolean;
+      /** False when nobody in the party can use the result (no Fill grid). */
+      usable: boolean;
+      /** Creature the relic grows, for the "for Mossling" label. */
+      forCreatureId?: string;
       needs: RecipeNeed[];
     }
   | {
@@ -115,36 +119,59 @@ function byId(id: string): CraftRecipe | undefined {
   return CRAFT_RECIPES.find((r) => r.id === id);
 }
 
-export function suggestCraft(input: SuggestInput): CraftSuggestion | null {
-  const questIds = questRecipeIds(input.questId, input.partyDefinitionIds);
-  if (questIds.length > 0) {
-    // Already holding the relic for evolve beat: send them to Fusion.
-    if (input.questId === "first-evolution") {
-      const partyRelics = input.partyDefinitionIds
+/** Relics the party can use (one per Grove starter held), in party order. */
+function partyRelicIds(partyDefinitionIds: readonly string[]): string[] {
+  return [
+    ...new Set(
+      partyDefinitionIds
         .map((id) => RELIC_FOR_CREATURE[id])
-        .filter((id): id is string => Boolean(id));
-      const usable = partyRelics.length > 0 ? partyRelics : questIds;
-      const owned = usable.find((id) => (input.items[id] ?? 0) > 0);
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+}
+
+function creatureForRelic(recipeId: string): string | undefined {
+  return Object.keys(RELIC_FOR_CREATURE).find(
+    (id) => RELIC_FOR_CREATURE[id] === recipeId,
+  );
+}
+
+export function suggestCraft(input: SuggestInput): CraftSuggestion | null {
+  if (questRecipeIds(input.questId, input.partyDefinitionIds).length > 0) {
+    // Only the relic that grows a companion the player holds; with neither
+    // starter, name the relics but never offer to build one.
+    const partyRelics = partyRelicIds(input.partyDefinitionIds);
+    const usable = partyRelics.length > 0;
+    const candidates = usable ? partyRelics : [...DEFAULT_RELIC_ORDER];
+    // Already holding the relic for the evolve beat: send them to Fusion.
+    if (input.questId === "first-evolution" && usable) {
+      const owned = candidates.find((id) => (input.items[id] ?? 0) > 0);
       if (owned) {
         return { kind: "fusion", itemId: owned };
       }
     }
-    let best: CraftSuggestion | null = null;
-    for (const id of questIds) {
+    let best: Extract<CraftSuggestion, { kind: "craft" }> | null = null;
+    for (const id of candidates) {
       const recipe = byId(id);
       if (!recipe || !recipeAvailable(recipe, input)) {
         continue;
       }
       const needs = recipeNeeds(recipe, input);
       const missing = missingTotal(needs);
+      const entry = {
+        kind: "craft" as const,
+        reason: "quest" as const,
+        recipe,
+        ready: missing === 0,
+        usable,
+        forCreatureId: creatureForRelic(id),
+        needs,
+      };
       if (missing === 0) {
-        return { kind: "craft", reason: "quest", recipe, ready: true, needs };
+        return entry;
       }
-      if (
-        !best ||
-        (best.kind === "craft" && missing < missingTotal(best.needs))
-      ) {
-        best = { kind: "craft", reason: "quest", recipe, ready: false, needs };
+      if (!best || missing < missingTotal(best.needs)) {
+        best = entry;
       }
     }
     return best;
@@ -164,6 +191,7 @@ export function suggestCraft(input: SuggestInput): CraftSuggestion | null {
     reason: "craftable",
     recipe: pick,
     ready: true,
+    usable: true,
     needs: recipeNeeds(pick, input),
   };
 }

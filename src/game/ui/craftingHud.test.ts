@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   hideShrineCraftingHud,
   mountCraftingHud,
@@ -230,6 +230,15 @@ describe("crafting HUD", () => {
       hud.destroy();
     });
 
+    let now = 1000;
+    beforeEach(() => {
+      now = 1000;
+      vi.spyOn(performance, "now").mockImplementation(() => now);
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it("Fill grid lays the recipe on the real grid, then the banner crafts it", () => {
       seedParty("mossling");
       restoreQuestProgress({ "first-befriend": "complete", "first-spar": "complete" });
@@ -253,10 +262,59 @@ describe("crafting HUD", () => {
       expect(result.classList.contains("is-ready")).toBe(true);
       const craft = host.querySelector('[data-craft-action="craft-now"]') as HTMLButtonElement;
       expect(craft.textContent).toBe("Craft Moss Salve");
+      // The swap lock has to lapse before Craft takes a click.
+      now += 400;
       craft.click();
       expect(crafted).toEqual(["Moss Salve"]);
       expect(getItemCount("moss-salve")).toBe(1);
       hud.destroy();
+    });
+
+    it("a double-click or Enter-Enter on Fill grid does not craft", () => {
+      seedParty("mossling");
+      restoreQuestProgress({ "first-befriend": "complete", "first-spar": "complete" });
+      setInventoryFromSnapshot({ "moss-fiber": 2, "folklore-dust": 1 }, {});
+      const crafted: string[] = [];
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      const hud = mountCraftingHud(host, {
+        context: "altar",
+        interactive: true,
+        onCrafted: (name) => crafted.push(name),
+      });
+      (host.querySelector('[data-craft-action="fill-grid"]') as HTMLButtonElement).click();
+      const craft = () =>
+        host.querySelector('[data-craft-action="craft-now"]') as HTMLButtonElement;
+      // Second click lands on the swapped-in Craft button: locked, and detail > 1 ignored.
+      craft().click();
+      craft().dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 2 }));
+      expect(crafted).toEqual([]);
+      now += 400;
+      craft().dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 2 }));
+      expect(crafted).toEqual([]);
+      craft().click();
+      expect(crafted).toEqual(["Moss Salve"]);
+      hud.destroy();
+    });
+
+    it("suggests only the party's own relic; with no Grove starter it offers no Fill grid", () => {
+      seedParty("mossling");
+      restoreQuestProgress({ "first-befriend": "complete", "first-spar": "complete" });
+      setInventoryFromSnapshot({ "ember-ash": 2, "folklore-dust": 1 }, {});
+      const first = mountAltar();
+      expect(suggestBanner(first.host)?.dataset.craftSuggest).toBe("moss-salve");
+      expect(first.host.querySelector('[data-craft-action="fill-grid"]')).toBeNull();
+      expect(first.host.querySelector(".crafting-suggest-for")?.textContent).toContain(
+        "Mossling",
+      );
+      first.hud.destroy();
+
+      seedParty("brook-nymph");
+      setInventoryFromSnapshot({ "moss-fiber": 2, "folklore-dust": 1 }, {});
+      const second = mountAltar();
+      expect(second.host.querySelector('[data-craft-action="fill-grid"]')).toBeNull();
+      expect(suggestBanner(second.host)?.textContent).toContain("Mossling or Ember Wisp");
+      second.hud.destroy();
     });
 
     it("names what is missing instead of offering Fill grid", () => {

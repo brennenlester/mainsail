@@ -9,6 +9,7 @@ import { createShrineButton } from "./shrinePanel";
 import { clearCraftSpotlight } from "../shrine/shrineDisclosure";
 import { suggestCraft, type CraftSuggestion } from "../shrine/craftSuggestion";
 import { getActiveQuestId } from "../story/questProgress";
+import { getCreatureDefinition } from "../creatures/catalog";
 import { playerParty } from "../creatures/party";
 import {
   canAddItem,
@@ -39,6 +40,7 @@ import {
 } from "../crafting/recipes";
 
 const DRAG_THRESHOLD = 8;
+const PRIMARY_SWAP_LOCK_MS = 350;
 const PLACEABLE_ITEM_IDS = new Set(
   Object.values(PATTERN_GLYPHS).filter((id) => isCraftItemIngredient(id)),
 );
@@ -140,6 +142,8 @@ export function mountCraftingHud(
   let ignoreClick = false;
   let lastError: string | null = null;
   let ghost: HTMLElement | null = null;
+  let lastPrimaryAction: string | null = null;
+  let primaryLockedUntil = 0;
 
   const root = document.createElement("div");
   root.className = "crafting-hud";
@@ -237,6 +241,36 @@ export function mountCraftingHud(
     render();
   }
 
+  /**
+   * The banner's one primary button changes in place (Fill grid > Craft X >
+   * Open Fusion) and keeps focus, so a double-click or key repeat would run
+   * the next step by accident. Ignore repeats and lock briefly after a swap.
+   */
+  function primaryButton(
+    action: string,
+    label: string,
+    run: () => void,
+  ): HTMLButtonElement {
+    if (lastPrimaryAction && lastPrimaryAction !== action) {
+      primaryLockedUntil = performance.now() + PRIMARY_SWAP_LOCK_MS;
+    }
+    lastPrimaryAction = action;
+    const btn = createShrineButton(label, "primary", (event) => {
+      if (event.detail > 1 || performance.now() < primaryLockedUntil) {
+        return;
+      }
+      run();
+    });
+    btn.dataset.craftAction = action;
+    btn.dataset.craftPrimary = "1";
+    btn.addEventListener("keydown", (event) => {
+      if (event.repeat) {
+        event.preventDefault();
+      }
+    });
+    return btn;
+  }
+
   function buildSuggestion(): HTMLElement | null {
     const suggestion = currentSuggestion();
     if (!suggestion) {
@@ -265,12 +299,9 @@ export function mountCraftingHud(
         : "Take it to the Moon Shrine altar and open its Fusion tab.";
       detail.append(hint);
       if (options.onGoFusion) {
-        const go = createShrineButton("Open Fusion", "primary", () =>
-          options.onGoFusion?.(),
+        actions.append(
+          primaryButton("go-fusion", "Open Fusion", () => options.onGoFusion?.()),
         );
-        go.dataset.craftAction = "go-fusion";
-        go.dataset.craftPrimary = "1";
-        actions.append(go);
       }
     } else {
       const { recipe } = suggestion;
@@ -281,6 +312,12 @@ export function mountCraftingHud(
       title.textContent = `${recipe.name}${
         recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ""
       }`;
+      if (suggestion.forCreatureId) {
+        const who = document.createElement("span");
+        who.className = "crafting-suggest-for";
+        who.textContent = ` for ${getCreatureDefinition(suggestion.forCreatureId).name}`;
+        title.append(who);
+      }
       const needs = document.createElement("ul");
       needs.className = "crafting-suggest-needs";
       for (const need of suggestion.needs) {
@@ -296,20 +333,20 @@ export function mountCraftingHud(
       const match = matchGrid(grid, options.context);
       const gridReady =
         match.status === "match" && match.recipe.id === recipe.id;
-      if (gridReady) {
-        const craft = createShrineButton(`Craft ${recipe.name}`, "primary", () =>
-          takeResult(),
+      if (!suggestion.usable) {
+        const hint = document.createElement("p");
+        hint.className = "crafting-suggest-hint";
+        hint.textContent =
+          "Needs a Mossling or Ember Wisp in your party to be useful.";
+        detail.append(hint);
+      } else if (gridReady) {
+        actions.append(
+          primaryButton("craft-now", `Craft ${recipe.name}`, () => takeResult()),
         );
-        craft.dataset.craftAction = "craft-now";
-        craft.dataset.craftPrimary = "1";
-        actions.append(craft);
       } else if (suggestion.ready && interactive) {
-        const fill = createShrineButton("Fill grid", "primary", () =>
-          fillGridWith(recipe),
+        actions.append(
+          primaryButton("fill-grid", "Fill grid", () => fillGridWith(recipe)),
         );
-        fill.dataset.craftAction = "fill-grid";
-        fill.dataset.craftPrimary = "1";
-        actions.append(fill);
       } else if (!suggestion.ready) {
         const hint = document.createElement("p");
         hint.className = "crafting-suggest-hint";
@@ -564,7 +601,7 @@ export function mountCraftingHud(
     recipesBtn.textContent = "Recipes";
     recipesBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      openRecipes();
+      openRecipes(options.context);
     });
     header.append(recipesBtn);
     if (options.showClose !== false) {

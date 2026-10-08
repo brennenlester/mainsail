@@ -2431,6 +2431,33 @@ body.shrine-active .touch-controls {
   }
 }
 
+.crafting-suggest-for {
+  color: #a9bfd4;
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Touch: every shrine control is a 44px target, even on short landscape. */
+@media (pointer: coarse) {
+  .shrine-close,
+  .recipes-close {
+    width: 44px;
+    height: 44px;
+  }
+
+  .shrine-tab,
+  .shrine-recipes,
+  .sh-btn,
+  .sh-row {
+    min-height: 44px;
+  }
+
+  .sh-back {
+    padding-block: 9px;
+  }
+}
+
 .recipes-overlay {
   position: fixed;
   inset: 0;

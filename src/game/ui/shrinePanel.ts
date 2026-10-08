@@ -11,7 +11,7 @@ export type ShrineButtonTone = "primary" | "secondary" | "ghost";
 export function createShrineButton(
   label: string,
   tone: ShrineButtonTone,
-  onClick: () => void,
+  onClick: (event: MouseEvent) => void,
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
@@ -19,7 +19,7 @@ export function createShrineButton(
   btn.textContent = label;
   btn.addEventListener("click", (event) => {
     event.stopPropagation();
-    onClick();
+    onClick(event);
   });
   return btn;
 }
@@ -130,9 +130,39 @@ export function mountShrinePanel(options: ShrinePanelOptions): ShrinePanelHandle
     if (event.key === "Escape") {
       event.preventDefault();
       options.onClose();
+    } else if (event.key === "Tab") {
+      trapTab(event);
     }
   });
   root.addEventListener("keyup", (event) => event.stopPropagation());
+
+  // aria-modal: Tab wraps inside the panel instead of reaching the dock.
+  function trapTab(event: KeyboardEvent): void {
+    const focusable = [
+      ...root.querySelectorAll<HTMLElement>("button, [tabindex]"),
+    ].filter(
+      (el) =>
+        el.tabIndex >= 0 &&
+        !(el as HTMLButtonElement).disabled &&
+        !el.closest("[hidden]"),
+    );
+    if (focusable.length === 0) {
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (!root.contains(active)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   // --- tabs -----------------------------------------------------------
   const tabButtons = new Map<ShrineTab, HTMLButtonElement>();
@@ -207,10 +237,14 @@ export function mountShrinePanel(options: ShrinePanelOptions): ShrinePanelHandle
       const isActive = tab.id === active;
       btn.classList.toggle("is-active", isActive);
       btn.setAttribute("aria-selected", String(isActive));
+      if (isActive) {
+        // Opened (e.g. through the banner): the "New" cue has done its job.
+        btn.classList.remove("is-new");
+      }
       btn.tabIndex = isActive ? 0 : -1;
       btn.textContent = tab.label;
     }
-    const revealed = reveal.filter((id) => tabButtons.has(id));
+    const revealed = reveal.filter((id) => tabButtons.has(id) && id !== active);
     for (const id of revealed) {
       const btn = tabButtons.get(id)!;
       btn.classList.remove("is-new");

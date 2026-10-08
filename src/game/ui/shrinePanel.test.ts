@@ -85,6 +85,39 @@ describe("mountShrinePanel", () => {
     expect(onSelectTab).toHaveBeenLastCalledWith("fusion");
   });
 
+  it("clears the New badge when the tab opens by other means (banner)", () => {
+    panel.setTabs(shrineTabs("altar", true), "craft", ["fusion"]);
+    expect(
+      document.getElementById("shrine-tab-fusion")!.classList.contains("is-new"),
+    ).toBe(true);
+    panel.setTabs(shrineTabs("altar", true), "fusion");
+    expect(
+      document.getElementById("shrine-tab-fusion")!.classList.contains("is-new"),
+    ).toBe(false);
+  });
+
+  it("wraps Tab inside the dialog (focus trap)", () => {
+    panel.setTabs(shrineTabs("altar", false), "craft");
+    const close = document.querySelector<HTMLButtonElement>(".shrine-close")!;
+    const recipes = document.querySelector<HTMLButtonElement>("[data-shrine-recipes]")!;
+    const tab = (shiftKey: boolean) =>
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", shiftKey, bubbles: true, cancelable: true }),
+      );
+    // Last focusable (Recipes) + Tab -> first (the ×).
+    recipes.focus();
+    tab(false);
+    expect(document.activeElement).toBe(close);
+    // First + Shift+Tab -> last.
+    tab(true);
+    expect(document.activeElement).toBe(recipes);
+    // Focus that escaped to the page comes back in.
+    (document.activeElement as HTMLElement).blur();
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    panel.root.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+    expect(panel.root.contains(document.activeElement)).toBe(true);
+  });
+
   it("clears the new-tab pulse once the tab is visited", () => {
     panel.setTabs(shrineTabs("altar", true), "craft", ["fusion"]);
     document.getElementById("shrine-tab-fusion")!.click();

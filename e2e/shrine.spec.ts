@@ -82,6 +82,7 @@ for (const viewport of [
     // One tap fills the real grid; one more crafts.
     await page.locator('[data-craft-action="fill-grid"]').click();
     await expect(page.locator("[data-craft-result]")).toBeEnabled();
+    await page.waitForTimeout(450); // swap lock: no accidental double-tap craft
     await page.locator('[data-craft-action="craft-now"]').click();
 
     // Fusion appears live, pulsing and focused, without leaving the altar.
@@ -90,6 +91,7 @@ for (const viewport of [
     await expect(fusionTab).toHaveClass(/is-new/);
     await expect(fusionTab).toBeFocused();
 
+    await page.waitForTimeout(450);
     await page.locator('[data-craft-action="go-fusion"]').click();
     await expect(fusionTab).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(".sh-row", { hasText: "Mossling" })).toBeVisible();
@@ -101,7 +103,9 @@ test("shrine panel hides during the evolution cutscene and returns after Continu
 }) => {
   await openShrineAtStory3(page);
   await page.locator('[data-craft-action="fill-grid"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-craft-action="craft-now"]').click();
+  await page.waitForTimeout(450);
   await page.locator('[data-craft-action="go-fusion"]').click();
   await page.locator(".sh-row", { hasText: "Mossling" }).click();
 

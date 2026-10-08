@@ -101,12 +101,12 @@ describe("recipe overlay icons", () => {
 });
 
 describe("recipe book order (#402)", () => {
-  function openBook(): HTMLElement {
+  function openBook(context: Parameters<typeof openRecipes>[0] = "altar"): HTMLElement {
     document.body.replaceChildren();
     const app = document.createElement("div");
     app.id = "app";
     document.body.appendChild(app);
-    openRecipes();
+    openRecipes(context);
     return document.getElementById("recipes-body") as HTMLElement;
   }
 
@@ -146,6 +146,29 @@ describe("recipe book order (#402)", () => {
     const body = openBook();
     const locked = body.querySelector("details.recipe-locked") as HTMLDetailsElement;
     expect(locked.open).toBe(true);
+    closeRecipes();
+  });
+
+  it("does not call altar-only recipes ready away from the altar", () => {
+    restoreQuestProgress({
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "shrine-craft": "complete",
+      "first-evolution": "complete",
+    });
+    setInventoryFromSnapshot(
+      { "folklore-dust": 1, stone: 5, "brook-pearl": 1, "wild-fiber": 2 },
+      {},
+    );
+    const away = openBook("portable");
+    expect(
+      away.querySelector(':scope > [data-recipe-id="portable-moonshrine"]'),
+    ).toBeNull();
+    closeRecipes();
+    const atAltar = openBook("altar");
+    expect(
+      atAltar.querySelector(':scope > [data-recipe-id="portable-moonshrine"]'),
+    ).not.toBeNull();
     closeRecipes();
   });
 });

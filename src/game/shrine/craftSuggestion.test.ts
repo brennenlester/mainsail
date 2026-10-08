@@ -45,7 +45,7 @@ describe("suggestCraft", () => {
     expect(ember?.kind === "craft" && ember.recipe.id).toBe("ember-charm");
   });
 
-  it("falls back to the other relic when only its materials are in the pack", () => {
+  it("never suggests the other starter's relic, even when its materials are in the pack", () => {
     const s = suggestCraft(
       input({
         questId: "shrine-craft",
@@ -53,8 +53,35 @@ describe("suggestCraft", () => {
         materials: { "ember-ash": 2, "folklore-dust": 1 },
       }),
     );
+    expect(s?.kind === "craft" && s.recipe.id).toBe("moss-salve");
+    expect(s).toMatchObject({
+      ready: false,
+      usable: true,
+      forCreatureId: "mossling",
+    });
+  });
+
+  it("offers both relics, labelled by creature, when the party holds both starters", () => {
+    const s = suggestCraft(
+      input({
+        questId: "shrine-craft",
+        partyDefinitionIds: ["mossling", "ember-wisp"],
+        materials: { "ember-ash": 2, "folklore-dust": 1 },
+      }),
+    );
     expect(s?.kind === "craft" && s.recipe.id).toBe("ember-charm");
-    expect(s).toMatchObject({ ready: true });
+    expect(s).toMatchObject({ ready: true, usable: true, forCreatureId: "ember-wisp" });
+  });
+
+  it("with neither starter, names the relic but marks it unusable (no Fill grid)", () => {
+    const s = suggestCraft(
+      input({
+        questId: "shrine-craft",
+        partyDefinitionIds: ["brook-nymph"],
+        materials: { "moss-fiber": 2, "folklore-dust": 1 },
+      }),
+    );
+    expect(s).toMatchObject({ kind: "craft", ready: true, usable: false });
   });
 
   it("still names the quest recipe, with what is missing, when the pack is empty", () => {
@@ -72,10 +99,11 @@ describe("suggestCraft", () => {
     ]);
   });
 
-  it("picks the closest quest recipe when nothing is ready", () => {
+  it("picks the closest quest recipe when nothing is ready (both starters)", () => {
     const s = suggestCraft(
       input({
         questId: "shrine-craft",
+        partyDefinitionIds: ["mossling", "ember-wisp"],
         materials: { "ember-ash": 2 },
       }),
     );
