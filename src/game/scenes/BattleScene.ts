@@ -62,6 +62,7 @@ import {
   isFainted,
   previewFixedDamage,
   primeOpeningCooldowns,
+  outleveledWildBulk,
   resolveFixedAttack,
   wildBattleTuning,
   type MoveResult,
@@ -69,6 +70,7 @@ import {
 import {
   FINISHER_STATUS_BONUS,
   GUARD_DAMAGE_TAKEN,
+  GUARD_FINISHER_DAMAGE_TAKEN,
   getBattleKit,
   moveRole,
 } from "../battle/kits";
@@ -110,7 +112,7 @@ import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { markCreatureDiscovered } from "../world/worldState";
 import { SPAR_WILD_OPENING_TURNS } from "../encounters/encounterEconomy";
 import { unlockCodexHud } from "../ui/hudChrome";
-import { getWildEffectiveLevel } from "../progression/wildLevel";
+import { getPartyAverageLevel, getWildEffectiveLevel } from "../progression/wildLevel";
 import { scaledStat } from "../progression/leveling";
 import { setPartyEditLocked } from "../ui/partyPanel";
 
@@ -269,6 +271,7 @@ export class BattleScene extends Phaser.Scene {
     const wildAttack = scaledStat(wildDef.attack, wildLevel);
     this.wild = primeOpeningCooldowns({
       name: wildDef.name,
+      level: wildLevel,
       maxHp: wildMaxHp,
       currentHp: wildMaxHp,
       attack: wildAttack,
@@ -277,6 +280,9 @@ export class BattleScene extends Phaser.Scene {
       moves: getBattleKit(wildDef),
       folkloreType: wildDef.folkloreType,
       damageScale: wildBattleTuning(this.tutorialSpar).damageScale,
+      bulk: isGodCreature(data.wildCreatureId)
+        ? 1
+        : outleveledWildBulk(getPartyAverageLevel(), wildLevel),
     });
 
     const actives = getActiveCreatures();
@@ -589,6 +595,7 @@ export class BattleScene extends Phaser.Scene {
     const trait = partyCreature.trait;
     const combatant: BattleCombatant = {
       name: def.name,
+      level: partyCreature.level,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
       attack: getEffectiveAttack(partyCreature),
@@ -761,6 +768,14 @@ export class BattleScene extends Phaser.Scene {
     if (role === "finisher") {
       details.push(`×${FINISHER_STATUS_BONUS} vs status`);
     }
+    if (role === "guard") {
+      // Every sovereign beat is telegraphed, so a guard always parries it.
+      details.push(
+        this.hasSovereignPattern()
+          ? "parries every beat"
+          : `other hits −${Math.round((1 - GUARD_DAMAGE_TAKEN) * 100)}%`,
+      );
+    }
     if (!ready) {
       details.push(`ready in ${cooldown}`);
     }
@@ -796,8 +811,8 @@ export class BattleScene extends Phaser.Scene {
             Math.max(1, Math.round(this.player.maxHp * move.heal)),
           )
         : 0;
-      const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      return heal > 0 ? `−${pct}% hit · +${heal} HP` : `−${pct}% next hit`;
+      const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
+      return heal > 0 ? `parry −${parry}% +${heal} HP` : `parry −${parry}%`;
     }
     if (move.power <= 0) {
       return "";
@@ -1128,7 +1143,12 @@ export class BattleScene extends Phaser.Scene {
         applyDamage(this.player, outcome.damage);
         present = () => {
           this.presentHit("player", intent.move, intent.role, outcome.damage, "neutral");
-          return `${this.wild.name} used ${intent.move.name}${guarded ? " — guarded!" : "."}`;
+          let line = `${this.wild.name} used ${intent.move.name}${guarded ? " — parried!" : "."}`;
+          if (outcome.parryHealed > 0) {
+            line += ` ${this.player.name} +${outcome.parryHealed} HP.`;
+            this.presentParryHeal("player", outcome.parryHealed);
+          }
+          return line;
         };
       }
     } else {
@@ -1202,16 +1222,12 @@ export class BattleScene extends Phaser.Scene {
     result: MoveResult,
     targetSide: "wild" | "player",
   ): string {
-    const userSide = targetSide === "wild" ? "player" : "wild";
     let line = `${user.name} used ${result.move.name}`;
     const attack = result.attack;
     if (result.guarded) {
-      line += result.healed > 0 ? ` — guarding, +${result.healed} HP.` : " — guarding.";
+      // Guard heals only on a parry (#378); the heal shows when the hit lands.
+      line += " — guarding.";
       playGuardSfx(this);
-      if (result.healed > 0) {
-        this.fx.heal(userSide);
-        this.fx.number(userSide, damageNumberStyle({ kind: "heal", amount: result.healed, target: userSide }));
-      }
     } else if (attack?.kind === "miss") {
       line += " — missed!";
       this.fx.number(targetSide, damageNumberStyle({ kind: "miss", amount: 0, target: targetSide }));
@@ -1221,6 +1237,10 @@ export class BattleScene extends Phaser.Scene {
     } else if (attack?.kind === "hit") {
       line += `.${formatMatchupHint(attack.matchup)}`;
       this.presentHit(targetSide, result.move, moveRole(result.move), attack.damage, attack.matchup);
+      if (result.parryHealed) {
+        line += ` Parried! ${target.name} +${result.parryHealed} HP.`;
+        this.presentParryHeal(targetSide, result.parryHealed);
+      }
     } else {
       line += ".";
     }
@@ -1243,6 +1263,12 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     return line;
+  }
+
+  /** Heal sparkle + "+N" on the side whose guard parried a finisher / sovereign beat. */
+  private presentParryHeal(side: "wild" | "player", amount: number): void {
+    this.fx.heal(side);
+    this.fx.number(side, damageNumberStyle({ kind: "heal", amount, target: side }));
   }
 
   /** Burn ticks + status countdown at the end of `who`'s own turn. */
@@ -1282,6 +1308,13 @@ export class BattleScene extends Phaser.Scene {
     return { move, role: moveRole(move) };
   }
 
+  private hasSovereignPattern(): boolean {
+    return (
+      this.wildCreatureId === TIDE_SOVEREIGN_ID ||
+      this.wildCreatureId === CAIRN_SOVEREIGN_ID
+    );
+  }
+
   private refreshIntent(): void {
     this.intent = this.pickIntent();
     this.renderIntent();
@@ -1305,8 +1338,9 @@ export class BattleScene extends Phaser.Scene {
     const style = ROLE_STYLE[role];
     let detail = "";
     if (role === "guard") {
+      const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
       const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      detail = `blocks ${pct}% of your next hit`;
+      detail = `parries a finisher −${parry}%, other hits −${pct}%`;
     } else {
       const matchup = getMatchup(move, this.player);
       const damage =

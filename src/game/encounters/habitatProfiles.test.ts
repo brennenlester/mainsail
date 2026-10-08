@@ -28,6 +28,7 @@ import {
   shouldGuaranteeWildTrigger,
   shouldOfferHarborBefriend,
   shouldShowSparVerb,
+  HUNTER_BEFRIEND_MULTIPLIER,
 } from "./habitatRuntime";
 import { ZONE_ENCOUNTERS } from "./tables";
 import { GOD_BEFRIEND_CHANCE, NORMAL_BEFRIEND_CHANCE } from "./godSail";
@@ -122,8 +123,9 @@ describe("habitat protected invariants", () => {
     expect(GOD_BEFRIEND_CHANCE).toBe(0.08);
   });
 
-  it("keeps HUNTER_MULTIPLIER for folklore matchup math", () => {
-    expect(HUNTER_MULTIPLIER).toBe(1.5);
+  it("keeps battle and befriend hunter multipliers separate (#378)", () => {
+    expect(HUNTER_MULTIPLIER).toBe(1.3);
+    expect(HUNTER_BEFRIEND_MULTIPLIER).toBe(1.5);
   });
 });
 
@@ -155,12 +157,12 @@ describe("habitatRuntime behaviors", () => {
   it("shrine resolution scales befriend odds by folklore matchup", () => {
     // mossling is woodland; ember hunts woodland.
     expect(folkloreMatchupBefriendChance("mossling", ["ember"])).toBe(
-      Math.min(0.95, NORMAL_BEFRIEND_CHANCE * HUNTER_MULTIPLIER),
+      Math.min(0.95, NORMAL_BEFRIEND_CHANCE * HUNTER_BEFRIEND_MULTIPLIER),
     );
     // woodland hunts fen — party woodland is hunted by wild fen peat-sprite? 
     // peat-sprite folklore — check catalog. Use explicit: wild woodland, party fen is hunted by woodland.
     expect(folkloreMatchupBefriendChance("mossling", ["fen"])).toBe(
-      NORMAL_BEFRIEND_CHANCE / HUNTER_MULTIPLIER,
+      NORMAL_BEFRIEND_CHANCE / HUNTER_BEFRIEND_MULTIPLIER,
     );
     expect(folkloreMatchupBefriendChance("mossling", ["mist"])).toBe(
       NORMAL_BEFRIEND_CHANCE,

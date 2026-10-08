@@ -71,6 +71,8 @@ export type CreatureInstance = {
 
 export type BattleCombatant = {
   name: string;
+  /** Creature level; scales move power and defense in battle. Missing = 1. */
+  level?: number;
   maxHp: number;
   currentHp: number;
   attack: number;
@@ -83,6 +85,8 @@ export type BattleCombatant = {
   immunityTo?: FolkloreType;
   /** Signature damage-buff, if any. */
   damageBuff?: { moveId: string; multiplier: number };
+  /** Battle-only bulk: incoming hits are divided by this (outleveled wilds). Missing = 1. */
+  bulk?: number;
   /** Outgoing damage multiplier (wild softening). Missing = 1. */
   damageScale?: number;
   /** Battle-only state (never saved). */
