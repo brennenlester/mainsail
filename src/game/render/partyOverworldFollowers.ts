@@ -20,7 +20,7 @@ export type PartyOverworldFollowerState = {
   moonDots: Phaser.GameObjects.Arc[];
 };
 
-const MAX_FOLLOWERS = 3;
+export const MAX_FOLLOWERS = 3;
 
 export function createPartyOverworldFollowerState(): PartyOverworldFollowerState {
   return { sprites: [], moonDots: [] };
