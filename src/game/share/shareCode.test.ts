@@ -9,6 +9,7 @@ import {
   PRODUCTION_HOST,
   readShareParam,
   sanitizeShareName,
+  sanitizeShareNickname,
   SHARE_CODE_MAX_LENGTH,
   SHARE_FALLBACK_NAME,
   todayShareDay,
@@ -81,6 +82,13 @@ describe("share code round trip", () => {
     expect(decoded.status === "ok" && decoded.snapshot.party[0].level).toBe(50);
   });
 
+  it("rejects absurd levels (1e308) as a tampered link", () => {
+    const code = toBase64Url('{"v":2,"n":"x","d":' + DAY + ',"p":[["mossling",1e308,0,2]]}');
+    expectInvalid(code);
+    expectInvalid(toBase64Url('{"v":2,"n":"x","d":' + DAY + ',"p":[["mossling",1e309,0,2]]}'));
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", -1e7, 0, 2]] }));
+  });
+
   it("builds a clean URL that drops other params", () => {
     const url = new URL(buildShareUrl(sample(), "https://example.test/play?join=zzz&new=1#x"));
     expect([...url.searchParams.keys()]).toEqual(["card"]);
@@ -125,6 +133,83 @@ describe("share code versions", () => {
   });
 });
 
+describe("share code v3 nicknames", () => {
+  const v3 = (nick: unknown) =>
+    raw({ v: 3, n: "x", d: DAY, p: [["mossling", 3, 0, 2, nick]] });
+  const nickOf = (code: string): string | undefined => {
+    const decoded = decodeShareCode(code);
+    return decoded.status === "ok" ? decoded.snapshot.party[0]?.nickname : "INVALID";
+  };
+
+  it("round-trips nicknames and omits empty ones", () => {
+    const snapshot = sample();
+    snapshot.party[0]!.nickname = "Sir Mossington I";
+    const decoded = decodeShareCode(encodeShareSnapshot(snapshot));
+    expect(decoded).toEqual({ status: "ok", snapshot });
+    expect(decoded.status === "ok" && "nickname" in decoded.snapshot.party[1]!).toBe(false);
+  });
+
+  it("still accepts v1 and v2 links (no nickname)", () => {
+    const v1 = decodeShareCode(raw({ v: 1, n: "Old", d: DAY, p: [["mossling", 4, 1]] }));
+    const v2 = decodeShareCode(raw({ v: 2, n: "Old", d: DAY, p: [["mossling", 4, 1, 3]] }));
+    for (const decoded of [v1, v2]) {
+      expect(decoded.status).toBe("ok");
+      expect(decoded.status === "ok" && decoded.snapshot.party[0]!.nickname).toBeUndefined();
+    }
+  });
+
+  it("rejects v3 entries with a missing or non-string nickname", () => {
+    expectInvalid(raw({ v: 3, n: "x", d: DAY, p: [["mossling", 1, 0, 2]] }));
+    expectInvalid(v3(5));
+    expectInvalid(v3(null));
+    expectInvalid(v3({ a: 1 }));
+    expectInvalid(v3(["x"]));
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0, 2, "extra"]] }));
+  });
+
+  it("sanitizes hostile nicknames", () => {
+    expect(nickOf(v3("Ivy𐏿x\uDC00"))).toBe("Ivyx"); // lone surrogate stripped
+    expect(nickOf(v3("Zoë🦊"))).toBe("Zoë🦊");
+    expect(nickOf(v3("Z" + "́".repeat(40) + "a"))).toBe("Ź́a"); // zalgo capped
+    expect(nickOf(v3("Ev‮il​\u0000\nBoy"))).toBe("Evil Boy"); // RTL override, zero width, controls
+    expect(nickOf(v3("   "))).toBeUndefined();
+    expect(nickOf(v3("‮​"))).toBeUndefined();
+    expect(Array.from(nickOf(v3("🦊".repeat(100)))!)).toHaveLength(16);
+    expect(Array.from(nickOf(v3("x".repeat(900)))!)).toHaveLength(16);
+  });
+
+  it("treats __proto__ as inert text and never pollutes", () => {
+    const decoded = decodeShareCode(v3("__proto__"));
+    expect(nickOf(v3("__proto__"))).toBe("__proto__");
+    expect(decoded.status === "ok" && Object.getPrototypeOf(decoded.snapshot.party[0]!)).toBe(
+      Object.prototype,
+    );
+    expect(({} as Record<string, unknown>).nickname).toBeUndefined();
+    expectInvalid(
+      toBase64Url(
+        `{"v":3,"n":"x","d":${DAY},"p":[["mossling",1,0,2,"a"]],"__proto__":{"nickname":"pwn"}}`,
+      ),
+    );
+  });
+
+  it("encode sanitizes nicknames and fits the cap in the worst case", () => {
+    const party = Array.from({ length: 7 }, () => ({
+      id: "bramblewarden",
+      level: 50,
+      rare: true,
+      evolved: true,
+      presence: true,
+      bond: 5,
+      nickname: "🦊".repeat(40),
+    }));
+    const code = encodeShareSnapshot(sample({ party, name: "🦊".repeat(16) }));
+    expect(code.length).toBeLessThanOrEqual(SHARE_CODE_MAX_LENGTH);
+    const decoded = decodeShareCode(code);
+    expect(decoded.status === "ok" && Array.from(decoded.snapshot.party[0]!.nickname!)).toHaveLength(16);
+    expect(sanitizeShareNickname(undefined)).toBe("");
+  });
+});
+
 describe("share code validation (untrusted input)", () => {
   it("rejects empty, garbage and non-base64url input", () => {
     expectInvalid("");
@@ -140,13 +225,13 @@ describe("share code validation (untrusted input)", () => {
 
   it("rejects oversized codes before decoding", () => {
     expectInvalid("A".repeat(SHARE_CODE_MAX_LENGTH + 1));
-    const bloated = raw({ v: 1, n: "x".repeat(2000), d: DAY, p: [["mossling", 1, 0]] });
+    const bloated = raw({ v: 1, n: "x".repeat(4000), d: DAY, p: [["mossling", 1, 0]] });
     expect(bloated.length).toBeGreaterThan(SHARE_CODE_MAX_LENGTH);
     expectInvalid(bloated);
   });
 
   it("rejects wrong or missing versions", () => {
-    expectInvalid(raw({ v: 3, n: "x", d: DAY, p: [["mossling", 1, 0, 0]] }));
+    expectInvalid(raw({ v: 4, n: "x", d: DAY, p: [["mossling", 1, 0, 0, ""]] }));
     expectInvalid(raw({ v: "1", n: "x", d: DAY, p: [["mossling", 1, 0]] }));
     expectInvalid(raw({ n: "x", d: DAY, p: [["mossling", 1, 0]] }));
   });

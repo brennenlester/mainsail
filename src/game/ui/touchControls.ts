@@ -1,4 +1,4 @@
-import { isNicknamePromptOpen } from "./nicknamePrompt";
+import { isNicknamePromptBlocking } from "./nicknamePrompt";
 /** DOM virtual stick + interact for touch devices. */
 
 export type TouchAxes = { x: number; y: number };
@@ -20,7 +20,7 @@ export function consumeTouchInteract(): boolean {
   if (!interactQueued) {
     return false;
   }
-  if (isNicknamePromptOpen()) {
+  if (isNicknamePromptBlocking()) {
     // Taps meant for the nickname form must not interact with the world.
     interactQueued = false;
     return false;

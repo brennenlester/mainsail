@@ -1,4 +1,7 @@
+import "./menuPanels.css";
 import { getCreatureDefinition } from "../creatures/catalog";
+import { displayName } from "../creatures/displayName";
+import { creatureArtSlot, fillCreatureArt } from "./creatureArt";
 import {
   ACTIVE_PARTY_LIMIT,
   getActiveCreatures,
@@ -20,6 +23,7 @@ import {
   bondTier,
   bondTierName,
   bondTierProgress,
+  BOND_TIER_NAMES,
 } from "../companions/bond";
 import {
   canGift,
@@ -30,6 +34,9 @@ import { getPersonality } from "../companions/personality";
 import { getMaterialCount } from "../inventory/playerInventory";
 import { getMaterialName } from "../inventory/materials";
 import { promptNickname } from "./nicknamePrompt";
+
+/** Hearts on a card: tier + 1 of one per bond tier (matches the Companion Card). */
+const BOND_HEARTS = BOND_TIER_NAMES.length;
 
 let partyOpen = false;
 let selectedActiveId: string | null = null;
@@ -80,32 +87,34 @@ function ensurePartyRoot(): HTMLElement {
   }
   root = document.createElement("div");
   root.id = "party-overlay";
-  root.className = "party-overlay";
+  root.className = "party-overlay menu-root party-root";
   root.hidden = true;
   root.innerHTML = `
-    <div class="party-panel" role="dialog" aria-labelledby="party-title">
-      <div class="party-header">
-        <h2 id="party-title">Party</h2>
-        <button type="button" id="party-close" class="party-close" aria-label="Close">×</button>
+    <div class="menu-panel party-panel" role="dialog" aria-labelledby="party-title">
+      <div class="menu-head">
+        <h2 id="party-title" class="menu-title">Party</h2>
+        <button type="button" id="party-close" class="menu-close" aria-label="Close">×</button>
       </div>
-      <p class="party-intro">Active party holds up to ${ACTIVE_PARTY_LIMIT}. Reserve scrolls — select one from each list to swap.</p>
-      <div class="party-columns">
-        <section class="party-column">
-          <h3>Active <span id="party-active-count"></span></h3>
-          <ul id="party-active-list" class="party-list"></ul>
-        </section>
-        <section class="party-column">
-          <h3>Reserve</h3>
-          <ul id="party-reserve-list" class="party-list party-list-scroll"></ul>
-        </section>
+      <div class="menu-body">
+        <p class="menu-intro">Active party holds up to ${ACTIVE_PARTY_LIMIT}. Select one from each list to swap.</p>
+        <div class="party-columns">
+          <section class="party-column">
+            <h3>Active <span id="party-active-count"></span></h3>
+            <ul id="party-active-list" class="party-list"></ul>
+          </section>
+          <section class="party-column">
+            <h3>Reserve</h3>
+            <ul id="party-reserve-list" class="party-list"></ul>
+          </section>
+        </div>
+        <div class="party-actions">
+          <button type="button" id="party-swap" class="menu-btn party-action-btn" disabled>Swap</button>
+          <button type="button" id="party-promote" class="menu-btn party-action-btn" disabled>To active</button>
+          <button type="button" id="party-demote" class="menu-btn party-action-btn" disabled>To reserve</button>
+        </div>
+        <section id="party-detail" class="party-detail" aria-live="polite"></section>
+        <p id="party-hint" class="menu-hint"></p>
       </div>
-      <div class="party-actions">
-        <button type="button" id="party-swap" class="party-action-btn" disabled>Swap</button>
-        <button type="button" id="party-promote" class="party-action-btn" disabled>To active</button>
-        <button type="button" id="party-demote" class="party-action-btn" disabled>To reserve</button>
-      </div>
-      <section id="party-detail" class="party-detail" aria-live="polite"></section>
-      <p id="party-hint" class="party-hint"></p>
     </div>
   `;
   document.getElementById("app")?.appendChild(root);
@@ -149,14 +158,30 @@ function ensurePartyRoot(): HTMLElement {
   return root;
 }
 
-function creatureRowLabel(creature: CreatureInstance): string {
+/** Spoken summary for a party card (the visible card is mostly icons and bars). */
+export function creatureCardLabel(creature: CreatureInstance): string {
   const def = getCreatureDefinition(creature.definitionId);
   const maxHp = getEffectiveMaxHp(creature);
-  const name = creature.nickname ? `${creature.nickname} (${def.name})` : def.name;
-  const trait = creature.personality ? ` · ${getPersonality(creature.personality).label}` : "";
-  const hearts = "♥".repeat(bondTier(creature.bond));
-  const rare = isRareVariant(creature) ? " ✦" : "";
-  return `${name}${rare} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)${trait}${hearts ? ` ${hearts}` : ""}`;
+  const tier = bondTier(creature.bond);
+  const parts = [
+    displayName(creature),
+    creature.nickname ? def.name : "",
+    isRareVariant(creature) ? "rare" : "",
+    `level ${creature.level}`,
+    def.folkloreType,
+    creature.currentHp <= 0 ? "fainted" : `${creature.currentHp} of ${maxHp} HP`,
+    `bond ${bondTierName(tier)}`,
+  ];
+  return parts.filter(Boolean).join(", ");
+}
+
+/** "healthy" / "hurt" / "low" / "fainted", for the HP bar colour. */
+export function hpBarState(currentHp: number, maxHp: number): "healthy" | "hurt" | "low" | "fainted" {
+  if (currentHp <= 0) {
+    return "fainted";
+  }
+  const ratio = maxHp > 0 ? currentHp / maxHp : 0;
+  return ratio > 0.6 ? "healthy" : ratio > 0.3 ? "hurt" : "low";
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -215,7 +240,7 @@ function renderDetail(): void {
     el("p", "party-detail-fav", `Loves ${favorite} (you have ${getMaterialCount(check.materialId)}).`),
   );
   const actions = el("div", "party-detail-actions");
-  const giftBtn = el("button", "party-action-btn", `Gift ${GIFT_COST}× ${favorite}`);
+  const giftBtn = el("button", "menu-btn party-action-btn", `Gift ${GIFT_COST}× ${favorite}`);
   giftBtn.type = "button";
   giftBtn.disabled = isVisitorMode() || !check.ok;
   giftBtn.title = check.ok ? "Raise bond" : check.reason;
@@ -228,7 +253,7 @@ function renderDetail(): void {
       : result.reason;
     refreshPartyUi();
   });
-  const renameBtn = el("button", "party-action-btn", creature.nickname ? "Rename" : "Nickname");
+  const renameBtn = el("button", "menu-btn party-action-btn", creature.nickname ? "Rename" : "Nickname");
   renameBtn.type = "button";
   renameBtn.disabled = isVisitorMode();
   renameBtn.addEventListener("click", () => {
@@ -243,31 +268,92 @@ function renderDetail(): void {
   root.appendChild(el("p", "party-detail-note", note));
 }
 
+/** One creature card: portrait, name, level, type chip, HP bar, bond hearts, nickname edit. */
+function buildCreatureCard(
+  creature: CreatureInstance,
+  selected: boolean,
+  onSelect: (id: string) => void,
+): HTMLLIElement {
+  const def = getCreatureDefinition(creature.definitionId);
+  const maxHp = getEffectiveMaxHp(creature);
+  const name = displayName(creature);
+  const li = document.createElement("li");
+  li.className = "party-card";
+  li.dataset.instanceId = creature.instanceId;
+
+  const btn = el("button", selected ? "party-creature-btn party-creature-selected" : "party-creature-btn");
+  btn.type = "button";
+  btn.disabled = isVisitorMode();
+  btn.setAttribute("aria-pressed", selected ? "true" : "false");
+  btn.setAttribute("aria-label", creatureCardLabel(creature));
+  btn.addEventListener("click", () => onSelect(creature.instanceId));
+
+  const portrait = el("span", "party-portrait");
+  portrait.setAttribute("aria-hidden", "true");
+  // Internal definition id only; names below go through textContent.
+  portrait.innerHTML = creatureArtSlot(creature.definitionId, { size: 56 });
+
+  const main = el("span", "party-card-main");
+  // textContent everywhere: nicknames are player input.
+  const nameRow = el("span", "party-card-name", name);
+  if (isRareVariant(creature)) {
+    const rare = el("span", "party-rare", " ✦");
+    rare.title = "Rare variant";
+    nameRow.appendChild(rare);
+  }
+  const sub = el("span", "party-card-sub");
+  const chip = el("span", "party-chip", def.folkloreType);
+  chip.dataset.type = def.folkloreType;
+  sub.append(chip, el("span", "party-level", `Lv ${creature.level}`));
+
+  const hp = el("span", "party-card-hp");
+  hp.dataset.state = hpBarState(creature.currentHp, maxHp);
+  const bar = el("span", "party-card-hp-bar");
+  const fill = el("span", "party-card-hp-fill");
+  fill.style.width = `${Math.round(Math.max(0, Math.min(1, maxHp > 0 ? creature.currentHp / maxHp : 0)) * 100)}%`;
+  bar.appendChild(fill);
+  hp.append(bar, el("span", "party-card-hp-text", creature.currentHp <= 0 ? "Fainted" : `${creature.currentHp}/${maxHp}`));
+
+  const hearts = bondTier(creature.bond) + 1;
+  const bond = el("span", "party-hearts");
+  bond.setAttribute("aria-hidden", "true");
+  bond.appendChild(document.createTextNode("♥".repeat(hearts)));
+  bond.appendChild(el("span", "party-heart-empty", "♥".repeat(BOND_HEARTS - hearts)));
+
+  main.append(nameRow, sub, hp, bond);
+  btn.append(portrait, main);
+
+  const rename = el("button", "party-card-rename", "✎");
+  rename.type = "button";
+  rename.disabled = isVisitorMode();
+  rename.setAttribute("aria-label", creature.nickname ? `Rename ${name}` : `Give ${name} a nickname`);
+  rename.title = creature.nickname ? "Rename" : "Nickname";
+  rename.addEventListener("click", () => {
+    void promptNickname(creature).then(() => {
+      detailNote = "";
+      refreshPartyUi();
+    });
+  });
+
+  li.append(btn, rename);
+  return li;
+}
+
 function renderList(
   listEl: HTMLElement,
   creatures: CreatureInstance[],
   selectedId: string | null,
   onSelect: (id: string) => void,
 ): void {
+  listEl.replaceChildren();
   if (creatures.length === 0) {
-    listEl.innerHTML = `<li class="party-empty">None</li>`;
+    listEl.appendChild(el("li", "menu-empty party-empty", "None"));
     return;
   }
-  listEl.innerHTML = "";
   for (const creature of creatures) {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className =
-      creature.instanceId === selectedId
-        ? "party-creature-btn party-creature-selected"
-        : "party-creature-btn";
-    btn.textContent = creatureRowLabel(creature);
-    btn.disabled = isVisitorMode();
-    btn.addEventListener("click", () => onSelect(creature.instanceId));
-    li.appendChild(btn);
-    listEl.appendChild(li);
+    listEl.appendChild(buildCreatureCard(creature, creature.instanceId === selectedId, onSelect));
   }
+  void fillCreatureArt(listEl);
 }
 
 function refreshPartyUi(): void {

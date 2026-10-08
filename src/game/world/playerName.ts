@@ -1,3 +1,5 @@
+import { capCodePoints, cleanDisplayText } from "./displayText";
+
 /** Local player display name (overworld + Hearth Lots nametag). Not invite hostLabel. */
 
 export const PLAYER_NAME_MAX_LENGTH = 16;
@@ -7,16 +9,27 @@ type NameListener = () => void;
 let playerName: string | null = null;
 const listeners = new Set<NameListener>();
 
-/** Trim and enforce the max length. Empty / whitespace-only → null. */
+/** Name shown when a loaded save's name has nothing readable left. */
+export const DEFAULT_PLAYER_NAME = "Traveler";
+
+/** Strict, for typed input: strip invisibles, trim, enforce the max length. Blank / too long → null. */
 export function normalizePlayerName(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) {
+  const cleaned = cleanDisplayText(raw);
+  if (!cleaned) {
     return null;
   }
-  if (trimmed.length > PLAYER_NAME_MAX_LENGTH) {
+  if (Array.from(cleaned).length > PLAYER_NAME_MAX_LENGTH) {
     return null;
   }
-  return trimmed;
+  return cleaned;
+}
+
+/**
+ * Lenient, for loading saves / invites: always yields a usable name (cleaned
+ * and cut to the max length, or the default). Never a reason to drop a save.
+ */
+export function coercePlayerName(raw: string): string {
+  return capCodePoints(cleanDisplayText(raw), PLAYER_NAME_MAX_LENGTH) || DEFAULT_PLAYER_NAME;
 }
 
 export function getPlayerName(): string | null {

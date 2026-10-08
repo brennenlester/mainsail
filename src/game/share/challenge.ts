@@ -9,7 +9,8 @@ import {
 } from "../creatures/party";
 import { setWildLevelOverride } from "../progression/wildLevel";
 import { el } from "./shareSheet";
-import type { ShareSnapshot } from "./shareCode";
+import { getCreatureDefinition } from "../creatures/catalog";
+import type { ShareCreature, ShareSnapshot } from "./shareCode";
 
 /**
  * "Challenge" from a shared card (#368): sequential spars against a read-only
@@ -52,13 +53,28 @@ function healActives(): void {
   }
 }
 
-function showBanner(text: string): () => void {
+/**
+ * The visible round title is drawn by BattleScene (it used to be a DOM pill
+ * that covered the "Training Spar" title, #409); this keeps the screen-reader
+ * announcement.
+ */
+function announceRound(text: string): () => void {
   document.getElementById("share-banner")?.remove();
-  const banner = el("div", "share-banner", text);
+  const banner = el("div", "visually-hidden", text);
   banner.id = "share-banner";
   banner.setAttribute("role", "status");
   document.body.append(banner);
   return () => banner.remove();
+}
+
+/** Ghost display name: the sharer's nickname when they set one. */
+export function ghostLabel(ghost: ShareCreature): string {
+  return ghost.nickname || getCreatureDefinition(ghost.id).name;
+}
+
+/** In-battle title for round `index` (0-based). */
+export function roundTitle(snapshot: ShareSnapshot, index: number): string {
+  return `${snapshot.name}'s ghost party · ${index + 1}/${snapshot.party.length}`;
 }
 
 /** BattleScene keeps the opponent on a private field; read it after shutdown. */
@@ -90,8 +106,9 @@ export function runGhostChallenge(
     // ponytail: full heal between rounds keeps the gauntlet a skill check, not attrition.
     healActives();
     setWildLevelOverride(ghost.level);
-    const hideBanner = showBanner(
-      `${snapshot.name}'s ghost party · Round ${index + 1} of ${total}`,
+    const title = roundTitle(snapshot, index);
+    const hideBanner = announceRound(
+      `${title}: ${ghostLabel(ghost)}, level ${ghost.level}`,
     );
     const iso = game.scene.getScene("IsometricScene");
     const battle = game.scene.getScene("BattleScene");
@@ -110,6 +127,8 @@ export function runGhostChallenge(
     });
     iso.scene.launch("BattleScene", {
       wildCreatureId: ghost.id,
+      title,
+      wildNickname: ghost.nickname,
       wandererPartner: UNARMED_WANDERER,
     });
     iso.scene.pause();

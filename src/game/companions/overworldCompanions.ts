@@ -8,11 +8,13 @@ import type { OverworldFx } from "../render/fx/overworldFx";
 import { selectOverworldFollowers } from "../shrine/presence";
 import {
   canOpenNicknamePrompt,
+  dismissAmbientNicknamePrompt,
   isNicknamePromptOpen,
   promptNickname,
   setNicknameKeyboardHandler,
 } from "../ui/nicknamePrompt";
 import { getTopOverlayId } from "../ui/overlayStack";
+import { isHudLocked } from "../ui/hudLock";
 import { isVisitorMode } from "../world/worldSession";
 import type { PropKind } from "../world/zoneProps";
 import type { ZoneId } from "../world/zoneTypes";
@@ -351,6 +353,10 @@ export class OverworldCompanions {
         this.knownIds = new Set(playerParty.creatures.map((c) => c.instanceId));
       }
     }
+    // The docked prompt never rides into a dialogue, shrine, minigame, encounter or cutscene.
+    if (this.host.isBusy() || isHudLocked()) {
+      dismissAmbientNicknamePrompt();
+    }
     if (
       canOpenNicknamePrompt({
         queued: this.nicknameQueue.length,
@@ -361,7 +367,7 @@ export class OverworldCompanions {
     ) {
       const creature = getCreatureInstance(this.nicknameQueue.shift()!);
       if (creature) {
-        void promptNickname(creature);
+        void promptNickname(creature, { ambient: true });
       }
     }
   }

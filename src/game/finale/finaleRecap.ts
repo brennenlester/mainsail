@@ -107,3 +107,41 @@ export function finaleShareParty(
     .map((c) => byId.get(c.instanceId))
     .filter((c): c is CreatureInstance => c !== undefined);
 }
+
+/** Finale card geometry in design px (the recap card is drawn on a square stage). */
+export const FINALE_CELL_H = 150;
+export const FINALE_CELL_GAP = 12;
+/** Companions per row; more wrap to a second row. */
+export const FINALE_ROW_LIMIT = 4;
+/** Where the first cell row sits before centring (the header ends just above). */
+const FINALE_CELLS_TOP = 166;
+const FINALE_CONTENT_TOP = 38;
+
+export type FinaleLayout = {
+  rows: number;
+  /** Everything (header included) shifts down by this much to centre the card. */
+  dy: number;
+  cellsTop: number;
+  summaryY: number;
+  buttonsY: number;
+};
+
+/**
+ * Header + cells + summary + buttons are one block, centred vertically so a
+ * small party leaves no empty band under the title (#409).
+ */
+export function planFinaleLayout(companionCount: number, stageSize: number): FinaleLayout {
+  const rows = companionCount > FINALE_ROW_LIMIT ? 2 : 1;
+  const cellsBottom = FINALE_CELLS_TOP + rows * FINALE_CELL_H + (rows - 1) * FINALE_CELL_GAP;
+  const summaryY = cellsBottom + 26;
+  const buttonsY = summaryY + 52;
+  const contentBottom = buttonsY + 24;
+  const dy = Math.max(0, Math.round((stageSize - (contentBottom - FINALE_CONTENT_TOP)) / 2 - FINALE_CONTENT_TOP));
+  return {
+    rows,
+    dy,
+    cellsTop: FINALE_CELLS_TOP + dy,
+    summaryY: summaryY + dy,
+    buttonsY: buttonsY + dy,
+  };
+}

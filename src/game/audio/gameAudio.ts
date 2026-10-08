@@ -266,6 +266,11 @@ export function playUiClickSfx(scene?: Phaser.Scene): void {
   playSfx(scene ?? hostScene, SFX.uiClick, 0.35);
 }
 
+/** "Not yet" tick for a move on cooldown / an unavailable action: the click, lower and quiet. */
+export function playDeniedSfx(scene?: Phaser.Scene): void {
+  playSfx(scene ?? hostScene, SFX.uiClick, 0.28, 0.7);
+}
+
 /** Scene-less so logic modules can call it; `delayMs` lets it land after a sting. */
 export function playLevelUpSfx(delayMs = 0, scene?: Phaser.Scene): void {
   playSfxLater(SFX.levelUp, 0.5, delayMs, scene);

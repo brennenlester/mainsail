@@ -2,6 +2,7 @@ import { CREATURES } from "../creatures/catalog";
 import { MAX_LEVEL } from "../progression/leveling";
 import { PLAYER_NAME_MAX_LENGTH } from "../world/playerName";
 import { fromBase64Url, toBase64Url } from "../world/invite";
+import { capCodePoints, cleanDisplayText } from "../world/displayText";
 
 /**
  * Companion Card share code (#368): a compact, versioned party snapshot that
@@ -9,15 +10,22 @@ import { fromBase64Url, toBase64Url } from "../world/invite";
  * must only render it via textContent / canvas fillText.
  */
 
-/** v2 adds per-creature bond hearts; v1 links (no bond) still decode. */
-export const SHARE_CODE_VERSION = 2;
-const SUPPORTED_VERSIONS: ReadonlySet<unknown> = new Set([1, 2]);
+/**
+ * v2 adds per-creature bond hearts; v3 adds a sanitized per-creature nickname
+ * ("" = none). v1 / v2 links still decode (without the newer fields).
+ */
+export const SHARE_CODE_VERSION = 3;
+const SUPPORTED_VERSIONS: ReadonlySet<unknown> = new Set([1, 2, 3]);
+/** Nickname cap, in code points; matches NICKNAME_MAX_LENGTH in-game. */
+export const SHARE_NICKNAME_MAX_LENGTH = 16;
 /** Bond hearts on the card: 0 (none) … 5 (Kindred). */
 export const SHARE_BOND_MAX = 5;
 export const SHARE_PARTY_LIMIT = 7;
 /** Hard cap on the raw `?card=` value, checked before any decoding. */
-export const SHARE_CODE_MAX_LENGTH = 1024;
+export const SHARE_CODE_MAX_LENGTH = 2048;
 export const SHARE_PARAM = "card";
+/** Decode-time sanity bound on a creature level before it is clamped to the game range. */
+const MAX_SANE_LEVEL = 1_000_000;
 
 export const SHARE_FLAG_RARE = 1;
 export const SHARE_FLAG_EVOLVED = 2;
@@ -38,7 +46,7 @@ export type ShareCreature = {
   presence: boolean;
   /** Bond hearts 0..SHARE_BOND_MAX; null for v1 links that predate bond. */
   bond: number | null;
-  /** Local-only display name for the rendered card; never encoded in links (#401). */
+  /** Sanitized display name (<=16 code points); carried by v3 links. */
   nickname?: string;
 };
 
@@ -56,24 +64,22 @@ export type ShareParseResult =
 
 export const SHARE_FALLBACK_NAME = "A friend";
 
-/**
- * Strip control, format (bidi / zero-width), private-use, unassigned and lone
- * surrogate characters, cap combining marks at two per base character,
- * collapse whitespace, and cap at the in-game name length (code points).
- */
+/** Shared display-text filter (see world/displayText), capped in code points. */
+function cleanShareText(raw: string, max: number): string {
+  return capCodePoints(cleanDisplayText(raw), max);
+}
+
 export function sanitizeShareName(raw: unknown): string {
   if (typeof raw !== "string") {
     return SHARE_FALLBACK_NAME;
   }
-  const cleaned = raw
-    .slice(0, 256)
-    .replace(/[\s\p{Zl}\p{Zp}]+/gu, " ")
-    .replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu, "")
-    // Zalgo guard: keep at most two combining marks per base character.
-    .replace(/(\p{M}{2})\p{M}+/gu, "$1")
-    .trim();
-  const capped = Array.from(cleaned).slice(0, PLAYER_NAME_MAX_LENGTH).join("").trim();
+  const capped = cleanShareText(raw, PLAYER_NAME_MAX_LENGTH);
   return capped.length > 0 ? capped : SHARE_FALLBACK_NAME;
+}
+
+/** Same filter as the player name, capped at the nickname length; "" = none. */
+export function sanitizeShareNickname(raw: unknown): string {
+  return typeof raw === "string" ? cleanShareText(raw, SHARE_NICKNAME_MAX_LENGTH) : "";
 }
 
 export function clampShareLevel(value: number): number {
@@ -131,6 +137,7 @@ export function encodeShareSnapshot(snapshot: ShareSnapshot): string {
         (c.evolved ? SHARE_FLAG_EVOLVED : 0) |
         (c.presence ? SHARE_FLAG_PRESENCE : 0),
       Math.min(SHARE_BOND_MAX, Math.max(0, Math.floor(c.bond ?? 0))),
+      sanitizeShareNickname(c.nickname),
     ]);
   return toBase64Url(
     JSON.stringify({
@@ -152,10 +159,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function parseCreature(entry: unknown, version: number): ShareCreature | null {
-  if (!Array.isArray(entry) || entry.length !== (version === 1 ? 3 : 4)) {
+  if (!Array.isArray(entry) || entry.length !== (version === 1 ? 3 : version === 2 ? 4 : 5)) {
     return null;
   }
-  const [id, level, flags, bond] = entry as unknown[];
+  const [id, level, flags, bond, nickname] = entry as unknown[];
+  if (version === 3 && typeof nickname !== "string") {
+    return null;
+  }
   if (
     version !== 1 &&
     (typeof bond !== "number" ||
@@ -168,7 +178,8 @@ function parseCreature(entry: unknown, version: number): ShareCreature | null {
   if (typeof id !== "string" || !ALLOWED_IDS.has(id)) {
     return null;
   }
-  if (typeof level !== "number" || !Number.isFinite(level)) {
+  // Slightly-off levels clamp; absurd magnitudes (1e308) mean a tampered link.
+  if (typeof level !== "number" || !Number.isFinite(level) || Math.abs(level) > MAX_SANE_LEVEL) {
     return null;
   }
   if (
@@ -181,6 +192,7 @@ function parseCreature(entry: unknown, version: number): ShareCreature | null {
   ) {
     return null;
   }
+  const nick = version === 3 ? sanitizeShareNickname(nickname) : "";
   return {
     id,
     level: clampShareLevel(level),
@@ -188,6 +200,7 @@ function parseCreature(entry: unknown, version: number): ShareCreature | null {
     evolved: (flags & SHARE_FLAG_EVOLVED) !== 0,
     presence: (flags & SHARE_FLAG_PRESENCE) !== 0,
     bond: version === 1 ? null : (bond as number),
+    ...(nick ? { nickname: nick } : {}),
   };
 }
 

@@ -9,6 +9,7 @@ import {
   getMaterialCount,
 } from "../inventory/playerInventory";
 import { getMaterialName } from "../inventory/materials";
+import { capCodePoints, cleanDisplayText } from "../world/displayText";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { getCompanionSite, isCompanionSiteId } from "./abilities";
 import { addBond, BOND_GAIN, type BondTickResult } from "./bond";
@@ -117,11 +118,16 @@ export const NICKNAME_MAX_LENGTH = 16;
 
 /** Trim + length cap; empty → undefined (falls back to species name). */
 export function normalizeNickname(raw: string): string | undefined {
-  const trimmed = raw.replace(/\s+/g, " ").trim();
-  if (!trimmed || trimmed.length > NICKNAME_MAX_LENGTH) {
+  const trimmed = cleanDisplayText(raw);
+  if (!trimmed || Array.from(trimmed).length > NICKNAME_MAX_LENGTH) {
     return undefined;
   }
   return trimmed;
+}
+
+/** Lenient, for loading saves: clean and cut to length instead of dropping the nickname. */
+export function coerceNickname(raw: string): string | undefined {
+  return capCodePoints(cleanDisplayText(raw), NICKNAME_MAX_LENGTH) || undefined;
 }
 
 export function isValidNickname(value: unknown): value is string {

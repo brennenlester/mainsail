@@ -79,7 +79,7 @@ function creatureName(id: string): string {
   }
 }
 
-/** Nickname when the card is made locally; links carry species only. */
+/** Nickname when the sharer set one (v3 links carry it), else the species name. */
 function cardName(creature: ShareCreature): string {
   return creature.nickname || creatureName(creature.id);
 }
@@ -369,15 +369,30 @@ function drawPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.stroke();
 }
 
-function drawHero(ctx: CanvasRenderingContext2D, creature: ShareCreature, lookup: SpriteLookup, rng: () => number): void {
+/** Hero panel height with followers beside it, and alone (a taller panel fills the card). */
+const HERO_H = 390;
+const HERO_H_ALONE = 540;
+
+function drawHero(
+  ctx: CanvasRenderingContext2D,
+  creature: ShareCreature,
+  lookup: SpriteLookup,
+  rng: () => number,
+  top: number,
+  h: number,
+): void {
   const x = 64;
-  const y = 236;
   const w = CARD_WIDTH - 128;
-  const h = 390;
-  drawPanel(ctx, x, y, w, h, creature.rare);
-  drawCreatureArt(ctx, creature, lookup, x + 240, y + h - 36, 320, rng);
+  // Text and art are laid out for HERO_H; a taller panel grows the art and
+  // keeps the text block centred.
+  const grow = h / HERO_H;
+  const y = top + (h - HERO_H) / 2;
+  drawPanel(ctx, x, top, w, h, creature.rare);
+  drawCreatureArt(ctx, creature, lookup, x + 240 + (grow - 1) * 60, top + h - 36, 320 * grow, rng);
 
   const tx = x + 500;
+  // Text column ends 28px inside the panel border, so a 16-character nickname never touches it.
+  const nameRoom = w - 500 - 28;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = GOLD;
@@ -389,8 +404,8 @@ function drawHero(ctx: CanvasRenderingContext2D, creature: ShareCreature, lookup
   do {
     ctx.font = `700 ${size}px ${SERIF}`;
     size -= 2;
-  } while (size >= 36 && ctx.measureText(name).width > w - 470);
-  ctx.fillText(fitText(ctx, name, w - 470), tx, y + 144);
+  } while (size >= 36 && ctx.measureText(name).width > nameRoom);
+  ctx.fillText(fitText(ctx, name, nameRoom), tx, y + 144);
   ctx.fillStyle = GOLD;
   ctx.font = `700 40px ${SERIF}`;
   ctx.fillText(`Lv ${creature.level}`, tx, y + 198);
@@ -411,7 +426,7 @@ function drawHero(ctx: CanvasRenderingContext2D, creature: ShareCreature, lookup
 
 function drawSlot(
   ctx: CanvasRenderingContext2D,
-  creature: ShareCreature | undefined,
+  creature: ShareCreature,
   lookup: SpriteLookup,
   x: number,
   y: number,
@@ -419,20 +434,6 @@ function drawSlot(
   h: number,
   rng: () => number,
 ): void {
-  if (!creature) {
-    roundRect(ctx, x, y, w, h, 22);
-    ctx.setLineDash([8, 10]);
-    ctx.strokeStyle = "rgba(255, 248, 236, 0.16)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(255, 248, 236, 0.22)";
-    ctx.font = `600 22px ${SERIF}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Room for more", x + w / 2, y + h / 2);
-    return;
-  }
   drawPanel(ctx, x, y, w, h, creature.rare);
   const cx = x + w / 2;
   drawCreatureArt(ctx, creature, lookup, cx, y + 150, 132, rng);
@@ -453,6 +454,30 @@ function drawSlot(
   ctx.fillText(lv, startX, y + 220);
   drawBond(ctx, startX + lvWidth + 14, y + 213, heart, creature.bond, "left");
   drawTags(ctx, creature, cx, y + 250, 15, "center");
+}
+
+/** Follower grid: 3 columns, up to 2 rows; real companions only, rows centred. */
+const FOLLOWER_COLS = 3;
+const FOLLOWER_LIMIT = 6;
+const FOLLOWER_GAP = 20;
+const FOLLOWER_H = 278;
+const FOLLOWER_W = (CARD_WIDTH - 128 - FOLLOWER_GAP * (FOLLOWER_COLS - 1)) / FOLLOWER_COLS;
+/** Vertical band the heading + hero + followers block is centred in (between the brand strip and footer). */
+export const CARD_BLOCK_TOP = 128;
+export const CARD_BLOCK_BOTTOM = 1226;
+
+/**
+ * Hero height and the vertical offset that centres the whole block, so a
+ * small party leaves no empty band between the title and the creature cards.
+ */
+export function planCardLayout(followerCount: number): { heroH: number; dy: number; blockH: number } {
+  const count = Math.max(0, Math.min(FOLLOWER_LIMIT, followerCount));
+  const rows = Math.ceil(count / FOLLOWER_COLS);
+  const heroH = count === 0 ? HERO_H_ALONE : HERO_H;
+  const followersH = rows > 0 ? rows * FOLLOWER_H + (rows - 1) * FOLLOWER_GAP : 0;
+  const blockH = 236 - CARD_BLOCK_TOP + heroH + (rows > 0 ? 24 + followersH : 0);
+  const dy = Math.max(0, Math.round((CARD_BLOCK_BOTTOM - CARD_BLOCK_TOP - blockH) / 2));
+  return { heroH, dy, blockH };
 }
 
 /** Render the card to a fresh canvas. Fonts should be loaded first. */
@@ -485,6 +510,14 @@ export function renderCompanionCard(
   ctx.font = `600 22px ${SANS}`;
   ctx.fillText(formatShareDay(snapshot.day), CARD_WIDTH - 72, 106);
 
+  const [lead, ...rest] = snapshot.party;
+  const followers = rest.slice(0, FOLLOWER_LIMIT);
+  const { heroH, dy } = planCardLayout(followers.length);
+  const cw = FOLLOWER_W;
+  const gap = FOLLOWER_GAP;
+  const cols = FOLLOWER_COLS;
+  const cellH = FOLLOWER_H;
+
   ctx.textAlign = "left";
   ctx.fillStyle = CREAM;
   // Shrink long names to fit rather than truncating the heading.
@@ -494,28 +527,22 @@ export function renderCompanionCard(
     ctx.font = `700 ${headingSize}px ${SERIF}`;
     headingSize -= 2;
   } while (headingSize >= 34 && ctx.measureText(heading).width > CARD_WIDTH - 144);
-  ctx.fillText(fitText(ctx, heading, CARD_WIDTH - 144), 70, 190);
+  ctx.fillText(fitText(ctx, heading, CARD_WIDTH - 144), 70, 190 + dy);
 
-  const [lead, ...rest] = snapshot.party;
+  const heroTop = 236 + dy;
   if (lead) {
-    drawHero(ctx, lead, lookup, rng);
+    drawHero(ctx, lead, lookup, rng, heroTop, heroH);
   }
 
-  // Follower slots (3×2): only real followers plus one "Room for more" (#401).
-  const cols = 3;
-  const gap = 20;
-  const gx = 64;
-  const cw = (CARD_WIDTH - 128 - gap * (cols - 1)) / cols;
-  const cellH = 278;
-  const shown = Math.min(cols * 2, rest.length + 1);
-  const rows = Math.ceil(shown / cols);
-  // A single row sits centred in the follower area instead of hugging the hero.
-  const gy = 650 + (rows === 1 ? (cellH + gap) / 2 : 0);
-  for (let i = 0; i < shown; i += 1) {
-    const col = i % cols;
+  // Followers: real companions only, each row centred.
+  const gy = heroTop + heroH + 24;
+  followers.forEach((creature, i) => {
     const row = Math.floor(i / cols);
-    drawSlot(ctx, rest[i], lookup, gx + col * (cw + gap), gy + row * (cellH + gap), cw, cellH, rng);
-  }
+    const inRow = Math.min(cols, followers.length - row * cols);
+    const rowW = inRow * cw + (inRow - 1) * gap;
+    const x = (CARD_WIDTH - rowW) / 2 + (i % cols) * (cw + gap);
+    drawSlot(ctx, creature, lookup, x, gy + row * (cellH + gap), cw, cellH, rng);
+  });
 
   // Footer call to action.
   const footY = CARD_HEIGHT - 78;

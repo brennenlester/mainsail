@@ -109,6 +109,28 @@ describe("battleLayout", () => {
   });
 });
 
+describe("battleLayout edge room (#409)", () => {
+  // The creature art (about 150 design px wide at cs = 1) must stay on screen
+  // on tall narrow phones, where the arena is width-limited.
+  const PHONES = [
+    [320, 568],
+    [360, 640],
+    [375, 667],
+    [390, 844],
+    [412, 915],
+    [430, 932],
+  ] as const;
+
+  it("keeps both creatures' art clear of the stage edges on phones", () => {
+    for (const [w, h] of PHONES) {
+      const l = battleLayout({ stageW: w, stageH: h, moveCount: 4 });
+      const half = 75 * l.cs;
+      expect(l.playerHome.x - half, `${w}x${h} player left`).toBeGreaterThanOrEqual(l.view.x + 20);
+      expect(l.wildHome.x + half, `${w}x${h} wild right`).toBeLessThanOrEqual(l.view.x + l.view.w - 20);
+    }
+  });
+});
+
 describe("gridMoves", () => {
   it("lays 4 as 2x2, 5 as 3+2, 1-2 stacked full width", () => {
     expect(gridMoves(0, 0, 100, 10, 0, 4).map((r) => [r.x, r.y])).toEqual([

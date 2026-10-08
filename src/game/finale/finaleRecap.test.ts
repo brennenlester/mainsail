@@ -5,6 +5,7 @@ import {
   buildFinaleRecap,
   FINALE_RECAP_LIMIT,
   finaleShareParty,
+  planFinaleLayout,
 } from "./finaleRecap";
 
 function c(
@@ -54,5 +55,36 @@ describe("finale recap (#393)", () => {
     const recap = buildFinaleRecap({ playerName: "R", party: [c("x", "no-such-creature"), c("a", "mossling")] });
     expect(recap.companions.map((x) => x.instanceId)).toEqual(["a"]);
     expect(recap.summary.startsWith("1 companion ·")).toBe(true);
+  });
+});
+
+describe("planFinaleLayout (#409)", () => {
+  const STAGE = 640;
+
+  it("centres a small party: no empty band, equal room above and below", () => {
+    for (const count of [1, 2, 3, 4]) {
+      const plan = planFinaleLayout(count, STAGE);
+      expect(plan.rows).toBe(1);
+      expect(plan.dy).toBeGreaterThan(40);
+      // Content bottom (buttons) sits as far from the stage bottom as the title is from the top.
+      const bottomGap = STAGE - (plan.buttonsY + 24);
+      const topGap = 38 + plan.dy;
+      expect(Math.abs(bottomGap - topGap)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("a two-row party nearly fills the card and stays on screen", () => {
+    const plan = planFinaleLayout(7, STAGE);
+    expect(plan.rows).toBe(2);
+    expect(plan.dy).toBeLessThan(25);
+    expect(plan.buttonsY + 24).toBeLessThanOrEqual(STAGE);
+  });
+
+  it("keeps the summary and buttons below the cells", () => {
+    for (const count of [1, 5]) {
+      const plan = planFinaleLayout(count, STAGE);
+      expect(plan.summaryY).toBeGreaterThan(plan.cellsTop + 150);
+      expect(plan.buttonsY).toBeGreaterThan(plan.summaryY);
+    }
   });
 });

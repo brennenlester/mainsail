@@ -39,6 +39,12 @@ export const BASE = {
 const WILD_OFFSET = { x: 137, y: -34 };
 const PLAYER_OFFSET = { x: -142, y: 70 };
 const CREATURE = { w: 150, h: 163 };
+/**
+ * Design px kept clear on each side of the arena so the player's art (whose
+ * sprite box is wider than CREATURE.w) never touches the stage edge on narrow
+ * phones (#409).
+ */
+const ARENA_EDGE_PAD = 22;
 /** Arena layer scale at s = 1 (the art's dais sits at layer y = 240). */
 export const ARENA_LAYER_SCALE = 1.18;
 export const ARENA_DAIS_LAYER_Y = 240;
@@ -143,7 +149,7 @@ export function fitArena(
 } {
   const f = Math.max(1, foeScale);
   const spreadY = -WILD_OFFSET.y + PLAYER_OFFSET.y + 30;
-  const halfRoom = region.w / 2 - 6;
+  const halfRoom = region.w / 2 - ARENA_EDGE_PAD;
   const byHeight = region.h / (spreadY * 0.8 + CREATURE.h * f);
   const byWidth = halfRoom / Math.max(CREATURE.w / 2 - PLAYER_OFFSET.x * 0.8, (CREATURE.w / 2) * f + WILD_OFFSET.x * 0.8);
   const cs = Math.min(1.75, Math.max(0.55, Math.min(byHeight, byWidth)));
