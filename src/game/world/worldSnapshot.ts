@@ -129,14 +129,13 @@ import { BOND_MAX } from "../companions/bond";
 import { isCompanionSiteId } from "../companions/abilities";
 import {
   getClaimedSiteList,
-  normalizeNickname,
+  coerceNickname,
   setClaimedSites,
 } from "../companions/companionState";
 import { isVisitorMode } from "./worldSession";
 import {
-  PLAYER_NAME_MAX_LENGTH,
   getPlayerName,
-  normalizePlayerName,
+  coercePlayerName,
   setPlayerName,
 } from "./playerName";
 
@@ -670,6 +669,9 @@ export function repairLegacyArchipelagoLayoutPosition(value: unknown): void {
   pos.y = best.y;
 }
 
+/** Sanity bound on a stored name; the real limit is applied by coercePlayerName on load. */
+const PLAYER_NAME_STORED_MAX_LENGTH = 256;
+
 export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
   if (typeof value !== "object" || value === null) return false;
   const s = value as Record<string, unknown>;
@@ -677,8 +679,9 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
   if (typeof s.hostLabel !== "string") return false;
   if (s.playerName !== undefined) {
     if (typeof s.playerName !== "string") return false;
-    if (normalizePlayerName(s.playerName) !== s.playerName) return false;
-    if (s.playerName.length > PLAYER_NAME_MAX_LENGTH) return false;
+    // Lenient: a cosmetic name difference never invalidates a save; the name
+    // is coerced when applied (coercePlayerName).
+    if (s.playerName.length > PLAYER_NAME_STORED_MAX_LENGTH) return false;
   }
   if (typeof s.overworldUnlocked !== "boolean") return false;
   if (
@@ -1130,7 +1133,7 @@ export function sanitizeCompanionFields(
   }
   if (creature.nickname !== undefined) {
     creature.nickname =
-      typeof creature.nickname === "string" ? normalizeNickname(creature.nickname) : undefined;
+      typeof creature.nickname === "string" ? coerceNickname(creature.nickname) : undefined;
   }
   if (creature.bond === undefined) Reflect.deleteProperty(creature, "bond");
   if (creature.nickname === undefined) Reflect.deleteProperty(creature, "nickname");
@@ -1161,7 +1164,7 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   // Host display name (optional on older saves). Skip when already in visitor
   // mode so invite boot order cannot inherit the host's nametag (#248).
   if (snapshot.playerName && !isVisitorMode()) {
-    setPlayerName(snapshot.playerName);
+    setPlayerName(coercePlayerName(snapshot.playerName));
   }
   // Pre-evolution saves lack speciesId; hasCreature() matches on it, so a
   // missing value reads owned sovereigns as absent and re-opens their claimed

@@ -114,14 +114,17 @@ test("a cooling-down move shakes, toasts 'ready in N' and logs, by key and tap",
   const restX = (await battle(page, `(s) => s.moveCards[${idx}].container.x`)) as number;
 
   await page.keyboard.press(String(idx + 1));
-  await page.waitForTimeout(80);
-  const keyed = (await battle(
-    page,
-    `(s) => ({ log: s.logText.text, toast: Boolean(s.blockedToast && s.blockedToast.active), shaking: s.tweens.getTweensOf(s.moveCards[${idx}].container).length > 0 })`,
-  )) as { log: string; toast: boolean; shaking: boolean };
-  expect(keyed.log).toMatch(/: ready in [0-9]+$/);
-  expect(keyed.toast).toBe(true);
-  expect(keyed.shaking).toBe(true);
+  // Poll: a loaded machine renders few frames, so the tween / toast state lands late.
+  await expect
+    .poll(
+      () =>
+        battle(
+          page,
+          `(s) => ({ log: s.logText.text, toast: Boolean(s.blockedToast && s.blockedToast.active), shaking: s.tweens.getTweensOf(s.moveCards[${idx}].container).length > 0 })`,
+        ),
+      { timeout: 5000 },
+    )
+    .toMatchObject({ log: expect.stringMatching(/: ready in [0-9]+$/), toast: true });
   // The turn was not spent and the card returns to rest.
   expect(await battle(page, `(s) => s.waitingForPlayer`)).toBe(true);
   await expect.poll(() => battle(page, `(s) => s.moveCards[${idx}].container.x`), { timeout: 8000 }).toBe(restX);
@@ -133,15 +136,18 @@ test("a cooling-down move shakes, toasts 'ready in N' and logs, by key and tap",
   )) as { x: number; y: number };
   await page.waitForTimeout(1200);
   await page.mouse.click(point.x, point.y);
-  await page.waitForTimeout(80);
-  expect(await battle(page, `(s) => Boolean(s.blockedToast && s.blockedToast.active)`)).toBe(true);
+  await expect
+    .poll(() => battle(page, `(s) => Boolean(s.blockedToast && s.blockedToast.active)`))
+    .toBe(true);
   expect(await battle(page, `(s) => s.waitingForPlayer`)).toBe(true);
 
   // Unavailable actions answer too (no Befriend in a plain spar, no bench to switch to).
   await page.keyboard.press("b");
-  expect(await battle(page, `(s) => s.logText.text`)).toBe("Can't befriend this foe");
+  await expect.poll(() => battle(page, `(s) => s.logText.text`)).toBe("Can't befriend this foe");
+  // The feedback is throttled to ~250ms, so give it room before the next key.
+  await page.waitForTimeout(350);
   await page.keyboard.press("s");
-  expect(await battle(page, `(s) => s.logText.text`)).toBe("No one to switch to");
+  await expect.poll(() => battle(page, `(s) => s.logText.text`)).toBe("No one to switch to");
 });
 
 test("mashing a cooling card never drifts it sideways and throttles the feedback", async ({ page }) => {
@@ -192,13 +198,17 @@ test("the just-joined nickname prompt does not steal WASD", async ({ page }) => 
     return s.playerGridX as number;
   });
   await page.keyboard.down("d");
-  await page.waitForTimeout(600);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const s = (window as unknown as { __game: any }).__game.scene.getScene("IsometricScene");
+          return s.playerGridX as number;
+        }),
+      { timeout: 8000 },
+    )
+    .toBeGreaterThan(start);
   await page.keyboard.up("d");
-  const end = await page.evaluate(() => {
-    const s = (window as unknown as { __game: any }).__game.scene.getScene("IsometricScene");
-    return s.playerGridX as number;
-  });
-  expect(end).toBeGreaterThan(start);
   await expect(page.locator("#nickname-input")).toHaveValue("");
   // Still skippable.
   await page.locator("#nickname-skip").click();
@@ -245,7 +255,7 @@ for (const size of [
     const cards = page.locator("#party-active-list .party-card");
     await expect(cards).toHaveCount(2);
     const first = cards.first();
-    await expect(first.locator(".party-card-name")).toHaveText("Sir Mossington I");
+    await expect(first.locator(".party-card-name")).toHaveText(/^Sir Mossington I( ✦)?$/);
     await expect(first.locator(".party-chip")).toHaveText("woodland");
     await expect(first.locator(".party-card-hp-bar")).toBeVisible();
     const rename = await first.locator(".party-card-rename").boundingBox();

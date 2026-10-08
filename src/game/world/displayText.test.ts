@@ -25,16 +25,36 @@ describe("cleanDisplayText", () => {
     expect(cleanDisplayText(family)).toBe(family);
     expect(cleanDisplayText("❤️")).toBe("❤️");
     expect(cleanDisplayText("❤️‍🔥")).toBe("❤️‍🔥");
-    expect(cleanDisplayText("A‍B")).toBe("AB");
-    expect(cleanDisplayText("‍👍")).toBe("👍");
-    expect(cleanDisplayText("👍‍")).toBe("👍");
-    expect(cleanDisplayText("‍‍")).toBe("");
+    // Joiners are meaningful between letters / marks (Persian, Indic scripts)...
+    expect(cleanDisplayText("می\u200Cخواهم")).toBe("می\u200Cخواهم");
+    expect(cleanDisplayText("क्\u200Dष")).toBe("क्\u200Dष");
+    // ...but a joiner at an edge or next to a space is junk.
+    expect(cleanDisplayText("\u200CAnn")).toBe("Ann");
+    expect(cleanDisplayText("Ann \u200D Lee")).toBe("Ann Lee");
+    expect(cleanDisplayText("\u200D\u{1F44D}")).toBe("\u{1F44D}");
+    expect(cleanDisplayText("\u{1F44D}\u200D")).toBe("\u{1F44D}");
   });
 
   it("still strips bidi, controls, lone surrogates and zalgo", () => {
     expect(cleanDisplayText("Ev‮il​\u0000\nBoy")).toBe("Evil Boy");
     expect(cleanDisplayText("Ivy\uD800x")).toBe("Ivyx");
     expect(cleanDisplayText("Z" + "́".repeat(30) + "a")).toBe("Ź́a");
+  });
+
+  it("keeps tag-sequence flags, drops orphan tags, keeps variation selectors", () => {
+    const wales = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}";
+    expect(cleanDisplayText(wales)).toBe(wales);
+    expect(cleanDisplayText("A\u{E0067}B")).toBe("AB");
+    expect(cleanDisplayText("\u{E0067}\u{E007F}")).toBe("");
+    expect(cleanDisplayText("漢\u{E0100}")).toBe("漢\u{E0100}");
+  });
+
+  it("keeps tag-sequence flags, drops orphan tags, keeps variation selectors", () => {
+    const wales = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}";
+    expect(cleanDisplayText(wales)).toBe(wales);
+    expect(cleanDisplayText("A\u{E0067}B")).toBe("AB");
+    expect(cleanDisplayText("\u{E0067}\u{E007F}")).toBe("");
+    expect(cleanDisplayText("\u6F22\u{E0100}")).toBe("\u6F22\u{E0100}");
   });
 
   it("capCodePoints never splits a pair", () => {

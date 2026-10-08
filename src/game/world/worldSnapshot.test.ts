@@ -148,14 +148,17 @@ describe("isValidWorldSnapshot", () => {
     ).toBe(true);
   });
 
-  it("rejects empty, padded, or overlong playerName", () => {
-    expect(isValidWorldSnapshot(validSnapshot({ playerName: "" }))).toBe(false);
-    expect(isValidWorldSnapshot(validSnapshot({ playerName: " Mira" }))).toBe(
-      false,
-    );
+  it("loads any string playerName (cosmetic differences are coerced on apply, never rejected)", () => {
+    for (const name of ["", " Mira", "a".repeat(17), "Ann  Lee", "\u3164"]) {
+      expect(isValidWorldSnapshot(validSnapshot({ playerName: name })), JSON.stringify(name)).toBe(true);
+    }
+  });
+
+  it("still rejects a non-string or absurdly long playerName", () => {
     expect(
-      isValidWorldSnapshot(validSnapshot({ playerName: "a".repeat(17) })),
+      isValidWorldSnapshot(validSnapshot({ playerName: 5 as unknown as string })),
     ).toBe(false);
+    expect(isValidWorldSnapshot(validSnapshot({ playerName: "a".repeat(300) }))).toBe(false);
   });
 
   it("accepts and rejects activePartyIds against the party roster", () => {

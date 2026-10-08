@@ -144,7 +144,8 @@ describe("companion save migration (#367)", () => {
     expect(a!.bond).toBe(BOND_MAX);
     expect(a!.nickname).toBe("Pip");
     expect(b!.bond).toBe(0);
-    expect(b!.nickname).toBeUndefined();
+    // Lenient on load (#409): an over-long nickname is cut to length, not dropped.
+    expect(b!.nickname).toBe("x".repeat(16));
     expect(c!.bond).toBeUndefined();
     expect(c!.nickname).toBeUndefined();
     expect([...getClaimedSites()]).toEqual(["fields-brush"]);
