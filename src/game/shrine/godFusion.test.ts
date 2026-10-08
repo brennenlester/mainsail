@@ -245,6 +245,25 @@ describe("dual-god fusion", () => {
     );
   });
 
+  it("carries the rare variant through fusion when either parent is rare (#368)", () => {
+    const fuse = (tideRare: boolean): boolean | undefined => {
+      setPartyFromSnapshot(
+        [
+          member({ instanceId: "t", definitionId: TIDE_SOVEREIGN_ID, ...(tideRare ? { rare: true as const } : {}) }),
+          member({ instanceId: "c", definitionId: CAIRN_SOVEREIGN_ID }),
+        ],
+        3,
+      );
+      setInventoryFromSnapshot({}, { [SOVEREIGN_SEAL_ID]: 1 });
+      setGodFusionCompleted(false, false);
+      setHorizonFusionCount(0, false);
+      expect(applyGodFusion("t", "c", SOVEREIGN_SEAL_ID).ok).toBe(true);
+      return playerParty.creatures[0]?.rare;
+    };
+    expect(fuse(true)).toBe(true);
+    expect(fuse(false)).toBeUndefined();
+  });
+
   it("fuses two Horizons into Eclipse Sovereign", () => {
     setHorizonFusionCount(2, false);
     setPartyFromSnapshot(

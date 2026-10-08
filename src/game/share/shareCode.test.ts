@@ -18,8 +18,8 @@ function sample(overrides: Partial<ShareSnapshot> = {}): ShareSnapshot {
     name: "Brennen",
     day: DAY,
     party: [
-      { id: "bramblewarden", level: 14, rare: false, evolved: true, presence: false },
-      { id: "lantern-fox", level: 9, rare: true, evolved: false, presence: true },
+      { id: "bramblewarden", level: 14, rare: false, evolved: true, presence: false, bond: 4 },
+      { id: "lantern-fox", level: 9, rare: true, evolved: false, presence: true, bond: 1 },
     ],
     ...overrides,
   };
@@ -46,6 +46,7 @@ describe("share code round trip", () => {
       rare: true,
       evolved: true,
       presence: true,
+      bond: 5,
     }));
     const code = encodeShareSnapshot(sample({ party, name: "Sixteen-chars-ok" }));
     expect(code.length).toBeLessThan(400);
@@ -59,6 +60,7 @@ describe("share code round trip", () => {
       rare: false,
       evolved: false,
       presence: false,
+      bond: 0,
     }));
     const decoded = decodeShareCode(encodeShareSnapshot(sample({ party })));
     expect(decoded.status).toBe("ok");
@@ -87,6 +89,38 @@ describe("share code round trip", () => {
   });
 });
 
+describe("share code versions", () => {
+  it("encodes v2 with bond hearts", () => {
+    const code = encodeShareSnapshot(sample());
+    const decoded = decodeShareCode(code);
+    expect(decoded.status === "ok" && decoded.snapshot.party.map((c) => c.bond)).toEqual([4, 1]);
+  });
+
+  it("still accepts v1 links (no bond)", () => {
+    const decoded = decodeShareCode(raw({ v: 1, n: "Old", d: DAY, p: [["mossling", 4, 1]] }));
+    expect(decoded.status).toBe("ok");
+    if (decoded.status !== "ok") return;
+    expect(decoded.snapshot.party[0]).toEqual({
+      id: "mossling",
+      level: 4,
+      rare: true,
+      evolved: false,
+      presence: false,
+      bond: null,
+    });
+  });
+
+  it("rejects bad v2 bond values and wrong tuple sizes", () => {
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0]] }));
+    expectInvalid(raw({ v: 1, n: "x", d: DAY, p: [["mossling", 1, 0, 2]] }));
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0, 6]] }));
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0, -1]] }));
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0, 2.5]] }));
+    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0, "5"]] }));
+    expect(decodeShareCode(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0, 5]] })).status).toBe("ok");
+  });
+});
+
 describe("share code validation (untrusted input)", () => {
   it("rejects empty, garbage and non-base64url input", () => {
     expectInvalid("");
@@ -108,7 +142,7 @@ describe("share code validation (untrusted input)", () => {
   });
 
   it("rejects wrong or missing versions", () => {
-    expectInvalid(raw({ v: 2, n: "x", d: DAY, p: [["mossling", 1, 0]] }));
+    expectInvalid(raw({ v: 3, n: "x", d: DAY, p: [["mossling", 1, 0, 0]] }));
     expectInvalid(raw({ v: "1", n: "x", d: DAY, p: [["mossling", 1, 0]] }));
     expectInvalid(raw({ n: "x", d: DAY, p: [["mossling", 1, 0]] }));
   });
@@ -165,6 +199,17 @@ describe("sanitizeShareName", () => {
   it("falls back when nothing printable remains", () => {
     expect(sanitizeShareName("​‮  ")).toBe(SHARE_FALLBACK_NAME);
     expect(sanitizeShareName(42)).toBe(SHARE_FALLBACK_NAME);
+  });
+
+  it("strips lone surrogates", () => {
+    expect(sanitizeShareName("Ivy\uD800\uDFFFx\uDC00")).toBe("Ivyx");
+    expect(sanitizeShareName("🦊Ivy")).toBe("🦊Ivy");
+  });
+
+  it("caps combining marks at two per base character (zalgo)", () => {
+    const zalgo = "Z" + "\u0301".repeat(40) + "a" + "\u0300\u0301";
+    expect(sanitizeShareName(zalgo)).toBe("Z\u0301\u0301a\u0300\u0301");
+    expect(sanitizeShareName("Zoë")).toBe("Zoë");
   });
 
   it("caps by code points, not UTF-16 units", () => {

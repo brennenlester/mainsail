@@ -148,9 +148,13 @@ export function openShareSheet(options: {
   }
   buttons.find((b) => !b.hidden)?.focus();
   const showCard = (blob: Blob): void => {
-    if (!closed) {
-      image.src = URL.createObjectURL(blob);
+    if (closed) {
+      return;
     }
+    if (image.src.startsWith("blob:")) {
+      URL.revokeObjectURL(image.src);
+    }
+    image.src = URL.createObjectURL(blob);
   };
   return { root, image, status, linkInput, buttons, close, isOpen: () => !closed, showCard };
 }

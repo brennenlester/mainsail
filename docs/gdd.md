@@ -153,19 +153,20 @@ Codex: encountering a creature once lists it under **every** habitat that can sp
 
 ### Combat (spars)
 
-Creatures and moves have folklore **types**. Spars use accuracy, hunter matchups (~1.5×), and rare immunity traits on signature creatures. [moved from README]
+Creatures and moves have folklore **types**. Spars use accuracy, hunter matchups (×1.3, prey resists ×0.8), and rare immunity traits on signature creatures. [moved from README]
 
 **Types** [inferred: `folkloreTypes.ts`]: woodland, ember, water, earth, mist, storm, hearth, twilight, fen, will-o-wisp.
 
-Hunter chart (attacker → defender it hunts, 1.5×): woodland→fen, ember→woodland, water→ember, earth→storm, mist→twilight, storm→water, hearth→mist, twilight→will-o-wisp, fen→hearth, will-o-wisp→earth. A hunter **resists** its prey's moves (×0.85). Damage is `power + attack − defense`, floored at 60% of `power + attack`.
+Hunter chart (attacker → defender it hunts, ×1.3): woodland→fen, ember→woodland, water→ember, earth→storm, mist→twilight, storm→water, hearth→mist, twilight→will-o-wisp, fen→hearth, will-o-wisp→earth. A hunter **resists** its prey's moves (×0.8), so a hunted creature faces a ~1.6× swing: a flagged hard counter whose counterplay is the free switch. Damage is `(power × levelMult + attack) × K / (K + defense × levelMult) × 0.5` with K = 10 (`battle/battleLogic.ts`): move power and defense scale with level like HP/ATK, so equal-level spars play the same at Lv 1 and Lv 40; the ×0.5 is battle-only bulk so spars last ~5-8 turns without touching saved HP. Sovereigns keep flat `power + attack` against them and fixed pattern damage (#378).
 
 **Battle v1 (#364)** [`battle/kits.ts`, `battle/statusEffects.ts`, `battle/battleLogic.ts`]:
-- **Kits:** every creature fights with 4 role slots — Attack (no cooldown), Guard (next hit −60%, small heal, cd 2), Status (chip + status, cd 2), Finisher (big hit, ×1.5 vs a statused target, cd 3, starts the spar charging). Starter/overworld species are authored in `catalog.ts`; the rest derive a kit from their existing moves.
-- **Intent:** the foe's next move (role, damage preview, matchup, status) is shown above it one turn ahead. Sovereigns telegraph their fixed pattern; crown blows read as finishers.
-- **Statuses:** Burn (8% max HP per turn, 3 turns; hearth/ember/water immune), Soaked (takes ×1.25, storm ×1.5, douses/blocks Burn, 3 turns; water/fen immune), Rooted (deals ×0.7, 2 turns; storm/mist/will-o-wisp immune), Dazed (accuracy −25, 2 turns; twilight immune). Statuses and cooldowns are battle-only; a benched creature keeps them for the rest of the spar. Sovereign fixed-pattern hits respect Dazed (miss), Rooted and Guard.
+- **Kits:** every creature fights with 4 role slots — Attack (no cooldown), Guard (cd 2: braces a plain hit −20%; **parries** a finisher −60% and heals the guard user 3-6% max HP), Status (chip + status, cd 2), Finisher (big hit ×1.3, ×1.5 more vs a statused target, cd 3, starts the spar charging). Starter/overworld species are authored in `catalog.ts`; the rest derive a kit from their existing moves.
+- **Intent:** the foe's next move (role, damage preview, matchup, status) is shown above it one turn ahead. Wilds set up a status before cashing a finisher and raise a guard for the turn your finisher comes off cooldown. Sovereigns telegraph their fixed pattern; crown blows read as finishers, and a guard parries any sovereign beat.
+- **Statuses:** Burn (5% max HP per turn, 3 turns; hearth/ember/water/will-o-wisp immune), Soaked (takes ×1.25, storm ×1.5, douses/blocks Burn, 3 turns; water/fen immune), Rooted (deals ×0.7, 2 turns; storm/mist immune), Dazed (accuracy −25, 2 turns; twilight immune). Statuses and cooldowns are battle-only; a benched creature keeps them for the rest of the spar. Sovereign fixed-pattern hits respect Dazed (miss), Rooted and Guard (parry).
 - **Switching:** the first voluntary switch each spar is free; later switches cost the turn.
-- **Tutorial spar (Story 2):** wild hits ×0.75 and its intent ignores matchups; `battle/sparBalance.test.ts` pins Lv1 win-rate floors with a seeded sim.
-- Move buttons and the encounter panel show matchup labels (×1.5 / resists ×0.5 / immune).
+- **Tutorial spar (Story 2):** wild hits ×0.6 and its intent ignores matchups. Other wilds hit ×1.08. A wild your active party outlevels by 3+ (average level) has bulk ×0.45, −0.05 per extra level, floor ×0.3, so trivial fights end in ~3-4 turns; peer-level fights are unchanged.
+- **Balance (#378):** `battle/sparSim.ts` is a seeded headless spar (any level, level gaps, parties with BattleScene switch rules; policies random / max-damage / skilled). Equal-level 1v1 over all 729 base-species pairs: random ~40%, max-damage ~59%, skilled ~77% at Lv 1/10/25/40; ~5.5-7 turns, ~1.2 finishers. No skilled pair is under 20% except flagged hard counters (foe hunts you), which a partner + free switch wins ≥ 90%. Tutorial max-damage ≥ 85%. `battle/sparBalance.test.ts` pins these floors; `SPAR_REPORT=/tmp/spar.txt npx vitest run src/game/battle/sparReport.test.ts` prints the full table.
+- Move buttons and the encounter panel show matchup labels (×1.3 / resists ×0.8 / immune).
 
 Immunities apply only when the defender has rolled an immunity trait (signature creatures), not for every creature of that type. Pair map: mist immune to earth, water to ember, earth to storm, twilight to will-o-wisp.
 

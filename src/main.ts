@@ -3,6 +3,12 @@ import "./style.css";
 import { initQuestProgress } from "./game/story/questProgress";
 import { createGame } from "./game/Game";
 import { initNameIntro } from "./game/ui/nameIntro";
+import {
+  hasDevPreviewParam,
+  resolveBootRoute,
+  setBootContext,
+} from "./game/opening/bootRoute";
+import { startOpeningBeat } from "./game/opening/openingCaption";
 import { initStatusPanelControls } from "./game/ui/statusPanel";
 import { shouldResetHostSave } from "./game/world/bootParams";
 import {
@@ -74,10 +80,12 @@ if (inviteResult.status === "invalid") {
   const params = new URLSearchParams(window.location.search);
   // Only honor ?new= when the URL carries no invite at all — a shared ?join=
   // link with &new=1 appended must not wipe the recipient's save (#189).
-  if (shouldResetHostSave(inviteResult.status, params)) {
+  const newGame = shouldResetHostSave(inviteResult.status, params);
+  if (newGame) {
     clearHostSave();
     consumeNewParam();
   }
+  let hasSave = false;
 
   if (inviteResult.status === "ok" && isValidWorldSnapshot(inviteResult.snapshot)) {
     suspendHostPersist();
@@ -92,6 +100,7 @@ if (inviteResult.status === "invalid") {
     }
     const saved = loadHostSave({ readOnly: shareResult.status === "ok" });
     if (saved) {
+      hasSave = true;
       restoreHostSave(saved);
     } else {
       initQuestProgress();
@@ -106,13 +115,27 @@ if (inviteResult.status === "invalid") {
 
   const invite =
     inviteResult.status === "ok" ? inviteResult.snapshot : null;
+  // Title screen (#363 / #350) unless this is a visitor link, `?new=1`, or a
+  // dev encounter/spar preview — those keep booting straight into play.
+  const route = resolveBootRoute({
+    // A valid ?card= link is a read-only sandbox too: skip the title so its
+    // New Game (which wipes the save) is never reachable (#368).
+    visitor:
+      (invite !== null && isValidWorldSnapshot(invite)) ||
+      shareResult.status === "ok",
+    newGame,
+    devPreview: import.meta.env.DEV && hasDevPreviewParam(params),
+  });
+  setBootContext({ route, hasSave });
   const game = createGame("game");
   initStatusPanelControls();
   initShareControls(game);
   if (shareResult.status === "ok") {
+    // Card links skip the title (route is "play") and never show the name intro.
     openCardPreview(game, shareResult.snapshot);
-  } else {
-    initNameIntro();
+  } else if (route === "play") {
+    // TitleScene runs the name intro itself after New Game / Continue.
+    initNameIntro(startOpeningBeat);
   }
 
   // ponytail: dev-only encounter preview via ?encounter=ember-wisp or ?spar=ember-wisp

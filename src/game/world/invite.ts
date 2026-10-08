@@ -1,4 +1,5 @@
 import { getHostLabel, isVisitorMode } from "./worldSession";
+import { persistablePosition } from "../companions/abilities";
 import type { WorldSnapshot } from "./worldSnapshot";
 import { HARBOR_PIER } from "./dockBoat";
 import {
@@ -48,8 +49,9 @@ export function buildInviteUrl(
   x: number,
   y: number,
 ): string {
+  // Visitors can't ford back, so an islet stand invites them to the shore (#367).
   const snapshot = exportWorldSnapshot(
-    { zoneId, x, y },
+    { zoneId, ...persistablePosition(zoneId, x, y) },
     getHostLabel(),
   );
   normalizeInviteSailingSnapshot(snapshot);

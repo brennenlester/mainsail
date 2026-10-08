@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import { getActiveCreatures, playerParty } from "../creatures/party";
 import type { CreatureInstance } from "../creatures/types";
+import { bondTier } from "../companions/bond";
 import { hasPresenceGrowth } from "../shrine/presence";
 import { getPlayerName } from "../world/playerName";
 import { isVisitorMode } from "../world/worldSession";
@@ -44,6 +45,8 @@ export function snapshotFromParty(
       rare: isRareVariant(c),
       evolved: c.definitionId !== c.speciesId,
       presence: hasPresenceGrowth(c),
+      // Hearts = bond tier + 1 (Wary 1 … Kindred 5).
+      bond: bondTier(c.bond) + 1,
     })),
   };
 }
@@ -152,7 +155,8 @@ export async function openCompanionShare(): Promise<void> {
             await navigator.share({
               files: [file],
               title: "My Ivyward companions",
-              text: `Think you can beat my party? ${url}`,
+              // URL only in `url`: some targets append it to text, doubling it.
+              text: "Think you can beat my party?",
               url,
             });
             sheet.status.textContent = "Shared!";

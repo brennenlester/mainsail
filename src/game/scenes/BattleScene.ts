@@ -2,11 +2,30 @@ import Phaser from "phaser";
 import {
   playBattleWinSfx,
   playFaintSfx,
+  playGuardSfx,
   playHitPlayerSfx,
   playHitWildSfx,
   playMoveTypeSfx,
   STRONG_HIT_DAMAGE,
 } from "../audio/gameAudio";
+import { BattleFx, type Side } from "../battle/vfx/battleFx";
+import {
+  fastBattleEnabled,
+  fastBattleLabel,
+  intentGlow,
+  setFastBattleEnabled,
+} from "../battle/vfx/battleTiming";
+import { damageNumberStyle } from "../battle/vfx/damageNumbers";
+import {
+  setTouchHitArea,
+  showBattleResultPanel,
+  type ResultPanelOptions,
+} from "../battle/vfx/battleResultPanel";
+import {
+  buildVictorySummary,
+  type PartySnapshotEntry,
+} from "../battle/vfx/victorySummary";
+import { getMaterialName } from "../inventory/materials";
 import { getCreatureDefinition } from "../creatures/catalog";
 import type { MatchupResult } from "../creatures/folkloreTypes";
 import {
@@ -43,6 +62,7 @@ import {
   isFainted,
   previewFixedDamage,
   primeOpeningCooldowns,
+  outleveledWildBulk,
   resolveFixedAttack,
   wildBattleTuning,
   type MoveResult,
@@ -50,6 +70,7 @@ import {
 import {
   FINISHER_STATUS_BONUS,
   GUARD_DAMAGE_TAKEN,
+  GUARD_FINISHER_DAMAGE_TAKEN,
   getBattleKit,
   moveRole,
 } from "../battle/kits";
@@ -91,7 +112,7 @@ import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { markCreatureDiscovered } from "../world/worldState";
 import { SPAR_WILD_OPENING_TURNS } from "../encounters/encounterEconomy";
 import { unlockCodexHud } from "../ui/hudChrome";
-import { getWildEffectiveLevel } from "../progression/wildLevel";
+import { getPartyAverageLevel, getWildEffectiveLevel } from "../progression/wildLevel";
 import { scaledStat } from "../progression/leveling";
 import { setPartyEditLocked } from "../ui/partyPanel";
 
@@ -115,7 +136,12 @@ const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
 
 const INTENT_MIN_LEFT = 268;
 
-const HUD_FONT = "Source Sans 3, system-ui, sans-serif";
+/** Feet positions (sprites are bottom-anchored so breathing / squash read from the ground). */
+const WILD_HOME = { x: DESIGN_SIZE / 2 + 116, y: 211 };
+const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 118, y: 299 };
+
+// Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
+const HUD_FONT = '"Source Sans 3", system-ui, sans-serif';
 const HP_BAR_WIDTH = 176;
 const HUD_PLATE_WIDTH = 236;
 
@@ -153,8 +179,11 @@ export class BattleScene extends Phaser.Scene {
   private logText!: Phaser.GameObjects.Text;
   private wildHud!: HpHud;
   private playerHud!: HpHud;
-  private wildSprite!: Phaser.GameObjects.Image;
-  private playerSprite!: Phaser.GameObjects.Image;
+  private wildSprite!: Phaser.GameObjects.Sprite;
+  private playerSprite!: Phaser.GameObjects.Sprite;
+  /** Presentation layer (#365); rules stay in this scene. */
+  private fx!: BattleFx;
+  private fainted = new Set<Side>();
   private wildLevel = 1;
   private intent: WildIntent | null = null;
   private intentObjects: Phaser.GameObjects.GameObject[] = [];
@@ -230,6 +259,7 @@ export class BattleScene extends Phaser.Scene {
     this.rng = Math.random;
     this.tutorialSpar = isHunterMatchupTeachActive();
     this.benchState = new Map();
+    this.fainted = new Set();
 
     const wildDef = getCreatureDefinition(data.wildCreatureId);
     if (!wildDef.excludeFromCodex) {
@@ -241,6 +271,7 @@ export class BattleScene extends Phaser.Scene {
     const wildAttack = scaledStat(wildDef.attack, wildLevel);
     this.wild = primeOpeningCooldowns({
       name: wildDef.name,
+      level: wildLevel,
       maxHp: wildMaxHp,
       currentHp: wildMaxHp,
       attack: wildAttack,
@@ -249,6 +280,9 @@ export class BattleScene extends Phaser.Scene {
       moves: getBattleKit(wildDef),
       folkloreType: wildDef.folkloreType,
       damageScale: wildBattleTuning(this.tutorialSpar).damageScale,
+      bulk: isGodCreature(data.wildCreatureId)
+        ? 1
+        : outleveledWildBulk(getPartyAverageLevel(), wildLevel),
     });
 
     const actives = getActiveCreatures();
@@ -323,24 +357,36 @@ export class BattleScene extends Phaser.Scene {
 
     this.wildSprite = fitDisplay(
       this.add
-        .image(
-          cx + 116,
-          150,
+        .sprite(
+          WILD_HOME.x,
+          WILD_HOME.y,
           ...resolveCreaturePoseTexture(
             this,
             getCreatureDefinition(this.wildCreatureId).spriteKey,
             "battle",
           ),
         )
+        .setOrigin(0.5, 1)
         .setDepth(2),
       BATTLE_CREATURE_DISPLAY,
-    );
+    ) as Phaser.GameObjects.Sprite;
     this.playerSprite = fitDisplay(
-      this.add.image(cx - 118, 238, ...this.getPlayerSpriteTexture()).setDepth(2),
+      this.add
+        .sprite(PLAYER_HOME.x, PLAYER_HOME.y, ...this.getPlayerSpriteTexture())
+        .setOrigin(0.5, 1)
+        .setDepth(2),
       this.getPlayerBattleDisplay(),
-    );
+    ) as Phaser.GameObjects.Sprite;
     this.syncPlayerBattleFacing();
     this.syncPlayerPresenceTint();
+    this.fx = new BattleFx(
+      this,
+      () => ({ wild: this.wildSprite, player: this.playerSprite }),
+      (side) => (side === "wild" ? this.wildSprite.clearTint() : this.syncPlayerPresenceTint()),
+    );
+    this.fx.setHome("wild", WILD_HOME.x, WILD_HOME.y);
+    this.fx.setHome("player", PLAYER_HOME.x, PLAYER_HOME.y);
+    this.addFastToggle();
 
     // Opponent plate top-left, player plate mid-right (clear of both sprites).
     this.wildHud = this.createHpHud(24, 48);
@@ -371,13 +417,56 @@ export class BattleScene extends Phaser.Scene {
     );
     this.showHunterMatchupTeachIfNeeded();
     this.buildActionButtons();
-    if (SPAR_WILD_OPENING_TURNS > 0) {
-      this.waitingForPlayer = false;
-      this.time.delayedCall(500, () => this.wildTurn());
-    }
+    this.waitingForPlayer = false;
+    const ready = this.playEntrance();
+    this.time.delayedCall(ready, () => {
+      if (this.battleEnded) {
+        return;
+      }
+      if (SPAR_WILD_OPENING_TURNS > 0) {
+        this.time.delayedCall(260, () => this.wildTurn());
+      } else {
+        this.waitingForPlayer = true;
+      }
+    });
     this.input.keyboard?.on("keydown", this.onGodSparKillCheatKeyDown);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.keyboard?.off("keydown", this.onGodSparKillCheatKeyDown);
+    });
+  }
+
+  /** Creatures slide/hop in, camera pushes, VS banner for sovereigns. Returns ms until input. */
+  private playEntrance(): number {
+    const t = this.fx.timings();
+    this.fx.cameraPush();
+    this.fx.enter("wild", 0);
+    this.fx.enter("player", t.entranceStagger);
+    let ready = t.entrance + t.entranceStagger;
+    if (isGodCreature(this.wildCreatureId)) {
+      ready = Math.max(ready, this.fx.vsBanner(this.player.name, this.wild.name));
+    }
+    return ready;
+  }
+
+  /** "Fast" toggle: skips lunges, particles, pauses (#365). */
+  private addFastToggle(): void {
+    const btn = this.add
+      .text(DESIGN_SIZE - 12, 22, fastBattleLabel(fastBattleEnabled()), {
+        color: "#fff7d8",
+        backgroundColor: "#101820b0",
+        fontFamily: HUD_FONT,
+        fontSize: "12px",
+        fontStyle: "bold",
+        padding: { x: 7, y: 3 },
+      })
+      .setOrigin(1, 0.5)
+      .setDepth(6);
+    setTouchHitArea(btn);
+    btn.on("pointerdown", () => {
+      const next = !fastBattleEnabled();
+      setFastBattleEnabled(next);
+      btn.setText(fastBattleLabel(next));
+      this.refreshHp();
     });
   }
 
@@ -506,6 +595,7 @@ export class BattleScene extends Phaser.Scene {
     const trait = partyCreature.trait;
     const combatant: BattleCombatant = {
       name: def.name,
+      level: partyCreature.level,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
       attack: getEffectiveAttack(partyCreature),
@@ -678,6 +768,14 @@ export class BattleScene extends Phaser.Scene {
     if (role === "finisher") {
       details.push(`×${FINISHER_STATUS_BONUS} vs status`);
     }
+    if (role === "guard") {
+      // Every sovereign beat is telegraphed, so a guard always parries it.
+      details.push(
+        this.hasSovereignPattern()
+          ? "parries every beat"
+          : `other hits −${Math.round((1 - GUARD_DAMAGE_TAKEN) * 100)}%`,
+      );
+    }
     if (!ready) {
       details.push(`ready in ${cooldown}`);
     }
@@ -713,8 +811,8 @@ export class BattleScene extends Phaser.Scene {
             Math.max(1, Math.round(this.player.maxHp * move.heal)),
           )
         : 0;
-      const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      return heal > 0 ? `−${pct}% hit · +${heal} HP` : `−${pct}% next hit`;
+      const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
+      return heal > 0 ? `parry −${parry}% +${heal} HP` : `parry −${parry}%`;
     }
     if (move.power <= 0) {
       return "";
@@ -910,10 +1008,7 @@ export class BattleScene extends Phaser.Scene {
     this.player = this.combatantFromWanderer(buildArmedWanderer(weaponId));
     this.hideWandererFallbackMenu();
     this.refreshHp();
-    this.playerSprite.setTexture(...this.getPlayerSpriteTexture());
-    fitDisplay(this.playerSprite, this.getPlayerBattleDisplay());
-    this.syncPlayerBattleFacing();
-    this.syncPlayerPresenceTint();
+    this.swapPlayerSprite();
     this.log(`${this.player.name} steps up to fight!`);
     if (this.matchupTeachText) {
       this.showHunterMatchupTeachIfNeeded();
@@ -921,6 +1016,20 @@ export class BattleScene extends Phaser.Scene {
     this.buildActionButtons();
     this.refreshIntent();
     this.waitingForPlayer = true;
+  }
+
+  /** New combatant on the player side: retexture, refit, slide in. */
+  private swapPlayerSprite(): void {
+    this.fainted.delete("player");
+    this.fx.resetPose("player");
+    this.tweens.killTweensOf(this.playerSprite);
+    this.playerSprite.setTexture(...this.getPlayerSpriteTexture());
+    fitDisplay(this.playerSprite, this.getPlayerBattleDisplay());
+    this.syncPlayerBattleFacing();
+    this.syncPlayerPresenceTint();
+    this.fx.setHome("player", PLAYER_HOME.x, PLAYER_HOME.y);
+    this.fx.syncStatuses("player", this.player);
+    this.fx.enter("player");
   }
 
   private switchToPartyIndex(index: number): void {
@@ -942,10 +1051,7 @@ export class BattleScene extends Phaser.Scene {
     this.forcedSwitch = false;
     this.hideSwitchMenu();
     this.refreshHp();
-    this.playerSprite.setTexture(...this.getPlayerSpriteTexture());
-    fitDisplay(this.playerSprite, this.getPlayerBattleDisplay());
-    this.syncPlayerBattleFacing();
-    this.syncPlayerPresenceTint();
+    this.swapPlayerSprite();
     const freeSwitch = voluntarySwitch && this.freeSwitchAvailable;
     if (freeSwitch) {
       this.freeSwitchAvailable = false;
@@ -964,7 +1070,7 @@ export class BattleScene extends Phaser.Scene {
       // The telegraphed move still lands — on the new creature.
       this.renderIntent();
       this.waitingForPlayer = false;
-      this.time.delayedCall(500, () => this.wildTurn());
+      this.time.delayedCall(Math.max(500, this.fx.timings().entrance), () => this.wildTurn());
     } else if (freeSwitch) {
       this.renderIntent();
       this.waitingForPlayer = true;
@@ -979,26 +1085,35 @@ export class BattleScene extends Phaser.Scene {
     playMoveTypeSfx(this, move.type);
     this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
+    for (const button of this.actionButtons) {
+      (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
+    }
     const result = executeMove(this.player, move, this.wild, this.rng);
-    let message = this.describeMove(this.player, this.wild, result, "wild");
-    if (isFainted(this.wild)) {
-      this.refreshHp();
+    // Rules resolved above; the lunge / projectile lands, then we present it.
+    this.fx.attack("player", move, moveRole(move), () => {
+      if (this.battleEnded) {
+        return;
+      }
+      let message = this.describeMove(this.player, this.wild, result, "wild");
+      if (isFainted(this.wild)) {
+        this.refreshHp();
+        this.log(message);
+        this.endBattle(true);
+        return;
+      }
+      message += this.tickEndOfTurn(this.player, "player");
       this.log(message);
-      this.endBattle(true);
-      return;
-    }
-    message += this.tickEndOfTurn(this.player, "player");
-    this.log(message);
-    this.refreshHp();
-    this.buildActionButtons();
-    this.renderIntent();
+      this.refreshHp();
+      this.buildActionButtons();
+      this.renderIntent();
 
-    if (isFainted(this.player)) {
-      this.handlePlayerFainted();
-      return;
-    }
+      if (isFainted(this.player)) {
+        this.handlePlayerFainted();
+        return;
+      }
 
-    this.time.delayedCall(700, () => this.wildTurn());
+      this.time.delayedCall(this.fx.timings().turnGap, () => this.wildTurn());
+    });
   }
 
   private wildTurn(): void {
@@ -1006,7 +1121,9 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     const intent = this.intent ?? this.pickIntent();
-    let message: string;
+    playMoveTypeSfx(this, intent.move.type);
+    // Resolve the rules now; present them when the attack lands.
+    let present: () => string;
     if (intent.fixedDamage !== undefined) {
       // Sovereign pattern: fixed damage, still bent by Dazed / Rooted / Guard.
       this.tideSovereignTurnIndex += 1;
@@ -1018,17 +1135,34 @@ export class BattleScene extends Phaser.Scene {
         this.rng,
       );
       if (outcome.kind === "miss") {
-        message = `${this.wild.name} used ${intent.move.name} — missed (Dazed)!`;
+        present = () => {
+          this.fx.number("player", damageNumberStyle({ kind: "miss", amount: 0, target: "player" }));
+          return `${this.wild.name} used ${intent.move.name} — missed (Dazed)!`;
+        };
       } else {
         applyDamage(this.player, outcome.damage);
-        this.showFloat("player", `−${outcome.damage}`, "#ffaa44");
-        this.flashCombatant("player", outcome.damage);
-        message = `${this.wild.name} used ${intent.move.name}${guarded ? " — guarded!" : "."}`;
+        present = () => {
+          this.presentHit("player", intent.move, intent.role, outcome.damage, "neutral");
+          let line = `${this.wild.name} used ${intent.move.name}${guarded ? " — parried!" : "."}`;
+          if (outcome.parryHealed > 0) {
+            line += ` ${this.player.name} +${outcome.parryHealed} HP.`;
+            this.presentParryHeal("player", outcome.parryHealed);
+          }
+          return line;
+        };
       }
     } else {
       const result = executeMove(this.wild, intent.move, this.player, this.rng);
-      message = this.describeMove(this.wild, this.player, result, "player");
+      present = () => this.describeMove(this.wild, this.player, result, "player");
     }
+    this.fx.attack("wild", intent.move, intent.role, () => this.finishWildTurn(present));
+  }
+
+  private finishWildTurn(present: () => string): void {
+    if (this.battleEnded) {
+      return;
+    }
+    let message = present();
     // A guard lasts until the guarding creature's next turn.
     this.player.guarding = false;
     message += this.tickEndOfTurn(this.wild, "wild");
@@ -1053,6 +1187,15 @@ export class BattleScene extends Phaser.Scene {
     playFaintSfx(this);
     this.syncActivePartyHp();
     this.clearIntent();
+    this.waitingForPlayer = false;
+    this.fainted.add("player");
+    this.fx.faint("player", () => this.afterPlayerFaint());
+  }
+
+  private afterPlayerFaint(): void {
+    if (this.battleEnded) {
+      return;
+    }
     if (this.hasSwitchablePartyMembers()) {
       this.forcedSwitch = true;
       this.waitingForPlayer = true;
@@ -1079,27 +1222,25 @@ export class BattleScene extends Phaser.Scene {
     result: MoveResult,
     targetSide: "wild" | "player",
   ): string {
-    const userSide = targetSide === "wild" ? "player" : "wild";
     let line = `${user.name} used ${result.move.name}`;
     const attack = result.attack;
     if (result.guarded) {
-      line += result.healed > 0 ? ` — guarding, +${result.healed} HP.` : " — guarding.";
-      if (result.healed > 0) {
-        this.showFloat(userSide, `+${result.healed}`, "#8fe88a");
-      }
+      // Guard heals only on a parry (#378); the heal shows when the hit lands.
+      line += " — guarding.";
+      playGuardSfx(this);
     } else if (attack?.kind === "miss") {
       line += " — missed!";
+      this.fx.number(targetSide, damageNumberStyle({ kind: "miss", amount: 0, target: targetSide }));
     } else if (attack?.kind === "immune") {
       line += ` — it had no effect${formatMatchupHint(attack.matchup)}`;
-      this.showFloat(targetSide, "−0", targetSide === "wild" ? "#ff8866" : "#ffaa44");
+      this.fx.number(targetSide, damageNumberStyle({ kind: "immune", amount: 0, target: targetSide }));
     } else if (attack?.kind === "hit") {
       line += `.${formatMatchupHint(attack.matchup)}`;
-      this.showFloat(
-        targetSide,
-        `−${attack.damage}`,
-        targetSide === "wild" ? "#ff8866" : "#ffaa44",
-      );
-      this.flashCombatant(targetSide, attack.damage);
+      this.presentHit(targetSide, result.move, moveRole(result.move), attack.damage, attack.matchup);
+      if (result.parryHealed) {
+        line += ` Parried! ${target.name} +${result.parryHealed} HP.`;
+        this.presentParryHeal(targetSide, result.parryHealed);
+      }
     } else {
       line += ".";
     }
@@ -1108,6 +1249,7 @@ export class BattleScene extends Phaser.Scene {
     if (status) {
       const label = STATUS_DEFS[status.id].label;
       if (status.kind === "applied") {
+        this.fx.statusApplied(targetSide, status.id);
         line +=
           status.id === "burn"
             ? ` ${target.name} is burning!`
@@ -1123,12 +1265,18 @@ export class BattleScene extends Phaser.Scene {
     return line;
   }
 
+  /** Heal sparkle + "+N" on the side whose guard parried a finisher / sovereign beat. */
+  private presentParryHeal(side: "wild" | "player", amount: number): void {
+    this.fx.heal(side);
+    this.fx.number(side, damageNumberStyle({ kind: "heal", amount, target: side }));
+  }
+
   /** Burn ticks + status countdown at the end of `who`'s own turn. */
   private tickEndOfTurn(who: BattleCombatant, side: "wild" | "player"): string {
     const tick = tickStatuses(who);
     let line = "";
     if (tick.burnDamage > 0) {
-      this.showFloat(side, `−${tick.burnDamage}`, "#ff8a4c");
+      this.fx.number(side, damageNumberStyle({ kind: "burn", amount: tick.burnDamage, target: side }));
       line += ` ${who.name} burns for ${tick.burnDamage}.`;
     }
     for (const id of tick.expired) {
@@ -1160,12 +1308,20 @@ export class BattleScene extends Phaser.Scene {
     return { move, role: moveRole(move) };
   }
 
+  private hasSovereignPattern(): boolean {
+    return (
+      this.wildCreatureId === TIDE_SOVEREIGN_ID ||
+      this.wildCreatureId === CAIRN_SOVEREIGN_ID
+    );
+  }
+
   private refreshIntent(): void {
     this.intent = this.pickIntent();
     this.renderIntent();
   }
 
   private clearIntent(): void {
+    this.fx?.clearIntentGlow();
     for (const object of this.intentObjects) {
       object.destroy();
     }
@@ -1182,8 +1338,9 @@ export class BattleScene extends Phaser.Scene {
     const style = ROLE_STYLE[role];
     let detail = "";
     if (role === "guard") {
+      const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
       const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      detail = `blocks ${pct}% of your next hit`;
+      detail = `parries a finisher −${parry}%, other hits −${pct}%`;
     } else {
       const matchup = getMatchup(move, this.player);
       const damage =
@@ -1238,15 +1395,13 @@ export class BattleScene extends Phaser.Scene {
       .setDepth(7);
     this.intentObjects.push(plate, badge, text);
 
-    if (role === "finisher") {
-      this.tweens.add({
-        targets: plate,
-        alpha: { from: 1, to: 0.55 },
-        duration: 520,
-        yoyo: true,
-        repeat: -1,
-      });
-    }
+    // Pulses as the foe's finisher charges, hardest when it is the telegraphed move.
+    const finisher = this.wild.moves.find((m) => moveRole(m) === "finisher");
+    this.fx.intentGlow(
+      plate,
+      intentGlow(role, finisher ? getCooldown(this.wild, finisher.id) : null),
+      role === "finisher" ? style.color : ROLE_STYLE.finisher.color,
+    );
   }
 
   // --- HP / status plates ---------------------------------------------------
@@ -1291,7 +1446,13 @@ export class BattleScene extends Phaser.Scene {
       `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${who.folkloreType}`,
     );
     const ratio = Math.max(0, who.currentHp / who.maxHp);
-    hud.bar.width = HP_BAR_WIDTH * ratio;
+    const width = HP_BAR_WIDTH * ratio;
+    this.tweens.killTweensOf(hud.bar);
+    if (this.fx && !this.fx.mode().fast && Math.abs(hud.bar.width - width) > 0.5) {
+      this.tweens.add({ targets: hud.bar, width, duration: 360, ease: "Cubic.easeOut" });
+    } else {
+      hud.bar.width = width;
+    }
     hud.bar.setFillStyle(ratio > 0.5 ? 0x6cd86a : ratio > 0.25 ? 0xf2c94c : 0xeb5757);
     hud.hp.setText(`${who.currentHp}/${who.maxHp}`);
 
@@ -1329,48 +1490,48 @@ export class BattleScene extends Phaser.Scene {
       partyIndex >= 0 ? getActiveCreatures()[partyIndex]?.level ?? null : null;
     this.syncHpHud(this.wildHud, this.wild, this.wildLevel);
     this.syncHpHud(this.playerHud, this.player, playerLevel);
+    this.fx?.syncStatuses("wild", this.wild);
+    this.fx?.syncStatuses("player", this.player);
   }
 
-  private flashCombatant(target: "wild" | "player", damage: number): void {
+  /** Dev kill cheat: quick flash + hit sound, no lunge. */
+  private flashCombatant(target: Side, damage: number): void {
     if (target === "wild") {
       playHitWildSfx(this, damage);
     } else {
       playHitPlayerSfx(this, damage);
     }
-    const sprite = target === "wild" ? this.wildSprite : this.playerSprite;
-    const strong = damage >= STRONG_HIT_DAMAGE;
-    // Wild (outgoing) = coral; player (incoming) = amber — distinguishable without the log.
-    const tint = target === "wild" ? (strong ? 0xff6644 : 0xffd9d2) : strong ? 0xffaa22 : 0xffe0a8;
-    const shakeMs = strong ? 220 : 120;
-    const shakeAmp = strong ? 0.01 : 0.004;
-    sprite.setTintFill(tint);
-    this.cameras.main.shake(shakeMs, shakeAmp);
-    this.time.delayedCall(shakeMs, () => sprite.clearTint());
+    this.fx.quickFlash(target, target === "wild" ? 0xff6644 : 0xffaa22);
   }
 
-  /** Floating number over a combatant ("−12", "+4"). */
-  private showFloat(target: "wild" | "player", label: string, color: string): void {
-    const sprite = target === "wild" ? this.wildSprite : this.playerSprite;
-    const counter = this.add
-      .text(sprite.x + 34, sprite.y - 48, label, {
-        color,
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "22px",
-        fontStyle: "bold",
-        stroke: "#1a1a2e",
-        strokeThickness: 3,
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(10_000);
-
-    this.tweens.add({
-      targets: counter,
-      y: counter.y - 36,
-      alpha: 0,
-      duration: 900,
-      ease: "Cubic.easeOut",
-      onComplete: () => counter.destroy(),
-    });
+  /** Landed hit: styled number, type burst, hit-pause, recoil, SFX (#365). */
+  private presentHit(
+    target: Side,
+    move: MoveDefinition,
+    role: MoveRole,
+    damage: number,
+    matchup: MatchupResult,
+  ): void {
+    if (target === "wild") {
+      playHitWildSfx(this, damage, matchup);
+    } else {
+      playHitPlayerSfx(this, damage, matchup);
+    }
+    const strong = damage >= STRONG_HIT_DAMAGE;
+    const finisher = role === "finisher";
+    this.fx.impact(
+      target,
+      {
+        damage,
+        maxHp: (target === "wild" ? this.wild : this.player).maxHp,
+        type: move.type,
+        role,
+        effective: matchup === "hunter",
+        resisted: matchup === "resisted",
+        strong,
+      },
+      damageNumberStyle({ kind: "hit", amount: damage, matchup, strong, finisher, target }),
+    );
   }
 
   private log(message: string): void {
@@ -1388,57 +1549,96 @@ export class BattleScene extends Phaser.Scene {
     this.clearHunterMatchupTeach();
     this.hideSwitchMenu();
     this.hideWandererFallbackMenu();
+    this.clearActionButtons();
     this.syncActivePartyHp();
 
     if (playerWon) {
       playFaintSfx(this);
-      playBattleWinSfx(this);
     }
 
+    let panel: ResultPanelOptions;
     if (playerWon && this.wildCreatureId === TIDE_SOVEREIGN_ID) {
       const result = resolveTideSovereignOutcome("spar-win");
-      if (result) {
-        this.log(
-          formatGodClaimJoinLine(
+      const line = result
+        ? formatGodClaimJoinLine(
             "Tide Sovereign",
             "Tide Cleaver",
             result,
             true,
             "Tide Crown",
-          ),
-        );
-      }
+          )
+        : `${this.wild.name} yields.`;
+      this.log(line);
+      panel = { tone: "special", title: "Victory!", line };
     } else if (playerWon && this.wildCreatureId === CAIRN_SOVEREIGN_ID) {
       const result = resolveCairnSovereignOutcome("spar-win");
-      if (result) {
-        this.log(
-          formatGodClaimJoinLine(
+      const line = result
+        ? formatGodClaimJoinLine(
             "Stone Sovereign",
             "Cairn Maul",
             result,
             true,
             "Boulder Crown",
-          ),
-        );
-      }
+          )
+        : `${this.wild.name} yields.`;
+      this.log(line);
+      panel = { tone: "special", title: "Victory!", line };
     } else if (playerWon) {
+      const before: PartySnapshotEntry[] = getActiveCreatures().map((c) => ({
+        instanceId: c.instanceId,
+        definitionId: c.definitionId,
+        level: c.level,
+        xp: c.xp,
+      }));
       const reward = grantSparRewards(
         this.wildCreatureId,
         this.resolvePartyIndex(),
       );
       this.log(formatRewardMessage(reward));
+      panel = {
+        tone: "victory",
+        summary: buildVictorySummary(before, getActiveCreatures(), reward, {
+          definition: getCreatureDefinition,
+          materialName: getMaterialName,
+        }),
+      };
     } else {
       this.log("You lost the training spar...");
+      panel = {
+        tone: "defeat",
+        line: "Everyone is tired, not hurt. Rest up and try again.",
+      };
     }
     notifyWorldChanged();
 
-    this.time.delayedCall(1800, () => {
-      this.cameras.main.fadeOut(140, 255, 255, 255);
-      this.time.delayedCall(145, () => {
-        this.scene.stop("BattleScene");
-        this.scene.stop("EncounterScene");
-        this.scene.resume("IsometricScene");
-      });
+    const showPanel = (): void => {
+      if (playerWon) {
+        playBattleWinSfx(this);
+        this.fx.confettiBurst(DESIGN_SIZE / 2, 90);
+      }
+      showBattleResultPanel(
+        this,
+        panel,
+        this.fx.mode(),
+        this.fx.timings().xpFill,
+        () => this.exitBattle(),
+      );
+    };
+    const loser: Side = playerWon ? "wild" : "player";
+    if (this.fainted.has(loser)) {
+      this.time.delayedCall(200, showPanel);
+    } else {
+      this.fainted.add(loser);
+      this.fx.faint(loser, showPanel);
+    }
+  }
+
+  private exitBattle(): void {
+    this.cameras.main.fadeOut(140, 255, 255, 255);
+    this.time.delayedCall(145, () => {
+      this.scene.stop("BattleScene");
+      this.scene.stop("EncounterScene");
+      this.scene.resume("IsometricScene");
     });
   }
 }

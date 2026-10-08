@@ -14,7 +14,7 @@ export type StatusDefinition = {
 };
 
 /** Burn tick: share of max HP lost at the end of the burned creature's turn. */
-export const BURN_TICK_FRACTION = 0.08;
+export const BURN_TICK_FRACTION = 0.05;
 /** Soaked: every incoming hit is amplified; storm hits conduct harder. */
 export const SOAKED_DAMAGE_TAKEN = 1.25;
 export const SOAKED_STORM_DAMAGE_TAKEN = 1.5;
@@ -30,7 +30,7 @@ export const STATUS_DEFS: Readonly<Record<StatusId, StatusDefinition>> = {
     tag: "BURN",
     color: "#ff8a4c",
     turns: 3,
-    immuneTypes: ["hearth", "ember", "water"],
+    immuneTypes: ["hearth", "ember", "water", "will-o-wisp"],
     summary: `loses ${Math.round(BURN_TICK_FRACTION * 100)}% max HP each turn`,
   },
   soaked: {
@@ -48,7 +48,7 @@ export const STATUS_DEFS: Readonly<Record<StatusId, StatusDefinition>> = {
     tag: "ROOT",
     color: "#8fd36a",
     turns: 2,
-    immuneTypes: ["storm", "mist", "will-o-wisp"],
+    immuneTypes: ["storm", "mist"],
     summary: "deals ×0.7 damage",
   },
   dazed: {

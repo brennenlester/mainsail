@@ -1,6 +1,12 @@
 import { getCreatureDefinition } from "../creatures/catalog";
 import { rareHueShift } from "./rareVariant";
-import { formatShareDay, type ShareCreature, type ShareSnapshot } from "./shareCode";
+import {
+  formatShareDay,
+  SHARE_BOND_MAX,
+  type ShareCreature,
+  type ShareSnapshot,
+} from "./shareCode";
+import { BOND_TIER_NAMES } from "../companions/bond";
 import type { SpriteCrop, SpriteLookup } from "./spriteSource";
 
 /**
@@ -22,15 +28,7 @@ const RARE = "#d4b0ff";
 const SERIF = 'Fraunces, Georgia, "Times New Roman", serif';
 const SANS = '"Source Sans 3", "Helvetica Neue", Arial, sans-serif';
 
-const BOND_MAX = 5;
-
-/**
- * ponytail: bond placeholder derived from level until the Companions bond
- * meter exists; the share schema is versioned so a real value can ride in v2.
- */
-export function bondPlaceholder(level: number): number {
-  return Math.min(BOND_MAX, Math.max(1, Math.ceil(level / 8)));
-}
+const BOND_HEARTS = SHARE_BOND_MAX;
 
 function seededRandom(seed: string): () => number {
   let h = 2166136261;
@@ -206,14 +204,25 @@ function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, s: numbe
   ctx.restore();
 }
 
-function drawBond(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, level: number, align: "left" | "center"): void {
-  const value = bondPlaceholder(level);
-  const gap = size * 1.25;
-  const total = gap * (BOND_MAX - 1);
-  const start = align === "center" ? x - total / 2 : x + size / 2;
-  for (let i = 0; i < BOND_MAX; i += 1) {
-    drawHeart(ctx, start + i * gap, y, size, i < value);
+/** Bond hearts (real bond tier from #367). v1 links carry no bond: draw nothing. */
+function drawBond(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, hearts: number | null, align: "left" | "center"): void {
+  if (hearts === null) {
+    return;
   }
+  const gap = size * 1.25;
+  const total = gap * (BOND_HEARTS - 1);
+  const start = align === "center" ? x - total / 2 : x + size / 2;
+  for (let i = 0; i < BOND_HEARTS; i += 1) {
+    drawHeart(ctx, start + i * gap, y, size, i < hearts);
+  }
+}
+
+/** Tier name for a heart count (hearts = tier + 1), e.g. 4 → "Devoted". */
+export function bondLabel(hearts: number | null): string {
+  if (hearts === null || hearts < 1) {
+    return "";
+  }
+  return BOND_TIER_NAMES[Math.min(BOND_TIER_NAMES.length, hearts) - 1] ?? "";
 }
 
 /** Pill tags for rare / evolved / presence, left- or centre-aligned. */
@@ -383,8 +392,16 @@ function drawHero(ctx: CanvasRenderingContext2D, creature: ShareCreature, lookup
   drawTags(ctx, creature, tx, y + 250, 22, "left");
   ctx.fillStyle = CREAM_MUTED;
   ctx.font = `600 20px ${SANS}`;
-  ctx.fillText("BOND", tx, y + 318);
-  drawBond(ctx, tx + 70, y + 312, 26, creature.level, "left");
+  if (creature.bond !== null) {
+    ctx.fillText("BOND", tx, y + 318);
+    drawBond(ctx, tx + 70, y + 312, 26, creature.bond, "left");
+    const label = bondLabel(creature.bond);
+    if (label) {
+      ctx.fillStyle = CREAM_MUTED;
+      ctx.font = `600 italic 22px ${SERIF}`;
+      ctx.fillText(label, tx + 70 + 26 * 1.25 * (BOND_HEARTS - 1) + 48, y + 320);
+    }
+  }
 }
 
 function drawSlot(
@@ -424,12 +441,12 @@ function drawSlot(
   const lv = `Lv ${creature.level}`;
   const heart = 16;
   const lvWidth = ctx.measureText(lv).width;
-  const bondWidth = heart * 1.25 * (BOND_MAX - 1) + heart;
+  const bondWidth = creature.bond === null ? -14 : heart * 1.25 * (BOND_HEARTS - 1) + heart;
   const startX = cx - (lvWidth + 14 + bondWidth) / 2;
   ctx.textAlign = "left";
   ctx.fillStyle = GOLD;
   ctx.fillText(lv, startX, y + 220);
-  drawBond(ctx, startX + lvWidth + 14, y + 213, heart, creature.level, "left");
+  drawBond(ctx, startX + lvWidth + 14, y + 213, heart, creature.bond, "left");
   drawTags(ctx, creature, cx, y + 250, 15, "center");
 }
 
@@ -465,8 +482,14 @@ export function renderCompanionCard(
 
   ctx.textAlign = "left";
   ctx.fillStyle = CREAM;
-  ctx.font = `700 68px ${SERIF}`;
-  ctx.fillText(fitText(ctx, `${snapshot.name}'s companions`, CARD_WIDTH - 144), 70, 190);
+  // Shrink long names to fit rather than truncating the heading.
+  const heading = `${snapshot.name}'s companions`;
+  let headingSize = 68;
+  do {
+    ctx.font = `700 ${headingSize}px ${SERIF}`;
+    headingSize -= 2;
+  } while (headingSize >= 34 && ctx.measureText(heading).width > CARD_WIDTH - 144);
+  ctx.fillText(fitText(ctx, heading, CARD_WIDTH - 144), 70, 190);
 
   const [lead, ...rest] = snapshot.party;
   if (lead) {

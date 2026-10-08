@@ -60,6 +60,9 @@ PALETTE = {
     "sky_top": "#22304f",
     "sky_mid": "#4f7f93",
     "sky_low": "#f1dcb6",
+    "ember": "#f08a3c",  # Ember Wisp (title, #363)
+    "ember_dark": "#d0582e",
+    "ember_glow": "#ffd77a",
 }
 
 OUTLINE_HEX = PALETTE["navy"]

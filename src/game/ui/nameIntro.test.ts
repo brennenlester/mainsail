@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initNameIntro, isNameIntroOpen } from "./nameIntro";
 import {
   getPlayerName,
@@ -71,6 +71,42 @@ describe("initNameIntro", () => {
     form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
     expect(isNameIntroOpen()).toBe(false);
     expect(getPlayerName()).toBe("Mira");
+  });
+
+  it("keyboard gate: Escape and stray keys never skip into a nameless session", () => {
+    const onNamed = vi.fn();
+    initNameIntro(onNamed);
+    const input = document.getElementById(
+      "name-intro-input",
+    ) as HTMLInputElement;
+    for (const key of ["Escape", "Enter", " ", "e"]) {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    }
+    document.getElementById("playfield")?.click();
+    expect(isNameIntroOpen()).toBe(true);
+    expect(getPlayerName()).toBeNull();
+    expect(onNamed).not.toHaveBeenCalled();
+  });
+
+  it("runs the opening beat callback exactly once after naming (#363)", () => {
+    const onNamed = vi.fn();
+    initNameIntro(onNamed);
+    const form = document.getElementById("name-intro-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "name-intro-input",
+    ) as HTMLInputElement;
+    input.value = "Tess";
+    form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    expect(onNamed).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not run the opening callback for an already-named Continue", () => {
+    setPlayerName("Kept");
+    const onNamed = vi.fn();
+    initNameIntro(onNamed);
+    expect(onNamed).not.toHaveBeenCalled();
   });
 
   it("skips the overlay when a name is already set", () => {

@@ -20,6 +20,7 @@ import {
 } from "./worldSaveSchedule";
 import { STARTING_ZONE_ID } from "./zones";
 import type { ZoneId } from "./zoneTypes";
+import { persistablePosition } from "../companions/abilities";
 
 const STORAGE_KEY = "ivyward-save-v1";
 /** Pre-rename key; migrate on read so existing host saves are not lost. */
@@ -54,7 +55,8 @@ function readRawSave(readOnly = false): string | null {
 }
 
 export function updateHostPosition(zoneId: ZoneId, x: number, y: number): void {
-  hostPosition = { zoneId, x, y };
+  // Islet stands save as the ford shore (#367 rollback safety).
+  hostPosition = { zoneId, ...persistablePosition(zoneId, x, y) };
   scheduleHostSave();
 }
 
@@ -84,7 +86,15 @@ if (typeof window !== "undefined") {
   });
 }
 
+/** Visitor / share-card sandboxes must never touch the host save (#368). */
+export function isHostSaveLocked(): boolean {
+  return isVisitorMode() || isHostPersistSuspended();
+}
+
 export function clearHostSave(): void {
+  if (isHostSaveLocked()) {
+    return;
+  }
   // Cancel first so pagehide → flushPendingHostSave cannot rewrite after clear (#250).
   cancelPendingHostSave();
   try {
@@ -97,6 +107,9 @@ export function clearHostSave(): void {
 
 /** Clear host save and reload a fresh game (same as ?new=1). */
 export function resetHostGame(): void {
+  if (isHostSaveLocked()) {
+    return;
+  }
   clearHostSave();
   const url = new URL(window.location.href);
   url.search = "";

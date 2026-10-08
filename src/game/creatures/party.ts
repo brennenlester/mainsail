@@ -10,6 +10,8 @@ import { hasCraftedWeapon } from "../battle/wandererWeapons";
 import { recordQuestEvent } from "../story/questProgress";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { formatTraitLabel, rollSignatureTrait } from "./traits";
+import { personalitySeed, rollPersonality } from "../companions/personality";
+import { getPlayerName } from "../world/playerName";
 import type { CreatureInstance } from "./types";
 import { rollRareVariant } from "../share/rareVariant";
 
@@ -110,13 +112,17 @@ function addToPartyWithHp(
     level <= 1
       ? createNewCreatureProgress()
       : createCreatureProgressAtLevel(level);
+  const instanceId = `c-${nextInstanceId++}`;
   const instance: CreatureInstance = {
-    instanceId: `c-${nextInstanceId++}`,
+    instanceId,
     definitionId,
     speciesId: definitionId,
     currentHp: 0,
     ...progress,
     trait: rollSignatureTrait(definitionId, def.folkloreType),
+    personality: rollPersonality(
+      personalitySeed(getPlayerName(), instanceId, definitionId),
+    ),
   };
   if (rollRareVariant()) {
     instance.rare = true;
@@ -164,22 +170,33 @@ export function removeFromParty(instanceId: string): boolean {
   return true;
 }
 
-/** Add a fused species at a set level with full HP and no shrine bonuses. */
+/**
+ * Add a fused species at a set level with full HP and no shrine bonuses.
+ * `rare` carries the rare variant through when either parent was rare (#368).
+ */
 export function addFusedCreature(
   definitionId: string,
   level: number,
+  options: { rare?: boolean } = {},
 ): CreatureInstance {
   const def = getCreatureDefinition(definitionId);
   const clampedLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
+  const instanceId = `c-${nextInstanceId++}`;
   const instance: CreatureInstance = {
-    instanceId: `c-${nextInstanceId++}`,
+    instanceId,
     definitionId,
     speciesId: definitionId,
     currentHp: 0,
     level: clampedLevel,
     xp: LEVEL_XP_THRESHOLDS[clampedLevel] ?? 0,
     trait: rollSignatureTrait(definitionId, def.folkloreType),
+    personality: rollPersonality(
+      personalitySeed(getPlayerName(), instanceId, definitionId),
+    ),
   };
+  if (options.rare) {
+    instance.rare = true;
+  }
   instance.currentHp = getEffectiveMaxHp(instance);
   playerParty.creatures.push(instance);
   if (playerParty.activeInstanceIds.length < ACTIVE_PARTY_LIMIT) {

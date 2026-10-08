@@ -207,14 +207,24 @@ export function playCraftSfx(scene: Phaser.Scene): void {
   playSfxLater(SFX.craftSuccess, 0.4, 140, scene);
 }
 
+/** Impact pitch by matchup (#365): effective hits ring higher, resisted ones thud lower. */
+export function hitSfxRate(matchup?: string): number | undefined {
+  return matchup === "hunter" ? 1.15 : matchup === "resisted" ? 0.85 : undefined;
+}
+
 /** Wild takes damage (player attack lands). */
-export function playHitWildSfx(scene: Phaser.Scene, damage: number): void {
-  playSfx(scene, SFX.hitWild, damage >= STRONG_HIT_DAMAGE ? 0.62 : 0.42);
+export function playHitWildSfx(scene: Phaser.Scene, damage: number, matchup?: string): void {
+  playSfx(scene, SFX.hitWild, damage >= STRONG_HIT_DAMAGE ? 0.62 : 0.42, hitSfxRate(matchup));
 }
 
 /** Player takes damage (wild attack lands). */
-export function playHitPlayerSfx(scene: Phaser.Scene, damage: number): void {
-  playSfx(scene, SFX.hitPlayer, damage >= STRONG_HIT_DAMAGE ? 0.65 : 0.45);
+export function playHitPlayerSfx(scene: Phaser.Scene, damage: number, matchup?: string): void {
+  playSfx(scene, SFX.hitPlayer, damage >= STRONG_HIT_DAMAGE ? 0.65 : 0.45, hitSfxRate(matchup));
+}
+
+/** Guard raised: soft ability chime (#365). */
+export function playGuardSfx(scene: Phaser.Scene): void {
+  playSfx(scene, SFX.ability, 0.32, 1.2);
 }
 
 export function playFaintSfx(scene: Phaser.Scene): void {

@@ -6,6 +6,7 @@ export const INTERACT_PROMPT_PRIORITY = [
   "npc",
   "dock",
   "sailing",
+  "companion",
   "gather",
 ] as const;
 

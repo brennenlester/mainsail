@@ -6,6 +6,7 @@ import { getWildEffectiveLevel, setWildLevelOverride } from "../progression/wild
 import { openCardPreview, playNowUrl, showInvalidCardScreen } from "./cardPreview";
 import { ensureChallengerParty, ghostAverageLevel, LOANER_PARTY } from "./challenge";
 import { RARE_VARIANT_CHANCE, rareHueShift, rareVariantTint, rollRareVariant } from "./rareVariant";
+import { bondLabel } from "./companionCard";
 import { snapshotFromParty, syncShareButton, setShareDisabled } from "./shareActions";
 import type { ShareSnapshot } from "./shareCode";
 import { isTouchControlsEnabled, setTouchControlsEnabled } from "../ui/touchControls";
@@ -51,7 +52,7 @@ describe("snapshotFromParty", () => {
     const party = Array.from({ length: 9 }, (_, i) =>
       creature({ instanceId: `c-${i + 1}`, level: i + 1 }),
     );
-    party[0] = creature({ definitionId: "bramblewarden", speciesId: "mossling", rare: true, level: 12 });
+    party[0] = creature({ definitionId: "bramblewarden", speciesId: "mossling", rare: true, level: 12, bond: 120 });
     const snap = snapshotFromParty(party, "Ivy", 20_733);
     expect(snap.party).toHaveLength(7);
     expect(snap.party[0]).toEqual({
@@ -60,8 +61,18 @@ describe("snapshotFromParty", () => {
       rare: true,
       evolved: true,
       presence: false,
+      bond: 4, // 120 bond = Devoted (tier 3) → 4 hearts
     });
     expect(snap.party[1].evolved).toBe(false);
+    expect(snap.party[1].bond).toBe(1); // no bond yet = Wary, 1 heart
+  });
+});
+
+describe("bondLabel", () => {
+  it("names the real bond tier from hearts", () => {
+    expect(bondLabel(null)).toBe("");
+    expect(bondLabel(1)).toBe("Wary");
+    expect(bondLabel(5)).toBe("Kindred");
   });
 });
 
@@ -103,7 +114,7 @@ describe("card preview DOM", () => {
     const snapshot: ShareSnapshot = {
       name: XSS,
       day: 20_733,
-      party: [{ id: "mossling", level: 2, rare: false, evolved: false, presence: false }],
+      party: [{ id: "mossling", level: 2, rare: false, evolved: false, presence: false, bond: 1 }],
     };
     openCardPreview(fakeGame, snapshot);
     const root = document.getElementById("card-preview");
@@ -161,8 +172,8 @@ describe("ghost challenge sandbox helpers", () => {
     name: "Rival",
     day: 20_733,
     party: [
-      { id: "lantern-fox", level: 10, rare: false, evolved: false, presence: false },
-      { id: "stone-hound", level: 13, rare: false, evolved: false, presence: false },
+      { id: "lantern-fox", level: 10, rare: false, evolved: false, presence: false, bond: 2 },
+      { id: "stone-hound", level: 13, rare: false, evolved: false, presence: false, bond: 3 },
     ],
   };
 
