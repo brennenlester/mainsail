@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import {
   addToParty,
+  getActiveCreatures,
   getEffectiveMaxHp,
   hasLivingPartyMembers,
   playerParty,
@@ -41,6 +42,7 @@ import {
 import { getPlayerName } from "../world/playerName";
 import { markCreatureDiscovered } from "../world/worldState";
 import { isVisitorMode } from "../world/worldSession";
+import { nextBrynGroveStarter } from "../world/brynGift";
 import { setSparWinsBySpecies, sparWinsBySpecies } from "../world/sparWins";
 import { UNARMED_WANDERER } from "./wandererWeapons";
 
@@ -399,10 +401,41 @@ export function consumeStorySparOutcome(
   return outcome;
 }
 
-/** HUD line for the rival beat after a loss (#369 review). */
+/**
+ * Wren fights two creatures in a row; a lone companion is the #411 playtest
+ * wall. Before the first win, a party with fewer than two standing active
+ * companions gets a "bring a friend" line that names a real next step:
+ * Bryn's Grove gift when he has one waiting, else the bench / the Grove.
+ * Null when the party is already two strong (or after the beat).
+ */
+export function getRivalFriendNudge(): string | null {
+  if (getActiveQuestId() !== "rival-wren" || isVisitorMode()) {
+    return null;
+  }
+  const standing = getActiveCreatures().filter((c) => c.currentHp > 0).length;
+  if (standing >= 2) {
+    return null;
+  }
+  const starter = nextBrynGroveStarter();
+  if (starter) {
+    const name = getCreatureDefinition(starter).name;
+    const article = /^[AEIOU]/.test(name) ? "an" : "a";
+    return `Bring a friend: Warden Bryn has ${article} ${name} for you (Warden's Cottage, east gate).`;
+  }
+  if (playerParty.creatures.length > standing) {
+    return "Bring a friend: heal your companions at the Moon Shrine altar or add one to your active party.";
+  }
+  return "Bring a friend: befriend another companion in Whisper Grove or Folklore Fields.";
+}
+
+/** HUD line for the rival beat: the friend nudge, or the rematch line after a loss (#369 review). */
 export function getStorySparNpcLine(): string | null {
   if (getActiveQuestId() !== "rival-wren" || active) {
     return null;
+  }
+  const nudge = getRivalFriendNudge();
+  if (nudge) {
+    return `Wren: ${nudge}`;
   }
   if (lostBeats.has("rival-wren")) {
     return "Wren: Not bad for a first try. Come back when you want a rematch.";

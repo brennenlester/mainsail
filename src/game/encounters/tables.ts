@@ -61,15 +61,18 @@ export const ZONE_ENCOUNTERS: Record<ZoneId, EncounterEntry[]> = {
     { id: "ember-wisp", weight: 50 },
     { id: "brook-nymph", weight: 50 },
   ],
-  village: [
-    { id: "brook-nymph", weight: 60 },
-    { id: "mossling", weight: 40 },
-  ],
-  // Late-game only — not in grove/shrine/village tables.
+  // Hearth Crossing is a safe town plaza (#411): no wild creatures, no codex habitat.
+  village: [],
+  // Story routes (#411): each route mixes 5-6 species that already have the
+  // new rendered art, so a walk is not one creature on repeat.
+  // Late-game signatures stay out of grove/shrine tables.
   overworld: [
     { id: "rootwalker", weight: 50 },
+    { id: "mossling", weight: 18 },
+    { id: "brook-nymph", weight: 14 },
     { id: "lantern-fox", weight: 12 },
     { id: "stone-hound", weight: 10 },
+    { id: "thunder-finch", weight: 8 },
   ],
   // Harbor shell: no wild table yet (boat/side-scroll follow-ups).
   harbor: [],
@@ -77,14 +80,19 @@ export const ZONE_ENCOUNTERS: Record<ZoneId, EncounterEntry[]> = {
   // Per-island rolls use creatureIdForIslandIndex via rollWildCreature.
   archipelago: ARCHIPELAGO_EXCLUSIVE_IDS.map((id) => ({ id, weight: 1 })),
   mistwood: [
-    { id: "thunder-finch", weight: 70 },
+    { id: "thunder-finch", weight: 45 },
+    { id: "rootwalker", weight: 22 },
     { id: "lantern-fox", weight: 10 },
     { id: "mist-serpent", weight: 8 },
+    { id: "bog-lantern", weight: 7 },
   ],
+  // Brook Nymph in the fen pools: a water answer to the Matriarch's Cinder form.
   emberfen: [
     { id: "peat-sprite", weight: 45 },
     { id: "cinder-toad", weight: 40 },
+    { id: "ember-wisp", weight: 14 },
     { id: "bog-lantern", weight: 12 },
+    { id: "brook-nymph", weight: 10 },
   ],
   // Cottage interiors are safe rooms: no wild creatures, no codex habitat.
   "warden-cottage": [],

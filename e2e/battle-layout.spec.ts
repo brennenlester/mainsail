@@ -187,8 +187,17 @@ for (const [label, won, key] of [
       (playerWon ? s.wild : s.player).currentHp = 0;
       s.endBattle(playerWon);
     }, won);
-    // The result card arms its keys after a beat.
-    await page.waitForTimeout(2500);
+    // The result card arms its keys after a beat; wait for that (bounded),
+    // then a single press must close it.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => (window as unknown as { __game: any }).__game.scene.getScene("BattleScene").data.get("resultArmed") === true,
+          ),
+        { timeout: 10_000 },
+      )
+      .toBe(true);
     await page.keyboard.press(key);
     await expect
       .poll(() =>

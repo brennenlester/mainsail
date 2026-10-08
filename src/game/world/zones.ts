@@ -85,6 +85,8 @@ const VILLAGE: ZoneDefinition = {
   width: VILLAGE_WIDTH,
   height: VILLAGE_HEIGHT,
   tiles: villageTiles,
+  // Town plaza: no wild encounters (#411), like the cottage interiors.
+  safe: true,
   lightTint: 0xf0d9b5,
   darkTint: 0xb58863,
   transitions: [

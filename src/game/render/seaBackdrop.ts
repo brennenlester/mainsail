@@ -35,10 +35,22 @@ export function drawSeaBackdrop(
   }
   const x0 = origin.x - Math.ceil((origin.x - bounds.minX + pad) / TILE_WIDTH) * TILE_WIDTH;
   const y0 = origin.y - Math.ceil((origin.y - bounds.minY + pad) / TILE_HEIGHT) * TILE_HEIGHT;
+  // A TileSprite allocates a blank canvas texture of its own size (#410): the
+  // Archipelago backdrop would be ~6.6k px square (~45 MPx). Build it at 1/8
+  // size and scale up; the tiles on screen are the same.
+  const shrink = 8;
   scene.add
-    .tileSprite(x0, y0, bounds.maxX + pad - x0, bounds.maxY + pad - y0, IMAGINE_ATLAS_KEY, SEA_BACKDROP_KEY)
+    .tileSprite(
+      x0,
+      y0,
+      Math.ceil((bounds.maxX + pad - x0) / shrink),
+      Math.ceil((bounds.maxY + pad - y0) / shrink),
+      IMAGINE_ATLAS_KEY,
+      SEA_BACKDROP_KEY,
+    )
     .setOrigin(0, 0)
-    .setTileScale(TILE_WIDTH / OCEAN_TILE_PX)
+    .setScale(shrink)
+    .setTileScale(TILE_WIDTH / OCEAN_TILE_PX / shrink)
     .setDepth(-1000);
   return true;
 }

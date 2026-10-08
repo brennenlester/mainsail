@@ -237,6 +237,7 @@ export function showBattleResultPanel(
   }
 
   let done = false;
+  scene.data.set("resultArmed", false);
   const keys = scene.input.keyboard;
   const onKey = (event: KeyboardEvent): void => {
     if (event.repeat || isDomKeyboardTarget(event.target as Element | null)) {
@@ -271,6 +272,8 @@ export function showBattleResultPanel(
   scene.time.delayedCall(mode.fast ? 150 : 600, () => {
     keys?.on("keydown", onKey);
     veil.on("pointerdown", close);
+    // Read by e2e (#410): the card is listening for Continue.
+    scene.data.set("resultArmed", true);
   });
 }
 

@@ -6,6 +6,7 @@ import {
   GROVE_ENCOUNTER_CHANCE,
   HABITAT_PROFILES,
   isInteriorZone,
+  isSafeZone,
   profilesEqual,
   VARIATION_ZONE_IDS,
 } from "./habitatProfiles";
@@ -57,7 +58,8 @@ describe("habitatProfiles", () => {
   });
 
   it("gives every non-interior habitat a profile distinct from DEFAULT and each other", () => {
-    expect(VARIATION_ZONE_IDS).toHaveLength(8);
+    expect(VARIATION_ZONE_IDS).toHaveLength(7);
+    expect(VARIATION_ZONE_IDS).not.toContain("village");
     for (const zoneId of VARIATION_ZONE_IDS) {
       expect(isInteriorZone(zoneId)).toBe(false);
       const profile = HABITAT_PROFILES[zoneId];
@@ -74,6 +76,29 @@ describe("habitatProfiles", () => {
     }
   });
 
+  it("marks Hearth Crossing and every interior safe, and no wild habitat (#411)", () => {
+    for (const zoneId of [
+      "village",
+      "warden-cottage",
+      "weaver-cottage",
+      "hearthkeep-cottage",
+      "hermit-cottage",
+    ] as const) {
+      expect(isSafeZone(zoneId), zoneId).toBe(true);
+    }
+    for (const zoneId of [
+      "grove",
+      "shrine",
+      "overworld",
+      "mistwood",
+      "emberfen",
+      "archipelago",
+      "harbor",
+    ] as const) {
+      expect(isSafeZone(zoneId), zoneId).toBe(false);
+    }
+  });
+
   it("skips interiors (DEFAULT fallback) and matches #268 per-habitat axes", () => {
     expect(isInteriorZone("warden-cottage")).toBe(true);
     expect(profilesEqual(getHabitatProfile("warden-cottage"), DEFAULT_PROFILE)).toBe(
@@ -85,9 +110,6 @@ describe("habitatProfiles", () => {
     });
     expect(HABITAT_PROFILES.shrine.resolution).toEqual({
       kind: "folkloreMatchup",
-    });
-    expect(HABITAT_PROFILES.village.verbs).toEqual({
-      kind: "withholdSparUnlessFirstSpar",
     });
     expect(HABITAT_PROFILES.overworld.aftermath).toEqual({ kind: "fleeFollow" });
     expect(HABITAT_PROFILES.mistwood.reveal).toEqual({
@@ -172,14 +194,9 @@ describe("habitatRuntime behaviors", () => {
     expect(resolveProfileBefriendChance("shrine", "tide-sovereign")).toBeNull();
   });
 
-  it("village withholds Spar until first-spar unlocks, then keeps it", () => {
-    const village = getHabitatProfile("village");
-    expect(shouldShowSparVerb(village, "mossling")).toBe(false);
-    questProgress["first-spar"] = "active";
-    expect(shouldShowSparVerb(village, "mossling")).toBe(true);
-    questProgress["first-spar"] = "complete";
-    expect(shouldShowSparVerb(village, "mossling")).toBe(true);
-    expect(shouldShowSparVerb(village, "tide-sovereign")).toBe(true);
+  it("always offers Spar in wild habitats (the village spar gate went with its table, #411)", () => {
+    expect(shouldShowSparVerb(getHabitatProfile("grove"), "mossling")).toBe(true);
+    expect(shouldShowSparVerb(getHabitatProfile("village"), "tide-sovereign")).toBe(true);
   });
 
   it("overworld Flee follow returns the same species once", () => {

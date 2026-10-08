@@ -4,9 +4,12 @@ import type { CreatureInstance } from "../creatures/types";
 import { setInventoryFromSnapshot } from "../inventory/playerInventory";
 import {
   beginStorySpar,
+  getStorySparNpcLine,
   resetStorySparForTest,
   resolveStorySpar,
 } from "../battle/storySpar";
+import { QUESTS } from "./quests";
+import { setBrynGroveStartersGifted, setVillageGateUnlocked } from "../world/worldState";
 import { playerParty } from "../creatures/party";
 import { FINALE_HATCHLING } from "./storySpars";
 import { FINALE_COMPLETE_EVENT } from "./finaleScene";
@@ -146,6 +149,44 @@ describe("rival conversation", () => {
     expect(rematch.prompt).toMatchObject({ kind: "challenge", label: "Rematch" });
     // Rematch escalation: a third creature and higher levels.
     expect(rematch.lines.join(" ")).toMatch(/Thunder Finch \(Lv 4\)/);
+  });
+
+  it("nudges a lone companion to Bryn's gift before the fight, and the gift clears it (#411)", () => {
+    restoreQuestProgress(progressAt("rival-wren"));
+    setVillageGateUnlocked(true, false);
+    setBrynGroveStartersGifted([]);
+    // Lone evolved Mossling line: Bryn has an Ember Wisp waiting.
+    const intro = talkTo(RIVAL_NPC_ID);
+    expect(intro.prompt).toMatchObject({ kind: "challenge", sparId: "rival-wren" });
+    expect(intro.lines.join(" ")).toMatch(/Bring a friend: Warden Bryn has an Ember Wisp for you/);
+    expect(getStorySparNpcLine()).toMatch(/^Wren: Bring a friend: Warden Bryn/);
+    expect(getStorySparNpcLine()).toMatch(/\(Warden's Cottage, east gate\)/);
+    // The static hint stays generic (never promises a gift Bryn no longer has).
+    expect(QUESTS["rival-wren"].hint).toMatch(/bring two/);
+    expect(QUESTS["rival-wren"].hint).not.toMatch(/Bryn/);
+
+    // Not a dead end: Bryn really gives it, and the nudge goes away.
+    const bryn = beginConversation(getNpcById("warden-bryn")!);
+    expect(bryn.lines.join(" ")).toMatch(/Ember Wisp/);
+    expect(playerParty.creatures).toHaveLength(2);
+    expect(talkTo(RIVAL_NPC_ID).lines.join(" ")).not.toMatch(/Bring a friend/);
+    expect(getStorySparNpcLine()).toBeNull();
+  });
+
+  it("points a lone companion at the bench or the Grove once Bryn has nothing left", () => {
+    restoreQuestProgress(progressAt("rival-wren"));
+    setVillageGateUnlocked(true, false);
+    setBrynGroveStartersGifted(["ember-wisp"]);
+    expect(talkTo(RIVAL_NPC_ID).lines.join(" ")).toMatch(/befriend another companion in Whisper Grove/);
+    // A rested-out second companion: heal or swap it in.
+    setPartyFromSnapshot(
+      [
+        { instanceId: "a", definitionId: "bramblewarden", speciesId: "mossling", currentHp: 20, level: 4, xp: 0 } as CreatureInstance,
+        { instanceId: "b", definitionId: "ember-wisp", speciesId: "ember-wisp", currentHp: 0, level: 4, xp: 0 } as CreatureInstance,
+      ],
+      3,
+    );
+    expect(talkTo(RIVAL_NPC_ID).lines.join(" ")).toMatch(/Moon Shrine altar/);
   });
 
   it("will not spar a fully fainted party (no free heal)", () => {

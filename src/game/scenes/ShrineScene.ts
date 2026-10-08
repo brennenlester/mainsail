@@ -5,11 +5,14 @@ import { getItemIconSrc, getItemName } from "../inventory/materials";
 import { getItemCount } from "../inventory/playerInventory";
 import { applyShrineFusion, getEligibleCreaturesForItem } from "../shrine/fusion";
 import { launchEvolutionScene } from "../evolution/launchEvolution";
+import { fetchLateImages, lateCreatureKeys, lateImageStatus } from "../render/lateAssets";
+import { hideLoadingVeil, showLoadingVeil } from "../ui/loadingVeil";
 import {
   applyEclipseFusion,
   applyGodFusion,
   findGodFusionParents,
   findHorizonFusionParents,
+  ECLIPSE_SOVEREIGN_ID,
   HORIZON_SOVEREIGN_ID,
   SOVEREIGN_SEAL_ID,
 } from "../shrine/godFusion";
@@ -432,9 +435,14 @@ export class ShrineScene extends Phaser.Scene {
       summary: string,
       label: string,
       run: () => { ok: boolean; message: string },
+      resultId: string,
     ): void => {
       host.append(el("p", "shrine-lead", summary));
-      const btn = createShrineButton(label, "primary", () => {
+      // Silently prefetch the new sovereign's art while the card is read
+      // (#410); it must be in before the sovereign joins the party.
+      const artKeys = lateCreatureKeys([resultId]);
+      void fetchLateImages(this.textures, artKeys);
+      const apply = (): void => {
         const result = run();
         this.setStatus(result.message);
         if (result.ok) {
@@ -443,6 +451,29 @@ export class ShrineScene extends Phaser.Scene {
           this.selectedItemId = null;
         }
         this.renderTabContent();
+      };
+      const btn = createShrineButton(label, "primary", () => {
+        if (artKeys.every((key) => lateImageStatus(this.textures, key) === "ready")) {
+          apply();
+          return;
+        }
+        // Still fetching (slow link) or failed earlier: veil above the panel,
+        // retrying a failed fetch. Nothing is consumed until the art is in.
+        btn.disabled = true;
+        showLoadingVeil("The seal awakens…");
+        void fetchLateImages(this.textures, artKeys, true).then((ok) => {
+          hideLoadingVeil();
+          // Esc / tab switch while loading cancels: keep the texture, spend nothing.
+          if (!this.panel || !this.sys.isActive() || !btn.isConnected) {
+            return;
+          }
+          btn.disabled = false;
+          if (!ok) {
+            this.setStatus("Couldn't reach the sovereign's art. Check your connection and press Fuse to retry.");
+            return;
+          }
+          apply();
+        });
       });
       btn.classList.add("sh-wide");
       host.append(btn);
@@ -464,6 +495,7 @@ export class ShrineScene extends Phaser.Scene {
             second.instanceId,
             SOVEREIGN_SEAL_ID,
           ),
+        ECLIPSE_SOVEREIGN_ID,
       );
       return;
     }
@@ -485,6 +517,7 @@ export class ShrineScene extends Phaser.Scene {
       `Tide Sovereign Lv.${tide.level} + Stone Sovereign Lv.${cairn.level}`,
       "Fuse into Horizon Sovereign",
       () => applyGodFusion(tide.instanceId, cairn.instanceId, SOVEREIGN_SEAL_ID),
+      HORIZON_SOVEREIGN_ID,
     );
   }
 

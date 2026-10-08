@@ -64,7 +64,7 @@ import {
   ENCOUNTER_TRAVEL_THRESHOLD,
   shouldAttemptWildEncounter,
 } from "../encounters/tables";
-import { getHabitatProfile } from "../encounters/habitatProfiles";
+import { getHabitatProfile, isSafeZone } from "../encounters/habitatProfiles";
 import {
   onZoneEnter,
   resolveWildEncounterCreature,
@@ -716,7 +716,14 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
     overworldEncounterPacer.walk(step);
-    if (isEncounterImmune(this.time.now)) {
+    const tileX = Math.round(this.playerGridX);
+    const tileY = Math.round(this.playerGridY);
+    const immune = isEncounterImmune(this.time.now);
+    const safeTile =
+      this.currentZoneId === "overworld" && isOverworldEncounterSafeTile(tileX, tileY);
+    // The dry spell counts only where a wild roll could happen (#411 review).
+    overworldEncounterPacer.walkRoute(step, { zoneId: this.currentZoneId, immune, safeTile });
+    if (immune) {
       return;
     }
     if (
@@ -726,15 +733,10 @@ export class IsometricScene extends Phaser.Scene {
     ) {
       return;
     }
-    if (isVisitorMode()) {
+    if (isVisitorMode() || isSafeZone(this.currentZoneId)) {
       return;
     }
-    const tileX = Math.round(this.playerGridX);
-    const tileY = Math.round(this.playerGridY);
-    if (
-      this.currentZoneId === "overworld" &&
-      isOverworldEncounterSafeTile(tileX, tileY)
-    ) {
+    if (safeTile) {
       return;
     }
     this.travelSinceEncounter += step;
@@ -757,7 +759,9 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
     const guaranteed =
-      scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
+      scripted !== null ||
+      shouldGuaranteeWildTrigger(profile, this.currentZoneId) ||
+      overworldEncounterPacer.routeEncounterDue(this.currentZoneId);
     if (
       !guaranteed &&
       !rollWildTriggerChance(profile, () => overworldEncounterPacer.random())
@@ -1689,16 +1693,21 @@ export class IsometricScene extends Phaser.Scene {
     canopyKey: string,
   ): void {
     const pad = 900;
+    // A TileSprite allocates (and uploads) a blank canvas texture of its own
+    // size even under WebGL; build it at 1/4 size and scale up so world start
+    // uploads ~0.4 MPx instead of ~6 MPx (#410). Same tiles on screen.
+    const shrink = 4;
     this.add
       .tileSprite(
         bounds.minX + bounds.width / 2,
         bounds.minY + bounds.height / 2,
-        bounds.width + pad * 2,
-        bounds.height + pad * 2,
+        (bounds.width + pad * 2) / shrink,
+        (bounds.height + pad * 2) / shrink,
         IMAGINE_ATLAS_KEY,
         canopyKey,
       )
-      .setTileScale(0.4)
+      .setScale(shrink)
+      .setTileScale(0.4 / shrink)
       .setTint(0xb4c0c4)
       .setDepth(-1000);
     this.drawEdgeVignette(bounds, pad);

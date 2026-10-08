@@ -82,14 +82,30 @@ let lastStepAt = 0;
 let unlocked = false;
 let hostScene: Phaser.Scene | null = null;
 
-export function preloadGameAudio(scene: Phaser.Scene): void {
+/**
+ * Boot audio phases (#410): the title needs only its theme and the UI click;
+ * everything else streams in behind the title screen.
+ */
+export type AudioBootPhase = "title" | "world" | "all";
+
+const TITLE_SFX: ReadonlySet<string> = new Set([SFX.uiClick]);
+const TITLE_MUSIC: ReadonlySet<string> = new Set([MUSIC_TRACKS.title.key]);
+
+export function preloadGameAudio(
+  scene: Phaser.Scene,
+  phase: AudioBootPhase = "all",
+): void {
   hostScene = scene;
+  const wanted = (titleAsset: boolean): boolean =>
+    phase === "all" || (phase === "title") === titleAsset;
   // Older stub SFX plus the #371 set; all under public/assets/audio.
   for (const key of getSfxKeys()) {
-    scene.load.audio(key, `assets/audio/${key}.wav`);
+    if (wanted(TITLE_SFX.has(key))) {
+      scene.load.audio(key, `assets/audio/${key}.wav`);
+    }
   }
   for (const cfg of Object.values(MUSIC_TRACKS)) {
-    if (!cfg.lazy) {
+    if (!cfg.lazy && wanted(TITLE_MUSIC.has(cfg.key))) {
       scene.load.audio(cfg.key, [...cfg.urls]);
     }
   }

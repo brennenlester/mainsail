@@ -27,6 +27,12 @@ export type StorySimSetup = {
   party: readonly string[];
   level: number;
   /**
+   * Per-member levels (same order as `party`) for mixed parties, e.g. an
+   * evolved Lv 4 lead plus Bryn's Lv 1 gift (#411). Defaults to `level` for
+   * everyone; the foe scales off the rounded average like the game does.
+   */
+  levels?: readonly number[];
+  /**
    * `guard-read`: casual play that only learned the boss lesson: max-damage,
    * except Guard into a telegraphed finisher (Cinderfall) when Guard is ready.
    */
@@ -56,15 +62,20 @@ function edge(mine: FolkloreType, theirs: FolkloreType): number {
 
 export function simulateStoryBattle(setup: StorySimSetup, seed: number): StorySimResult {
   const rng = seededRng(seed);
+  const levels = setup.party.map((_, i) => setup.levels?.[i] ?? setup.level);
+  const partyAverage = Math.max(
+    1,
+    Math.round(levels.reduce((sum, lv) => sum + lv, 0) / Math.max(1, levels.length)),
+  );
   const battle = new StoryBattle(getStorySpar(setup.sparId), {
-    partyAverage: setup.level,
+    partyAverage,
     partySize: setup.party.length,
     ward: setup.ward ?? 1,
     rematch: setup.rematch ?? false,
     maxLevel: MAX_LEVEL,
   });
-  const roster: BattleCombatant[] = setup.party.map((id) =>
-    primeOpeningCooldowns(simCombatant(id, setup.level)),
+  const roster: BattleCombatant[] = setup.party.map((id, i) =>
+    primeOpeningCooldowns(simCombatant(id, levels[i])),
   );
   const skilled = setup.policy === "skilled";
   let active = 0;
@@ -187,7 +198,7 @@ export function storyBattleStats(setup: StorySimSetup, seeds = 300): StorySimSta
   let transforms = 0;
   let parries = 0;
   let assists = 0;
-  const key = `${setup.sparId}|${setup.party.join("+")}|${setup.level}|${setup.rematch ? 1 : 0}`;
+  const key = `${setup.sparId}|${setup.party.join("+")}|${setup.levels?.join("/") ?? setup.level}|${setup.rematch ? 1 : 0}`;
   // Same seed stream with or without the ward, so the ward's effect is isolated.
   let base = 2166136261;
   for (let i = 0; i < key.length; i++) {
