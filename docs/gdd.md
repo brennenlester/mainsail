@@ -98,6 +98,8 @@ Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LO
 
 **Retention hook (stated):** companions feel more yours after shrine Growth unlocks; a little more map. Not “see every island / finish fusion.”
 
+**Post-game daily (#420): Eclipse Trials.** Unlocked by the finale. A UTC-day-seeded five-battle gauntlet (four foes at party average +0..+3, then the two-form Eclipse Shade boss) with 1-2 data-driven modifiers per round and a 1-of-3 boon pick between rounds; same plan for every player that day, and a share card + `?trial=` link turn it into a friend-vs-friend score race. Soft overworld rules hold: no befriend, faint ends the run, the party is restored exactly. Economy stays flat: once per day, Dust for 3+ rounds (7 max, top-up only) and a seeded rare-tint / small bond bonus on the first full clear. A fairness gate (headless sim) only ships days skilled reference parties clear 36-50% of the time. Rules and tuning: `src/game/trials/`, README "Eclipse Trials".
+
 ❌ **TBD:** explicit D1 / D7 / D30 retention design (what the second session, the week-later session, and the month-later session each promise). Content-gate intent is recorded; the calendar hooks are not.
 
 ---

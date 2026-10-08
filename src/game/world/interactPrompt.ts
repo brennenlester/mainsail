@@ -1,5 +1,7 @@
 export const INTERACT_PROMPT_PRIORITY = [
   "shrine",
+  // Eclipse Gate (#420): a post-game sigil in the Moon Shrine yard.
+  "eclipse",
   "door",
   "gate",
   "minigame",

@@ -36,6 +36,8 @@ import {
 } from "./game/share/cardPreview";
 import { initShareControls, setShareDisabled } from "./game/share/shareActions";
 import { bindCreatureArt } from "./game/ui/creatureArt";
+import { readTrialLink, type TrialLinkResult } from "./game/trials/trialShare";
+import { initEclipseTrialMenu } from "./game/trials/trialMenu";
 import { initHudLock } from "./game/ui/hudLock";
 
 function consumeNewParam(): void {
@@ -76,16 +78,32 @@ function readShareParamSafely(): ReturnType<typeof readShareParam> {
   }
 }
 
+/** `?trial=` (#420): any decode failure lands on the broken-link screen. */
+function readTrialLinkSafely(): TrialLinkResult {
+  try {
+    return readTrialLink(window.location.search);
+  } catch {
+    return { status: "invalid" };
+  }
+}
+
 const inviteResult = parseInviteParam();
 // ?join= always wins; a ?card= share link is only read without an invite.
 const shareResult =
   inviteResult.status === "absent" ? readShareParamSafely() : ({ status: "absent" } as const);
+// ?trial= is read only without an invite or a card link.
+const trialResult: TrialLinkResult =
+  inviteResult.status === "absent" && shareResult.status === "absent"
+    ? readTrialLinkSafely()
+    : { status: "absent" };
 if (inviteResult.status === "invalid") {
   // Blocking error — do not boot, clear saves, or write quest progress.
   showInvalidInviteScreen();
 } else if (shareResult.status === "invalid") {
   // Same rule for broken share cards: never boot from untrusted input.
   showInvalidCardScreen();
+} else if (trialResult.status === "invalid") {
+  void import("./game/trials/launchTrial").then((m) => m.showInvalidTrialScreen());
 } else {
   const params = new URLSearchParams(window.location.search);
   // Only honor ?new= when the URL carries no invite at all — a shared ?join=
@@ -103,21 +121,26 @@ if (inviteResult.status === "invalid") {
     setVisitorMode(true, inviteResult.snapshot.hostLabel);
     resumeHostPersist();
   } else {
-    if (shareResult.status === "ok") {
+    // Card / trial links (#368, #420) run in the same read-only sandbox.
+    const sandbox = shareResult.status === "ok" || trialResult.status === "ok";
+    if (sandbox) {
       // Card sandbox (#368): never resumed, so nothing this page does (incl.
-      // Challenge spar rewards) can reach the recipient's save.
+      // Challenge spar rewards, trial runs) can reach the recipient's save.
       suspendHostPersist();
     }
-    const saved = loadHostSave({ readOnly: shareResult.status === "ok" });
+    const saved = loadHostSave({ readOnly: sandbox });
     if (saved) {
       hasSave = true;
       restoreHostSave(saved);
     } else {
       initQuestProgress();
     }
-    if (shareResult.status === "ok") {
+    if (sandbox) {
       const challengerName = getPlayerName() ?? "Challenger";
-      setVisitorMode(true, `${shareResult.snapshot.name}'s card`);
+      setVisitorMode(
+        true,
+        shareResult.status === "ok" ? `${shareResult.snapshot.name}'s card` : "Eclipse Trial",
+      );
       setPlayerName(challengerName);
       setShareDisabled(true);
     }
@@ -132,7 +155,8 @@ if (inviteResult.status === "invalid") {
     // New Game (which wipes the save) is never reachable (#368).
     visitor:
       (invite !== null && isValidWorldSnapshot(invite)) ||
-      shareResult.status === "ok",
+      shareResult.status === "ok" ||
+      trialResult.status === "ok",
     newGame,
     devPreview: import.meta.env.DEV && hasDevPreviewParam(params),
   });
@@ -147,16 +171,20 @@ if (inviteResult.status === "invalid") {
   initShareControls(game);
   bindCreatureArt(game);
   initHudLock();
+  initEclipseTrialMenu(game);
   if (shareResult.status === "ok") {
     // Card links skip the title (route is "play") and never show the name intro.
     openCardPreview(game, shareResult.snapshot);
+  } else if (trialResult.status === "ok") {
+    const { day, brag } = trialResult;
+    void import("./game/trials/launchTrial").then((m) => m.openTrialPreview(game, day, brag));
   } else if (route === "play") {
     // TitleScene runs the name intro itself after New Game / Continue.
     initNameIntro(startOpeningBeat);
   }
 
   // ponytail: dev-only encounter preview via ?encounter=ember-wisp or ?spar=ember-wisp
-  if (import.meta.env.DEV && !invite && shareResult.status === "absent") {
+  if (import.meta.env.DEV && !invite && shareResult.status === "absent" && trialResult.status === "absent") {
     const previewParams = new URLSearchParams(window.location.search);
     const creatureId =
       previewParams.get("encounter") ?? previewParams.get("spar");

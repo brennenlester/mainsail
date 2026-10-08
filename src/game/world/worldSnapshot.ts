@@ -64,6 +64,7 @@ import {
   setVillageGateUnlocked,
 } from "./worldState";
 import { VILLAGE_CODE_GATE } from "./villageGate";
+import { getTrialRecordSnapshot, setTrialRecordFromSnapshot } from "../trials/trialState";
 import {
   evaluateCodexAchievement,
   getUnlockedAchievements,
@@ -217,6 +218,8 @@ export type WorldSnapshot = {
   party: CreatureInstance[];
   /** Resolved companion ability sites (#367). Optional for older saves. */
   companionSitesClaimed?: string[];
+  /** Eclipse Trial record (#420). Optional; repaired on apply, never rejected. */
+  eclipseTrials?: unknown;
   /** Active battle party instance ids (max 7). Optional for older saves. */
   activePartyIds?: string[];
   nextInstanceId: number;
@@ -1055,6 +1058,12 @@ function inferMooredDock(snapshot: WorldSnapshot): HarborDockId {
   return "west";
 }
 
+/** Only saves that ran a trial carry the field (#420). */
+function withTrialRecord(): Pick<WorldSnapshot, "eclipseTrials"> {
+  const trials = getTrialRecordSnapshot();
+  return trials ? { eclipseTrials: trials } : {};
+}
+
 export function exportWorldSnapshot(
   position: PendingWorldPosition,
   hostLabel = "Your world",
@@ -1099,6 +1108,7 @@ export function exportWorldSnapshot(
     eclipseFusionCompleted: worldState.eclipseFusionCompleted,
     questProgress: { ...questProgress },
     companionSitesClaimed: getClaimedSiteList(),
+    ...withTrialRecord(),
     party: structuredClone(playerParty.creatures),
     activePartyIds: [...playerParty.activeInstanceIds],
     nextInstanceId: getNextInstanceId(),
@@ -1234,6 +1244,7 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
       ? snapshot.companionSitesClaimed.filter(isCompanionSiteId)
       : [],
   );
+  setTrialRecordFromSnapshot(snapshot.eclipseTrials);
   setSovereignPlateActive(snapshot.sovereignPlateActive === true, false);
   setSparWinsBySpecies(snapshot.sparWinsBySpecies ?? {}, false);
   setFirstIslandLanded(snapshot.firstIslandLanded === true, false);

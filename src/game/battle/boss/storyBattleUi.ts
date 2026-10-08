@@ -30,7 +30,7 @@ export const BOSS_SCALE = 1.3;
 
 /** Ember arena PNGs ship standalone (not atlas frames) and load only for the boss. */
 export function storyArenaVariant(battle: StoryBattle): ArenaVariant {
-  return battle.def.theme === "boss" ? "ember" : "village";
+  return battle.def.arena ?? (battle.def.theme === "boss" ? "ember" : "village");
 }
 
 export function preloadStoryArena(scene: Phaser.Scene, variant: ArenaVariant): void {
@@ -337,12 +337,19 @@ export class StoryBattleUi {
         // Short on purpose: the plate must fit at phone width (#385 review).
         return "SIGNATURE · Guard!";
       case "charge":
-        return "winding up — Cinderfall NEXT turn. Save your Guard!";
+        return `winding up — ${this.signatureName()} NEXT turn. Save your Guard!`;
       case "stagger":
         return "reeling — exposed, your hits land harder!";
       default:
         return detail;
     }
+  }
+
+  /** The boss signature's move name ("Cinderfall"). */
+  private signatureName(): string {
+    const boss = this.battle.def.boss;
+    const kit = boss?.forms.flatMap((f) => f.kit) ?? [];
+    return kit.find((m) => m.id === boss?.signatureId)?.name ?? "Signature";
   }
 
   /** VS banner with the story title; returns ms until input. */
@@ -587,7 +594,7 @@ export class StoryBattleUi {
     }
     const s = this.scene;
     const text = s.add
-      .text(this.frame.banner.x, this.frame.intentY + 26 * this.frame.ui, "▲ CINDERFALL INCOMING — GUARD TO PARRY AND STAGGER HER ▲", {
+      .text(this.frame.banner.x, this.frame.intentY + 26 * this.frame.ui, `▲ ${this.signatureName().toUpperCase()} INCOMING — GUARD TO PARRY AND STAGGER HER ▲`, {
         color: "#ffe45a",
         backgroundColor: "#3a0c08e0",
         fontFamily: HUD_FONT,

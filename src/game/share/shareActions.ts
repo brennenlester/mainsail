@@ -87,18 +87,18 @@ export async function renderCardBlob(
   return canvasToPngBlob(canvas);
 }
 
-function downloadBlob(blob: Blob): void {
+export function downloadBlob(blob: Blob, fileName = CARD_FILE_NAME): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = CARD_FILE_NAME;
+  a.download = fileName;
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-async function copyLink(sheet: ShareSheet, url: string): Promise<void> {
+export async function copyLink(sheet: ShareSheet, url: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(url);
     sheet.status.textContent = "Link copied — send it to a friend.";
@@ -108,7 +108,7 @@ async function copyLink(sheet: ShareSheet, url: string): Promise<void> {
   }
 }
 
-function canShareFiles(file: File): boolean {
+export function canShareFiles(file: File): boolean {
   try {
     return (
       typeof navigator.share === "function" &&
@@ -120,7 +120,7 @@ function canShareFiles(file: File): boolean {
   }
 }
 
-function canCopyImage(): boolean {
+export function canCopyImage(): boolean {
   return (
     typeof ClipboardItem !== "undefined" &&
     typeof navigator.clipboard?.write === "function"

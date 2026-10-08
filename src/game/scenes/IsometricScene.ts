@@ -110,6 +110,7 @@ import { QUEST_ORDER } from "../story/quests";
 import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
+import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
 import { claimFinaleCard } from "../finale/finaleTrigger";
 import { playerParty } from "../creatures/party";
 import { consumeAchievementToast } from "../progression/achievements";
@@ -600,6 +601,7 @@ export class IsometricScene extends Phaser.Scene {
       unlockAudioFromGesture(this);
       if (
         !this.tryShrineInteract() &&
+        !this.tryEclipseGateInteract() &&
         !this.tryDoorInteract() &&
         !this.tryMinigameInteract() &&
         !this.tryNpcInteract() &&
@@ -1330,6 +1332,7 @@ export class IsometricScene extends Phaser.Scene {
     } else {
       this.drawZoneTiles(zone);
       this.drawProps(zone);
+      drawEclipseGate(this, zoneId, (x, y) => this.groundAt(x, y), depthForGridCell(ECLIPSE_GATE.x, ECLIPSE_GATE.y, PROP_LAYER));
     }
     this.drawNpcs(zone);
     this.drawPlacedBoat(zone);
@@ -2055,6 +2058,9 @@ export class IsometricScene extends Phaser.Scene {
     const gather = isVisitorMode() ? undefined : this.getNearbyGatherProp();
     const picked = pickInteractPrompt({
       shrine: shrine ? "Press E — Moon Shrine" : undefined,
+      eclipse: isNearEclipseGate(this.currentZoneId, Math.round(this.playerGridX), Math.round(this.playerGridY))
+        ? ECLIPSE_GATE_PROMPT
+        : undefined,
       door: door ? `Press E — ${door.label}` : undefined,
       minigame: minigame ? `Press E — ${minigame.title}` : undefined,
       npc: npc ? `Press E — Talk to ${npc.name}` : undefined,
@@ -2289,6 +2295,28 @@ export class IsometricScene extends Phaser.Scene {
     refreshPartyStatusLine();
     this.scene.pause();
     this.scene.launch("ShrineScene", { mode: "altar", notice });
+    return true;
+  }
+
+  /** Eclipse Gate (#420): today's Eclipse Trial; the trial scene pauses this one. */
+  private tryEclipseGateInteract(): boolean {
+    if (!isNearEclipseGate(this.currentZoneId, Math.round(this.playerGridX), Math.round(this.playerGridY))) {
+      return false;
+    }
+    this.shrinePrompt?.destroy();
+    this.shrinePrompt = undefined;
+    playShrineSfx(this);
+    // Hold still while the trial runtime loads (its own chunk); resume clears it.
+    this.inDialogue = true;
+    void import("../trials/launchTrial")
+      .then(({ launchEclipseTrial }) => {
+        if (!launchEclipseTrial(this)) {
+          this.inDialogue = false;
+        }
+      })
+      .catch(() => {
+        this.inDialogue = false;
+      });
     return true;
   }
 

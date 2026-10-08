@@ -97,4 +97,6 @@ export type BattleCombatant = {
   cooldowns?: Record<string, number>;
   /** Guard up: the next incoming hit is reduced. */
   guarding?: boolean;
+  /** Extra multiplier on hits taken while guarding (Eclipse Trial "Rootbound"). Missing = 1. */
+  guardTakenScale?: number;
 };

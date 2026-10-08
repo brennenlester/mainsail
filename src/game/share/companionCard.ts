@@ -42,7 +42,7 @@ function seededRandom(seed: string): () => number {
   };
 }
 
-function roundRect(
+export function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -59,7 +59,7 @@ function roundRect(
   ctx.closePath();
 }
 
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) {
     return text;
   }
@@ -172,7 +172,7 @@ function trimCrop(crop: SpriteCrop): SpriteCrop {
   return result;
 }
 
-function drawSparkle(
+export function drawSparkle(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -268,7 +268,7 @@ function drawTags(
   });
 }
 
-function drawCreatureArt(
+export function drawCreatureArt(
   ctx: CanvasRenderingContext2D,
   creature: ShareCreature,
   lookup: SpriteLookup,

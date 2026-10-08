@@ -17,7 +17,7 @@ import {
   storySparRoundLevel,
   type ChallengerScale,
   type BossForm,
-  type StorySparDefinition,
+  type StoryBattleDefinition,
   type StorySparRound,
 } from "../../story/storySpars";
 
@@ -54,13 +54,15 @@ export type StoryBattleOptions = {
   partySize: number;
   rematch: boolean;
   maxLevel: number;
+  /** Boss battle bulk kept through staggers (Eclipse Trial modifiers, #420). Default 1. */
+  bulk?: number;
 };
 
 /** "Intent detail" variants the UI explains in words. */
 export type IntentNote = "signature" | "charge" | "stagger" | null;
 
 export class StoryBattle {
-  readonly def: StorySparDefinition;
+  readonly def: StoryBattleDefinition;
   readonly rematch: boolean;
   readonly roster: readonly StorySparRound[];
   readonly level: number;
@@ -75,7 +77,7 @@ export class StoryBattle {
   /** Counters for the sim / tests. */
   readonly stats = { transforms: 0, signatures: 0, parries: 0, assists: 0 };
 
-  constructor(def: StorySparDefinition, options: StoryBattleOptions) {
+  constructor(def: StoryBattleDefinition, options: StoryBattleOptions) {
     this.def = def;
     this.options = options;
     this.rematch = options.rematch;
@@ -197,7 +199,7 @@ export class StoryBattle {
       moves: [...form.kit],
       folkloreType: form.type,
       damageScale: boss.damageScale * scale.damage * this.ward,
-      bulk: 1,
+      bulk: this.options.bulk ?? 1,
       cooldowns: {},
     };
   }
@@ -372,7 +374,7 @@ export class StoryBattle {
   private setStaggered(on: boolean): void {
     this.staggered = on;
     const exposure = this.def.boss?.staggerExposure ?? 1;
-    this.foe.bulk = on ? 1 / exposure : 1;
+    this.foe.bulk = (on ? 1 / exposure : 1) * (this.options.bulk ?? 1);
   }
 
   /**

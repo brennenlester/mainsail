@@ -56,6 +56,7 @@ describe("pickInteractPrompt", () => {
   it("lets each earlier kind beat the next in INTERACT_PROMPT_PRIORITY", () => {
     const labels = {
       shrine: "Press E — Moon Shrine",
+      eclipse: "Press E — Eclipse Gate",
       door: "Press E — Weaver's Cottage",
       gate: "Press E — Enter gate code",
       minigame: "Press E — Hearth Lots",
@@ -67,6 +68,7 @@ describe("pickInteractPrompt", () => {
     } as const;
     expect(INTERACT_PROMPT_PRIORITY).toEqual([
       "shrine",
+      "eclipse",
       "door",
       "gate",
       "minigame",
