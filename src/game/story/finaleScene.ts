@@ -16,14 +16,24 @@ export type StoryCue = "moonlight" | "embers" | "hatch" | "sea";
  */
 export const FINALE_COMPLETE_EVENT = "story:finale-complete";
 
-export type ScriptLine = { text: string; cue?: StoryCue };
+/** `narration`: a narrator line, not spoken by the NPC on the panel (#401). */
+export type ScriptLine = { text: string; cue?: StoryCue; narration?: boolean };
 
+/**
+ * The "hatch" line hands the stage to the hatch cutscene (finale/HatchScene)
+ * first; its text is the narration shown once the cutscene returns.
+ */
 export const SHRINE_FINALE: readonly ScriptLine[] = [
   { text: "You actually did it. The fen's gone quiet — first time in years.", cue: "moonlight" },
-  { text: "(You set the Matriarch's ember egg on the altar. It is still warm, and it is humming.)", cue: "embers" },
-  { text: "(Moonlight pools in the shrine's carved rings... and the shell splits.)", cue: "hatch" },
   {
-    text: `(A tiny Cinder Toad blinks up at you, glowing like a coal. ${FINALE_HATCHLING.nickname} joins your party — rare, with the Matriarch's spark in its Ember Spit.)`,
+    text: "You set the Matriarch's ember egg on the altar. It is still warm, and it is humming. Moonlight pools in the shrine's carved rings...",
+    cue: "embers",
+    narration: true,
+  },
+  {
+    text: `${FINALE_HATCHLING.nickname} blinks up at you, glowing like a coal — rare, with the Matriarch's spark in its Ember Spit.`,
+    cue: "hatch",
+    narration: true,
   },
   {
     text: "Hear that hum? The shrine is singing toward the sea. Reed, the old hermit on the far isle, says two Sovereigns sleep out there — Tide and Stone.",

@@ -52,14 +52,68 @@ const SANS = '"Source Sans 3", system-ui, sans-serif';
 const MOON = 0xbfe8ff;
 const GOLD = 0xffedb0;
 const TEAL = 0x8ed8cf;
-const BEAM_TEX = "evo-beam";
-const RAYS_TEX = "evo-rays";
+export const BEAM_TEX = "evo-beam";
+export const RAYS_TEX = "evo-rays";
 
 const STAGE_X = DESIGN_SIZE / 2;
 const STAGE_Y = 236;
 const SPRITE_BOX = 210;
 
 type Phase = "playing" | "done" | "leaving";
+
+/** Moon beam + light-ray canvases, shared with the finale hatch (#401). */
+export function ensureCutsceneTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists(BEAM_TEX)) {
+    const tex = scene.textures.createCanvas(BEAM_TEX, 96, 512);
+    if (tex) {
+      const ctx = tex.getContext();
+      const across = ctx.createLinearGradient(0, 0, 96, 0);
+      across.addColorStop(0, "rgba(255,255,255,0)");
+      across.addColorStop(0.5, "rgba(255,255,255,1)");
+      across.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = across;
+      ctx.fillRect(0, 0, 96, 512);
+      // Fade the top so the beam pours out of darkness.
+      ctx.globalCompositeOperation = "destination-in";
+      const down = ctx.createLinearGradient(0, 0, 0, 512);
+      down.addColorStop(0, "rgba(0,0,0,0)");
+      down.addColorStop(0.45, "rgba(0,0,0,0.85)");
+      down.addColorStop(1, "rgba(0,0,0,1)");
+      ctx.fillStyle = down;
+      ctx.fillRect(0, 0, 96, 512);
+      tex.refresh();
+    }
+  }
+  if (!scene.textures.exists(RAYS_TEX)) {
+    const size = 512;
+    const tex = scene.textures.createCanvas(RAYS_TEX, size, size);
+    if (tex) {
+      const ctx = tex.getContext();
+      const r = size / 2;
+      ctx.translate(r, r);
+      const rays = 14;
+      for (let i = 0; i < rays; i += 1) {
+        ctx.rotate((Math.PI * 2) / rays);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(r, -r * 0.09);
+        ctx.lineTo(r, r * 0.09);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.fill();
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = "destination-in";
+      const fade = ctx.createRadialGradient(r, r, 0, r, r, r);
+      fade.addColorStop(0, "rgba(0,0,0,1)");
+      fade.addColorStop(0.5, "rgba(0,0,0,0.45)");
+      fade.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, size, size);
+      tex.refresh();
+    }
+  }
+}
 
 export class EvolutionScene extends Phaser.Scene {
   private reveal!: GrowthReveal;
@@ -117,7 +171,7 @@ export class EvolutionScene extends Phaser.Scene {
     bindOverlayPixelRatio(this);
     ensureFxTextures(this);
     ensureCreatureTextures(this);
-    this.ensureStageTextures();
+    ensureCutsceneTextures(this);
     setMusicDuck(0.3);
     this.events.once("shutdown", () => setMusicDuck(1));
 
@@ -130,59 +184,6 @@ export class EvolutionScene extends Phaser.Scene {
   }
 
   // ---- Build ---------------------------------------------------------------
-
-  private ensureStageTextures(): void {
-    if (!this.textures.exists(BEAM_TEX)) {
-      const tex = this.textures.createCanvas(BEAM_TEX, 96, 512);
-      if (tex) {
-        const ctx = tex.getContext();
-        const across = ctx.createLinearGradient(0, 0, 96, 0);
-        across.addColorStop(0, "rgba(255,255,255,0)");
-        across.addColorStop(0.5, "rgba(255,255,255,1)");
-        across.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = across;
-        ctx.fillRect(0, 0, 96, 512);
-        // Fade the top so the beam pours out of darkness.
-        ctx.globalCompositeOperation = "destination-in";
-        const down = ctx.createLinearGradient(0, 0, 0, 512);
-        down.addColorStop(0, "rgba(0,0,0,0)");
-        down.addColorStop(0.45, "rgba(0,0,0,0.85)");
-        down.addColorStop(1, "rgba(0,0,0,1)");
-        ctx.fillStyle = down;
-        ctx.fillRect(0, 0, 96, 512);
-        tex.refresh();
-      }
-    }
-    if (!this.textures.exists(RAYS_TEX)) {
-      const size = 512;
-      const tex = this.textures.createCanvas(RAYS_TEX, size, size);
-      if (tex) {
-        const ctx = tex.getContext();
-        const r = size / 2;
-        ctx.translate(r, r);
-        const rays = 14;
-        for (let i = 0; i < rays; i += 1) {
-          ctx.rotate((Math.PI * 2) / rays);
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(r, -r * 0.09);
-          ctx.lineTo(r, r * 0.09);
-          ctx.closePath();
-          ctx.fillStyle = "rgba(255,255,255,0.9)";
-          ctx.fill();
-        }
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalCompositeOperation = "destination-in";
-        const fade = ctx.createRadialGradient(r, r, 0, r, r, r);
-        fade.addColorStop(0, "rgba(0,0,0,1)");
-        fade.addColorStop(0.5, "rgba(0,0,0,0.45)");
-        fade.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = fade;
-        ctx.fillRect(0, 0, size, size);
-        tex.refresh();
-      }
-    }
-  }
 
   private creatureImage(definitionId: string): Phaser.GameObjects.Image {
     const spriteKey = getCreatureDefinition(definitionId).spriteKey;

@@ -183,6 +183,11 @@ describe("rival conversation", () => {
     expect(sea).toBeGreaterThan(hatch);
     expect(getActiveQuestId()).toBeNull();
     expect(finale.endEvent).toBe(FINALE_COMPLETE_EVENT);
+    // The hatch line is the narrator's, not Wren's; the voyage hook is hers (#401).
+    expect(finale.narration).toHaveLength(finale.lines.length);
+    expect(finale.narration![hatch]).toBe(true);
+    expect(finale.narration![sea]).toBe(false);
+    expect(finale.narration![0]).toBe(false);
     const hatchlings = playerParty.creatures.filter(
       (c) => c.nickname === FINALE_HATCHLING.nickname,
     );
@@ -227,12 +232,16 @@ describe("boss conversation", () => {
     resolveStorySpar(false);
     const loss = talkTo(BOSS_NPC_ID);
     expect(loss.lines.join(" ")).toMatch(/patches everyone up/);
+    // "Wren hauls your party clear" is narration, never the Matriarch speaking (#401).
+    expect(loss.narration).toEqual(loss.lines.map(() => true));
+    expect(intro.narration).toEqual(intro.lines.map(() => true));
 
     beginStorySpar("cinder-matriarch");
     resolveStorySpar(true);
     const victory = talkTo(BOSS_NPC_ID);
     expect(victory.lines.join(" ")).toMatch(/ember egg/);
     expect(victory.lines.join(" ")).toMatch(/Moon Shrine/);
+    expect(victory.narration).toEqual(victory.lines.map(() => true));
     expect(getActiveQuestId()).toBe("shrine-finale");
   });
 });

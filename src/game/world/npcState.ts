@@ -71,6 +71,8 @@ export type Conversation = {
   cues?: (StoryCue | undefined)[];
   /** Game event emitted when the dialogue closes (scripted scene end). */
   endEvent?: string;
+  /** Per-line narrator flag: no speaker label, narration style (#401). */
+  narration?: boolean[];
 };
 
 let oddRestPurchased = false;
