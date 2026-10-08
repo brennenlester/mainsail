@@ -3,6 +3,7 @@ import {
   consumeStorySparOutcome,
   describeStorySparLineup,
   getHearthWard,
+  getRivalFriendNudge,
   grantCoverageGift,
 } from "../battle/storySpar";
 import { registerStoryNpcProvider, type NpcDefinition } from "../world/npcs";
@@ -175,6 +176,7 @@ function rivalConversation(): StoryConversation {
       outcome.healed
         ? "Here — I'm not cruel. (Wren patches up your whole party.)"
         : "No freebies twice. Rest up at Odd's hearth or bring tonics.",
+      ...[getRivalFriendNudge()].flatMap((nudge) => (nudge ? [`Two of mine, one of yours. ${nudge}`] : [])),
       "Come find me when you want another go.",
     ]);
   }
@@ -201,10 +203,13 @@ function rivalConversation(): StoryConversation {
     ]);
   }
   if (questProgress["rival-wren"] === "active") {
+    // #411: a lone companion is the first wall; say so before the fight.
+    const nudge = getRivalFriendNudge();
     return talk(
       [
         "So you're the one the Moon Shrine keeps humming about. I'm Wren — I've walked every path from here to the fens.",
         `One battle, my whole team, one after the other: ${describeStorySparLineup("rival-wren")}. No breather between them.`,
+        ...(nudge ? [`Just you and one companion? Against two of mine? ${nudge}`] : []),
         "Win, and I'll get the Mistwood path opened for you. Lose, and I'll patch you up and laugh.",
         ...wardLine("rival-wren"),
       ],

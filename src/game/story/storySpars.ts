@@ -164,10 +164,14 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
     // Rematch escalation: her storm finch joins, and everyone trained.
     rematchRounds: [{ creatureId: "thunder-finch", levelBonus: 0 }],
     rematchLevelBonus: 1,
+    // #411: gentle for the first gate. The old ×1.55 / ×1.22 duo scale made a
+    // second, weaker companion a liability at the real arrival level (Lv 4,
+    // one evolved): a friend must always help. Sim bands in
+    // storyBattleBalance.test.ts (arrival parties).
     challengerScale: [
       { hp: 1, damage: 1 },
-      { hp: 1.55, damage: 1.22 },
-      { hp: 1.85, damage: 1.32 },
+      { hp: 1.2, damage: 1.04 },
+      { hp: 1.4, damage: 1.1 },
     ],
     rematchChallengerScale: [
       { hp: 1, damage: 1 },

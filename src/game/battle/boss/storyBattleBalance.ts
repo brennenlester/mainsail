@@ -21,9 +21,30 @@ export const STORY_PARTIES = {
 
 export type StoryPartySize = keyof typeof STORY_PARTIES;
 
+/**
+ * Typical party at Wren's arrival (#411 release-gate playthrough): one
+ * required spar (70 XP) puts the lead at Lv 4, the evolution beat evolves it,
+ * and the friend is Bryn's Lv 1 Grove gift or a befriended Lv 4 companion.
+ * Wren's level follows the rounded party average, like the game.
+ */
+export const WREN_ARRIVAL_PARTIES: readonly { party: readonly string[]; levels: readonly number[] }[] = [
+  { party: ["bramblewarden", "ember-wisp"], levels: [4, 1] },
+  { party: ["hearthflame", "mossling"], levels: [4, 1] },
+  { party: ["bramblewarden", "ember-wisp"], levels: [4, 4] },
+  { party: ["hearthflame", "mossling"], levels: [4, 4] },
+  { party: ["bramblewarden", "brook-nymph"], levels: [4, 4] },
+];
+
+/** The same leads alone: what the "bring a friend" nudge is for. */
+export const WREN_LONE_PARTIES: readonly { party: readonly string[]; levels: readonly number[] }[] = [
+  { party: ["bramblewarden"], levels: [4] },
+  { party: ["hearthflame"], levels: [4] },
+];
+
 /** Expected party level when each beat is reached on a ~20 minute cold run. */
 export const EXPECTED_LEVEL: Readonly<Record<StorySparId, number>> = {
-  "rival-wren": 6,
+  // #411: one required spar (70 XP) puts the arrival party at Lv 4.
+  "rival-wren": 4,
   "cinder-matriarch": 8,
 };
 

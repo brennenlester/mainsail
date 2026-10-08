@@ -64,7 +64,7 @@ import {
   ENCOUNTER_TRAVEL_THRESHOLD,
   shouldAttemptWildEncounter,
 } from "../encounters/tables";
-import { getHabitatProfile } from "../encounters/habitatProfiles";
+import { getHabitatProfile, isSafeZone } from "../encounters/habitatProfiles";
 import {
   onZoneEnter,
   resolveWildEncounterCreature,
@@ -704,7 +704,14 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
     overworldEncounterPacer.walk(step);
-    if (isEncounterImmune(this.time.now)) {
+    const tileX = Math.round(this.playerGridX);
+    const tileY = Math.round(this.playerGridY);
+    const immune = isEncounterImmune(this.time.now);
+    const safeTile =
+      this.currentZoneId === "overworld" && isOverworldEncounterSafeTile(tileX, tileY);
+    // The dry spell counts only where a wild roll could happen (#411 review).
+    overworldEncounterPacer.walkRoute(step, { zoneId: this.currentZoneId, immune, safeTile });
+    if (immune) {
       return;
     }
     if (
@@ -714,15 +721,10 @@ export class IsometricScene extends Phaser.Scene {
     ) {
       return;
     }
-    if (isVisitorMode()) {
+    if (isVisitorMode() || isSafeZone(this.currentZoneId)) {
       return;
     }
-    const tileX = Math.round(this.playerGridX);
-    const tileY = Math.round(this.playerGridY);
-    if (
-      this.currentZoneId === "overworld" &&
-      isOverworldEncounterSafeTile(tileX, tileY)
-    ) {
+    if (safeTile) {
       return;
     }
     this.travelSinceEncounter += step;
@@ -745,7 +747,9 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
     const guaranteed =
-      scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
+      scripted !== null ||
+      shouldGuaranteeWildTrigger(profile, this.currentZoneId) ||
+      overworldEncounterPacer.routeEncounterDue(this.currentZoneId);
     if (
       !guaranteed &&
       !rollWildTriggerChance(profile, () => overworldEncounterPacer.random())

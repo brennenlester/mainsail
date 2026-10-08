@@ -61,4 +61,9 @@ export type ZoneDefinition = {
   doors?: ZoneDoor[];
   /** True for cottage interiors — used for framing and safety rules. */
   interior?: boolean;
+  /**
+   * Safe zone (#411): no wild encounters roll here (town plaza). Interiors
+   * are always safe; see `isSafeZone`.
+   */
+  safe?: boolean;
 };

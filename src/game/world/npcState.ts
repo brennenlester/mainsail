@@ -11,9 +11,9 @@ import {
   getHorizonFusionCount,
   MAX_HORIZON_FUSIONS,
   markCreatureDiscovered,
-  type BrynGroveStarterId,
   worldState,
 } from "./worldState";
+import { nextBrynGroveStarter } from "./brynGift";
 import { notifyWorldChanged } from "./worldSaveSchedule";
 import { isVisitorMode } from "./worldSession";
 import { ALL_NPC_IDS, type NpcDefinition, type NpcGift } from "./npcs";
@@ -46,14 +46,6 @@ const sideQuestStatus = new Map<SideQuestId, SideQuestStatus>();
 
 const ODD_NPC_ID = "hearthkeep-odd";
 const BRYN_NPC_ID = "warden-bryn";
-const GROVE_STARTER_ORDER: readonly BrynGroveStarterId[] = [
-  "mossling",
-  "ember-wisp",
-];
-const GROVE_STARTER_LINE: Record<BrynGroveStarterId, readonly string[]> = {
-  mossling: ["mossling", "bramblewarden"],
-  "ember-wisp": ["ember-wisp", "hearthflame"],
-};
 const ODD_REST_MATERIALS = ["wood", "wild-fiber", "pebble"] as const;
 export const ODD_REST_FIRST_COST = 5;
 export const ODD_REST_REPEAT_COST = 5;
@@ -341,23 +333,12 @@ export function confirmOddRest(): string[] {
   return ["There. Whole again. The hearth does not mind the work."];
 }
 
-function partyHasGroveLine(starterId: BrynGroveStarterId): boolean {
-  const ids = GROVE_STARTER_LINE[starterId];
-  return playerParty.creatures.some(
-    (creature) =>
-      ids.includes(creature.definitionId) || ids.includes(creature.speciesId),
-  );
-}
-
 /** Host-only Grove starter from Bryn after the village gate opens (#349). */
 function tryGrantBrynGroveStarter(npc: NpcDefinition): string | null {
-  if (npc.id !== BRYN_NPC_ID || isVisitorMode() || !worldState.villageGateUnlocked) {
+  if (npc.id !== BRYN_NPC_ID) {
     return null;
   }
-  const next = GROVE_STARTER_ORDER.find(
-    (id) =>
-      !worldState.brynGroveStartersGifted.includes(id) && !partyHasGroveLine(id),
-  );
+  const next = nextBrynGroveStarter();
   if (!next) {
     return null;
   }
