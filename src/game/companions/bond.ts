@@ -47,6 +47,14 @@ export const BOND_GAIN = {
   evolution: 12,
 } as const;
 
+/**
+ * Anti-grind (#417): wild-spar gain is halved once a creature is past Close
+ * (tier 2), and spar + gift bond per creature is capped per local day.
+ * Story wins, evolutions and ability first-claims are exempt: they are one-shots.
+ */
+export const BOND_HALVED_ABOVE_TIER: BondTier = 2;
+export const BOND_DAILY_CAP = 60;
+
 /** Outgoing damage multiplier per tier (small: flavor, not a power spike). */
 const BOND_DAMAGE_SCALE: readonly number[] = [1, 1.02, 1.04, 1.06, 1.08];
 
@@ -134,6 +142,45 @@ const pendingTierUps: BondTierUp[] = [];
 
 export type BondTickResult = { gained: number; tierUp?: BondTier };
 
+export type BondTickOptions = {
+  /** Count against (and respect) the per-day cap: wild spars and gifts. */
+  capped?: boolean;
+  /** Halve the gain when the creature is already above this tier. */
+  halveAboveTier?: BondTier;
+  /** Clock for the daily cap (tests). */
+  now?: Date;
+};
+
+/** Local calendar date, e.g. "2026-10-08": the daily cap resets when it changes. */
+export function localDay(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** Spar + gift points this creature can still earn today. */
+export function bondRoomToday(
+  creature: Pick<CreatureInstance, "bondToday">,
+  now: Date = new Date(),
+): number {
+  const today = creature.bondToday;
+  return today && today.day === localDay(now) ? Math.max(0, BOND_DAILY_CAP - today.points) : BOND_DAILY_CAP;
+}
+
+/**
+ * Lenient load for the saved daily tally: a bad shape is dropped, points are
+ * clamped into 0..BOND_DAILY_CAP.
+ */
+export function coerceBondToday(raw: unknown): { day: string; points: number } | undefined {
+  if (typeof raw !== "object" || raw === null) {
+    return undefined;
+  }
+  const { day, points } = raw as { day?: unknown; points?: unknown };
+  if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day) || typeof points !== "number" || !Number.isFinite(points)) {
+    return undefined;
+  }
+  return { day, points: Math.max(0, Math.min(BOND_DAILY_CAP, Math.floor(points))) };
+}
+
 /**
  * Add bond to a creature. Returns the points gained and the new tier when a
  * threshold was crossed (also queued for the overworld celebration).
@@ -142,10 +189,22 @@ export function addBond(
   creature: CreatureInstance,
   base: number,
   source: BondSource,
+  options: BondTickOptions = {},
 ): BondTickResult {
   const before = clampBond(creature.bond ?? 0);
-  const gain = bondGainFor(base, source, creature.personality);
+  let gain = bondGainFor(base, source, creature.personality);
+  if (options.halveAboveTier !== undefined && bondTier(before) > options.halveAboveTier) {
+    gain = Math.max(1, Math.floor(gain / 2));
+  }
+  if (options.capped) {
+    gain = Math.min(gain, bondRoomToday(creature, options.now));
+  }
   const after = clampBond(before + gain);
+  if (options.capped && after > before) {
+    const day = localDay(options.now);
+    const used = creature.bondToday?.day === day ? creature.bondToday.points : 0;
+    creature.bondToday = { day, points: used + (after - before) };
+  }
   creature.bond = after;
   const tierBefore = bondTier(before);
   const tierAfter = bondTier(after);
@@ -160,12 +219,14 @@ export function addBond(
 export function tickBattleBond(
   actives: readonly CreatureInstance[],
   fighterIndex: number,
+  now?: Date,
 ): void {
   actives.forEach((creature, i) => {
     addBond(
       creature,
       i === fighterIndex ? BOND_GAIN.battleFighter : BOND_GAIN.battleBench,
       "battle",
+      { capped: true, halveAboveTier: BOND_HALVED_ABOVE_TIER, now },
     );
   });
 }

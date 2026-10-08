@@ -12,7 +12,7 @@ import { getMaterialName } from "../inventory/materials";
 import { capCodePoints, cleanDisplayText } from "../world/displayText";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { getCompanionSite, isCompanionSiteId } from "./abilities";
-import { addBond, BOND_GAIN, type BondTickResult } from "./bond";
+import { addBond, BOND_GAIN, bondRoomToday, type BondTickResult } from "./bond";
 import { getFavoriteMaterial } from "./favorites";
 
 const claimedSites = new Set<string>();
@@ -64,8 +64,6 @@ export const GIFT_COST = 2;
 /** Per-creature pause between gifts so bond can't be spammed in one sitting. */
 export const GIFT_COOLDOWN_MS = 20_000;
 
-const lastGiftAt = new Map<string, number>();
-
 export type GiftCheck =
   | { ok: true; materialId: string }
   | { ok: false; reason: string; materialId: string };
@@ -76,10 +74,14 @@ export function speciesOf(creature: Pick<CreatureInstance, "speciesId" | "defini
 
 export function canGift(creature: CreatureInstance, now = Date.now()): GiftCheck {
   const materialId = getFavoriteMaterial(speciesOf(creature));
-  const since = now - (lastGiftAt.get(creature.instanceId) ?? -Infinity);
+  // The cooldown lives on the creature so a reload does not skip it (#417).
+  const since = now - (creature.lastGiftAt ?? -Infinity);
   if (since < GIFT_COOLDOWN_MS) {
     const s = Math.ceil((GIFT_COOLDOWN_MS - since) / 1000);
     return { ok: false, reason: `Still savoring the last one (${s}s).`, materialId };
+  }
+  if (bondRoomToday(creature, new Date(now)) <= 0) {
+    return { ok: false, reason: "Full of affection for today. Try again tomorrow.", materialId };
   }
   if (getMaterialCount(materialId) < GIFT_COST) {
     return {
@@ -100,8 +102,8 @@ export function giftFavorite(
     return { ok: false, reason: check.reason };
   }
   consumeMaterial(check.materialId, GIFT_COST);
-  lastGiftAt.set(creature.instanceId, now);
-  const result = addBond(creature, BOND_GAIN.gift, "gift");
+  creature.lastGiftAt = now;
+  const result = addBond(creature, BOND_GAIN.gift, "gift", { capped: true, now: new Date(now) });
   notifyWorldChanged();
   return { ok: true, ...result };
 }
@@ -109,7 +111,6 @@ export function giftFavorite(
 /** Test hook. */
 export function resetCompanionStateForTests(): void {
   claimedSites.clear();
-  lastGiftAt.clear();
 }
 
 // ---- Nicknames -----------------------------------------------------------

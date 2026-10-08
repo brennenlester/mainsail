@@ -13,7 +13,7 @@ import {
 } from "../world/worldSnapshot";
 import { resetPlayerNameForTest } from "../world/playerName";
 import { setVisitorMode } from "../world/worldSession";
-import { BOND_MAX } from "./bond";
+import { BOND_DAILY_CAP, BOND_MAX } from "./bond";
 import {
   getClaimedSites,
   resetCompanionStateForTests,
@@ -155,6 +155,44 @@ describe("companion save migration (#367)", () => {
     ).toBe(true);
     applyWorldSnapshot(legacySnapshot({ companionSitesClaimed: "fields-brush" as never }));
     expect(getClaimedSites().size).toBe(0);
+  });
+
+  it("round-trips the gift cooldown stamp and the daily bond tally (#417)", () => {
+    const stamp = Date.now() - 5_000;
+    applyWorldSnapshot(
+      legacySnapshot({
+        party: [member({ bond: 30, lastGiftAt: stamp, bondToday: { day: "2026-10-08", points: 44 } })],
+      }),
+    );
+    const exported = exportWorldSnapshot({ zoneId: "grove", x: 5, y: 5 });
+    expect(isValidWorldSnapshot(exported)).toBe(true);
+    expect(exported.party[0]).toMatchObject({ lastGiftAt: stamp, bondToday: { day: "2026-10-08", points: 44 } });
+    // Old saves have neither field: still loads, nothing invented.
+    applyWorldSnapshot(legacySnapshot());
+    expect(playerParty.creatures[0]).not.toHaveProperty("lastGiftAt");
+    expect(playerParty.creatures[0]).not.toHaveProperty("bondToday");
+  });
+
+  it("repairs hostile gift stamps and daily tallies instead of rejecting the save (#417)", () => {
+    const hostile = legacySnapshot({
+      party: [
+        member({ lastGiftAt: Date.now() + 86_400_000, bondToday: { day: "yesterday", points: 5 } }),
+        member({ instanceId: "c-2", lastGiftAt: "soon" as never, bondToday: { day: "2026-10-08", points: 9999 } }),
+        member({ instanceId: "c-3", lastGiftAt: -4, bondToday: { day: "2026-10-08", points: Number.NaN } }),
+        member({ instanceId: "c-4", bondToday: 7 as never }),
+      ],
+    });
+    expect(isValidWorldSnapshot(hostile)).toBe(true);
+    applyWorldSnapshot(hostile);
+    const [a, b, c, d] = playerParty.creatures;
+    // A stamp from the future would lock gifting: dropped.
+    expect(a!.lastGiftAt).toBeUndefined();
+    expect(a!.bondToday).toBeUndefined();
+    expect(b!.lastGiftAt).toBeUndefined();
+    expect(b!.bondToday).toEqual({ day: "2026-10-08", points: BOND_DAILY_CAP });
+    expect(c!.lastGiftAt).toBeUndefined();
+    expect(c!.bondToday).toBeUndefined();
+    expect(d!.bondToday).toBeUndefined();
   });
 
   it("saves an islet stand as the ford shore (rollback-safe)", () => {
