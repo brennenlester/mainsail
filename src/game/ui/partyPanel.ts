@@ -13,6 +13,7 @@ import type { CreatureInstance } from "../creatures/types";
 import { refreshPartyStatusLine } from "./statusPanel";
 import { popOverlay, pushOverlay } from "./overlayStack";
 import { isVisitorMode } from "../world/worldSession";
+import { isRareVariant } from "../share/rareVariant";
 import {
   BOND_MAX,
   bondTier,
@@ -153,7 +154,8 @@ function creatureRowLabel(creature: CreatureInstance): string {
   const name = creature.nickname ? `${creature.nickname} (${def.name})` : def.name;
   const trait = creature.personality ? ` · ${getPersonality(creature.personality).label}` : "";
   const hearts = "♥".repeat(bondTier(creature.bond));
-  return `${name} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)${trait}${hearts ? ` ${hearts}` : ""}`;
+  const rare = isRareVariant(creature) ? " ✦" : "";
+  return `${name}${rare} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)${trait}${hearts ? ` ${hearts}` : ""}`;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(

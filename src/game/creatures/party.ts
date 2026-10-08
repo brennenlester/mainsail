@@ -13,6 +13,7 @@ import { formatTraitLabel, rollSignatureTrait } from "./traits";
 import { personalitySeed, rollPersonality } from "../companions/personality";
 import { getPlayerName } from "../world/playerName";
 import type { CreatureInstance } from "./types";
+import { rollRareVariant } from "../share/rareVariant";
 
 /** Battle-ready party slots. Creatures beyond this live in reserve. */
 export const ACTIVE_PARTY_LIMIT = 7;
@@ -123,6 +124,9 @@ function addToPartyWithHp(
       personalitySeed(getPlayerName(), instanceId, definitionId),
     ),
   };
+  if (rollRareVariant()) {
+    instance.rare = true;
+  }
   const maxHp = getEffectiveMaxHp(instance);
   instance.currentHp =
     currentHp === "full"
@@ -166,10 +170,14 @@ export function removeFromParty(instanceId: string): boolean {
   return true;
 }
 
-/** Add a fused species at a set level with full HP and no shrine bonuses. */
+/**
+ * Add a fused species at a set level with full HP and no shrine bonuses.
+ * `rare` carries the rare variant through when either parent was rare (#368).
+ */
 export function addFusedCreature(
   definitionId: string,
   level: number,
+  options: { rare?: boolean } = {},
 ): CreatureInstance {
   const def = getCreatureDefinition(definitionId);
   const clampedLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
@@ -186,6 +194,9 @@ export function addFusedCreature(
       personalitySeed(getPlayerName(), instanceId, definitionId),
     ),
   };
+  if (options.rare) {
+    instance.rare = true;
+  }
   instance.currentHp = getEffectiveMaxHp(instance);
   playerParty.creatures.push(instance);
   if (playerParty.activeInstanceIds.length < ACTIVE_PARTY_LIMIT) {

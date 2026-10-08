@@ -5,6 +5,7 @@ import {
   personalityFollowerOffset,
 } from "../companions/personality";
 import { FX_TEX } from "./fx/fxTextures";
+import { isRareVariant, rareVariantTint } from "../share/rareVariant";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { getActiveCreatures } from "../creatures/party";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
@@ -130,6 +131,8 @@ function syncFollowerVisual(
 
   if (hasPresenceGrowth(creature)) {
     sprite.setTint(presenceTintForCreature(creature));
+  } else if (isRareVariant(creature)) {
+    sprite.setTint(rareVariantTint(creature.definitionId));
   } else {
     sprite.clearTint();
   }

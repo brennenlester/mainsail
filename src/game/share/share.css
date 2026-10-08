@@ -1,0 +1,182 @@
+/* Companion Card share sheet + ?card= preview (#368). Navy / cream / gold. */
+
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the quest HUD (50) and recipe/shrine overlays. */
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at 50% 0%, #1a3048 0%, #0d1a2e 70%);
+  font-family: "Source Sans 3", sans-serif;
+  overflow-y: auto;
+}
+
+.share-overlay[hidden] {
+  display: none !important;
+}
+
+.share-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(440px, 100%);
+  max-height: 100%;
+  text-align: center;
+}
+
+.share-title {
+  margin: 0;
+  color: #fff8ec;
+  font-family: Fraunces, serif;
+  font-size: clamp(22px, 5vw, 30px);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.share-sub {
+  margin: -6px 0 0;
+  color: #e8d8c0;
+  font-size: 15px;
+}
+
+.share-card-img {
+  display: block;
+  width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+  border-radius: 14px;
+  box-shadow: 0 14px 40px #00000080;
+  background: #1a3048;
+  aspect-ratio: 4 / 5;
+}
+
+.share-card-img[hidden] {
+  display: none;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.share-btn {
+  border: 2px solid #f0c878;
+  background: transparent;
+  color: #fff8ec;
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.share-btn:hover {
+  background: #f0c87822;
+}
+
+.share-btn:focus-visible {
+  outline: 2px solid #fff8ec;
+  outline-offset: 2px;
+}
+
+.share-btn[hidden] {
+  display: none;
+}
+
+.share-btn--primary {
+  background: #f0c878;
+  color: #1a3048;
+}
+
+.share-btn--primary:hover {
+  background: #f6d898;
+}
+
+.share-btn--quiet {
+  border-color: #fff8ec44;
+  color: #e8d8c0;
+}
+
+.share-status {
+  min-height: 1.3em;
+  margin: 0;
+  color: #f0c878;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.share-link-input {
+  width: 100%;
+  border: 1px solid #fff8ec44;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff8ec10;
+  color: #fff8ec;
+  font-size: 13px;
+}
+
+.share-link-input[hidden] {
+  display: none;
+}
+
+.share-note {
+  margin: 0;
+  color: #e8d8c0aa;
+  font-size: 13px;
+}
+
+.share-banner {
+  position: fixed;
+  left: 50%;
+  top: 16px;
+  z-index: 75;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border: 2px solid #f0c878;
+  border-radius: 999px;
+  background: #1a3048f0;
+  color: #fff8ec;
+  font-family: Fraunces, serif;
+  font-size: 16px;
+  font-weight: 700;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+
+.share-banner[hidden] {
+  display: none;
+}
+
+.status-share-btn {
+  border: 2px solid #d8b060;
+  background: #fff4dc;
+  color: #6a4a10;
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.status-share-btn:hover {
+  background: #ffeac0;
+}
+
+.status-share-btn:focus-visible {
+  outline: 2px solid #d8b060;
+  outline-offset: 2px;
+}
+
+.status-share-btn[hidden] {
+  display: none;
+}

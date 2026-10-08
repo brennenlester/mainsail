@@ -26,7 +26,7 @@ export function normalizeInviteSailingSnapshot(snapshot: WorldSnapshot): void {
   };
 }
 
-function toBase64Url(value: string): string {
+export function toBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = "";
   for (const byte of bytes) {
@@ -35,7 +35,7 @@ function toBase64Url(value: string): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function fromBase64Url(value: string): string {
+export function fromBase64Url(value: string): string {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");
   const padLength = (4 - (padded.length % 4)) % 4;
   const base64 = padded + "=".repeat(padLength);
