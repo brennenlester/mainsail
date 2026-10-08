@@ -243,6 +243,7 @@ import { floorTintAt } from "../render/fx/floorTint";
 import { HORIZON_HEIGHT, drawHorizon, drawSeaBackdrop, teardownHorizon } from "../render/seaBackdrop";
 import { IslandBakes } from "../render/islandBake";
 import { islandBakeScale } from "../render/islandBakePlan";
+import { drawEdgeVignette as drawEdgeVignetteImage, removeEdgeVignetteTexture } from "../render/edgeVignette";
 import {
   floorVariantKey,
   nearShore,
@@ -253,6 +254,9 @@ import {
 
 const FLOOR_LAYER = 0;
 const PROP_LAYER = 0.45;
+/** Average colour of the Harbor's tile sea, for the vignette halo over the backdrop. */
+const HARBOR_SEA_TONE = [80, 149, 187] as const;
+
 /** World px trimmed from zone bounds when fitting zoom (80px canopy margin → 32). */
 const ZONE_FIT_TRIM = 96;
 /** Highest CSS-px zoom for a zone (interiors on big monitors). */
@@ -1210,7 +1214,7 @@ export class IsometricScene extends Phaser.Scene {
     }
 
     if (result.grew) {
-      this.islandBakes.clear();
+      this.islandBakes.invalidate();
     }
     // Growth rebuilds every island at once (nothing may pop in); plain
     // streaming queues them across frames (#417).
@@ -1314,6 +1318,7 @@ export class IsometricScene extends Phaser.Scene {
       }
     }
     this.children.removeAll(true);
+    removeEdgeVignetteTexture(this);
     destroyPartyOverworldFollowers(this.partyFollowers);
     this.partyFollowers = createPartyOverworldFollowerState();
     this.shrinePrompt = undefined;
@@ -1693,7 +1698,8 @@ export class IsometricScene extends Phaser.Scene {
       if (zone.id === "archipelago") {
         drawHorizon(this, this.worldOrigin.y, bounds.minX, bounds.maxX);
       } else {
-        this.drawEdgeVignette(bounds, 900);
+        // Tile-sea tone fades out over the darker deep-water backdrop.
+        this.drawEdgeVignette(bounds, 900, HARBOR_SEA_TONE);
       }
       return;
     }
@@ -1747,37 +1753,17 @@ export class IsometricScene extends Phaser.Scene {
   private drawEdgeVignette(
     bounds: ReturnType<IsometricScene["getZoneWorldBounds"]>,
     pad: number,
+    haloRgb?: readonly [number, number, number],
   ): void {
     // Soft navy vignette: deepens with distance from the tile edge (bounds
-    // carry an 80px margin around the tiles).
-    const edge = {
-      minX: bounds.minX + 80,
-      minY: bounds.minY + 80,
-      maxX: bounds.maxX - 80,
-      maxY: bounds.maxY - 80,
-      width: bounds.width - 160,
-      height: bounds.height - 160,
-    };
-    const v = this.add.graphics().setDepth(-999);
-    // The camera only shows ~80px past the tiles, so the falloff is tight.
-    const ring = 6; // thin rings: a smooth falloff instead of 7 visible bands (#412)
-    const rings = 21;
-    for (let i = 0; i < rings; i += 1) {
-      const grow = ring / 2 + i * ring;
-      v.lineStyle(ring, 0x1f2a44, 0.14 + (i * 0.35) / rings);
-      v.strokeRect(
-        edge.minX - grow,
-        edge.minY - grow,
-        edge.width + grow * 2,
-        edge.height + grow * 2,
-      );
-    }
-    const outer = rings * ring;
-    v.fillStyle(0x1f2a44, 0.49);
-    v.fillRect(edge.minX - pad, edge.minY - pad, edge.width + pad * 2, pad - outer);
-    v.fillRect(edge.minX - pad, edge.maxY + outer, edge.width + pad * 2, pad - outer);
-    v.fillRect(edge.minX - pad, edge.minY - outer, pad - outer, edge.height + outer * 2);
-    v.fillRect(edge.maxX + outer, edge.minY - outer, pad - outer, edge.height + outer * 2);
+    // carry an 80px margin around the tiles). One smooth gradient texture
+    // (#417); the stepped rings left diagonal blocks in the corners.
+    drawEdgeVignetteImage(
+      this,
+      { minX: bounds.minX + 80, minY: bounds.minY + 80, maxX: bounds.maxX - 80, maxY: bounds.maxY - 80 },
+      pad,
+      haloRgb,
+    );
   }
 
   private drawWalls(zone: ZoneDefinition): void {

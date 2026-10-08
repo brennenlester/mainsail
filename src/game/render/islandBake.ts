@@ -24,6 +24,7 @@ export const ISLAND_BAKE_DEPTH = -500;
 
 /** A frame bakes at least one slice, then more while it has spent less than this. */
 const BAKE_FRAME_BUDGET_MS = 6;
+const MAX_BAKES_PER_FRAME = 2;
 /** Tile rows per slice: a ~13-row island bakes in a handful of frames, not one hitch. */
 const BAKE_ROWS_PER_SLICE = 2;
 /**
@@ -100,14 +101,15 @@ export class IslandBakes {
     }
   }
 
-  /** Bake a few slices of the queued islands; call once per frame. */
+  /** Bake slices of the queued islands: a few ms, and at most two islands, per frame. */
   tick(): void {
     const start = performance.now();
+    const before = this.baked.size;
     do {
       if (!this.step()) {
         return;
       }
-    } while (performance.now() - start < BAKE_FRAME_BUDGET_MS);
+    } while (performance.now() - start < BAKE_FRAME_BUDGET_MS && this.baked.size - before < MAX_BAKES_PER_FRAME);
   }
 
   /** Destroy every baked island (zone unload: removeAll does not destroy). */
@@ -121,6 +123,16 @@ export class IslandBakes {
       rt.destroy();
     }
     this.pool = [];
+    this.queue = [];
+  }
+
+  /** Rebake everything (the map grew): keep the textures for reuse. */
+  invalidate(): void {
+    this.abortJob();
+    for (const [index, rt] of [...this.baked]) {
+      this.baked.delete(index);
+      this.release(rt);
+    }
     this.queue = [];
   }
 

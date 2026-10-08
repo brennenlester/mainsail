@@ -12,7 +12,8 @@ type Iso = {
   playerGridY: number;
   loadZone(zone: string): void;
   streamSprites: Set<unknown>;
-  islandBakes: { size: number };
+  islandBakes: { size: number; baked: Map<number, { width: number; height: number }> };
+  sys: { sceneUpdate: (this: unknown, time: number, delta: number) => void };
   archipelagoVisualWin: { xMin: number; xMax: number; yMin: number; yMax: number };
   worldOrigin: { x: number; y: number };
   cameras: { main: { worldView: { x: number; y: number; right: number; bottom: number } } };
@@ -21,7 +22,7 @@ type Iso = {
 type Win = Window & {
   __game?: {
     scene: { isActive(k: string): boolean; getScene(k: string): unknown };
-    textures: { getTextureKeys(): string[] };
+    textures: { getTextureKeys(): string[]; exists(k: string): boolean };
   };
   __liveGlTextures?: () => number;
 };
@@ -124,6 +125,90 @@ test("20 Harbor <-> Archipelago round trips keep texture keys and GL textures fl
   expect(after.keys - base.keys).toBeLessThanOrEqual(2);
   // Before the fix this grew ~7 GL textures per trip (+146 over 20 trips).
   expect(after.gl - base.gl).toBeLessThanOrEqual(4);
+  // Harbor owns the smooth edge-vignette texture; other zones must not keep it.
+  const hasVignette = () => page.evaluate(() => (window as Win).__game!.textures.exists("zone-edge-vignette"));
+  expect(await hasVignette()).toBe(true);
+  await warp(page, "archipelago", 14, 21, 120);
+  expect(await hasVignette()).toBe(false);
+});
+
+/** Install per-frame probes: island bakes finished per frame, unbaked islands in view, slowest update. */
+async function probeBakes(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const arch = await import("/src/game/world/archipelagoStream.ts");
+    const iso = (window as Win).__game!.scene.getScene("IsometricScene") as Iso;
+    const probe = { maxPerFrame: 0, unbakedInView: 0, slowestStepMs: 0, finished: 0 };
+    (window as unknown as { __probe: typeof probe }).__probe = probe;
+    const update = iso.sys.sceneUpdate;
+    // Count islands finishing a bake (the map's size also drops as others are freed).
+    let doneThisFrame = 0;
+    const baked = iso.islandBakes.baked;
+    const set = baked.set.bind(baked);
+    baked.set = (key, value) => {
+      doneThisFrame += 1;
+      return set(key, value);
+    };
+    iso.sys.sceneUpdate = function (this: unknown, time: number, delta: number) {
+      doneThisFrame = 0;
+      const t = performance.now();
+      update.call(this, time, delta);
+      probe.slowestStepMs = Math.max(probe.slowestStepMs, performance.now() - t);
+      probe.maxPerFrame = Math.max(probe.maxPerFrame, doneThisFrame);
+      probe.finished += doneThisFrame;
+    };
+    (window as unknown as { __game: { events: { on(e: string, cb: () => void): void } } }).__game.events.on("postrender", () => {
+      const v = iso.cameras.main.worldView;
+      const o = iso.worldOrigin;
+      for (const isl of arch.listIslandTemplates(arch.ARCHIPELAGO_MAX_WIDTH)) {
+        const r = arch.islandBakeRegion(isl);
+        const inView =
+          o.x + r.x0 * 48 < v.right && o.x + r.x1 * 48 > v.x && o.y + r.y0 * 48 < v.bottom && o.y + r.y1 * 48 > v.y;
+        if (inView && !iso.islandBakes.baked.has(isl.index)) probe.unbakedInView += 1;
+      }
+    });
+  });
+}
+
+test("sailing bakes islands a frame or two at a time and none is ever missing in view (#417)", async ({ page }) => {
+  test.setTimeout(60_000);
+  await start(page);
+  // Down the open-water lane between island columns: rows 2 and 3 stream in.
+  await warp(page, "archipelago", 26, 28, 800);
+  await probeBakes(page);
+  await page.keyboard.down("ArrowDown");
+  await page.waitForTimeout(7000);
+  await page.keyboard.up("ArrowDown");
+  const probe = await page.evaluate(
+    () => (window as unknown as { __probe: { maxPerFrame: number; unbakedInView: number; slowestStepMs: number; finished: number } }).__probe,
+  );
+  expect(probe.finished, "islands baked while sailing").toBeGreaterThan(0);
+  expect(probe.maxPerFrame).toBeLessThanOrEqual(2);
+  expect(probe.unbakedInView).toBe(0);
+  // Before #417 one bake alone cost 35-120 ms in a single step.
+  expect(probe.slowestStepMs).toBeLessThan(40);
+});
+
+test.describe("DPR 3 phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 });
+
+  test("islands bake sharper than 1x within the texture budget (#417)", async ({ page }) => {
+    await start(page);
+    await warp(page, "archipelago", 50, 50, 800);
+    const { scale, pixels, count } = await page.evaluate(() => {
+      const iso = (window as Win).__game!.scene.getScene("IsometricScene") as Iso;
+      const rts = [...iso.islandBakes.baked.values()];
+      return {
+        count: rts.length,
+        // An 11 x 12 tile region is 528 x 576 world px.
+        scale: rts[0]!.width / 528,
+        pixels: rts.reduce((n, rt) => n + rt.width * rt.height, 0),
+      };
+    });
+    expect(count).toBeGreaterThan(0);
+    expect(scale).toBeGreaterThan(1);
+    // 12 island textures (baked + spare) at this scale stay under the budget.
+    expect((pixels / count) * 12).toBeLessThanOrEqual(9_000_000);
+  });
 });
 
 for (const vp of [
