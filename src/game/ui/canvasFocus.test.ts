@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { focusGameCanvas, initCanvasFocusReturn, resetCanvasFocusForTest } from "./canvasFocus";
+import {
+  focusGameCanvas,
+  initCanvasFocusReturn,
+  isDomKeyboardTarget,
+  resetCanvasFocusForTest,
+} from "./canvasFocus";
 import { popOverlay, pushOverlay, resetOverlayStack } from "./overlayStack";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
@@ -32,6 +37,26 @@ describe("canvas focus hand-back (#390)", () => {
 
   afterEach(() => {
     resetOverlayStack();
+  });
+
+  it("treats text fields, sliders, selects and contenteditable as DOM keyboard owners", () => {
+    const make = (html: string) => {
+      const host = document.createElement("div");
+      host.innerHTML = html;
+      document.body.append(host);
+      return host.firstElementChild as HTMLElement;
+    };
+    expect(isDomKeyboardTarget(input)).toBe(true);
+    expect(isDomKeyboardTarget(make('<input type="range" />'))).toBe(true);
+    expect(isDomKeyboardTarget(make("<textarea></textarea>"))).toBe(true);
+    expect(isDomKeyboardTarget(make("<select></select>"))).toBe(true);
+    const editable = make("<div></div>");
+    editable.contentEditable = "true";
+    expect(isDomKeyboardTarget(editable)).toBe(true);
+    expect(isDomKeyboardTarget(hudButton)).toBe(false);
+    expect(isDomKeyboardTarget(canvas)).toBe(false);
+    expect(isDomKeyboardTarget(document.body)).toBe(false);
+    expect(isDomKeyboardTarget(null)).toBe(false);
   });
 
   it("focuses the canvas without adding it to the Tab order", () => {

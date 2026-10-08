@@ -96,6 +96,7 @@ import {
 import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters";
 import { overworldEncounterPacer } from "../encounters/encounterPacing";
 import { visitShrineAltar, wakeStrandedParty } from "../world/shrineHeal";
+import { isDomKeyboardTarget } from "../ui/canvasFocus";
 import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
@@ -266,6 +267,16 @@ export class IsometricScene extends Phaser.Scene {
   private interactKey!: Phaser.Input.Keyboard.Key;
   /** E pressed since the last frame; survives a tap shorter than one frame (#390). */
   private interactTapped = false;
+  /** Hand captured keys (arrows, WASD, E) back to a focused DOM control (#390). */
+  private onDomFocusChange = (): void => {
+    window.setTimeout(() => {
+      const keyboard = this.input?.keyboard;
+      if (keyboard) {
+        keyboard.manager.preventDefault =
+          hasPlayerName() && !isDomKeyboardTarget(document.activeElement);
+      }
+    }, 0);
+  };
   private travelSinceEncounter = 0;
   /** Successful walk distance used to consume the first-step WASD ghost. */
   private walkHintTravel = 0;
@@ -375,16 +386,13 @@ export class IsometricScene extends Phaser.Scene {
     this.interactKey = this.input.keyboard!.addKey("E");
     this.input.keyboard!.on("keydown-E", (event: KeyboardEvent) => {
       // Typing an "e" into a DOM field (e.g. the nickname prompt) is not an interact.
-      const target = event.target;
-      const typing =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-      if (!event.repeat && !typing) {
+      if (!event.repeat && !isDomKeyboardTarget(event.target as Element | null)) {
         this.interactTapped = true;
       }
     });
     this.input.keyboard!.on("keydown", this.onGodCheatKeyDown);
+    document.addEventListener("focusin", this.onDomFocusChange);
+    document.addEventListener("focusout", this.onDomFocusChange);
     initTouchControls();
     initMuteControl(this);
     setCopyInviteHandler(() => this.tryCopyInvite());
@@ -461,6 +469,8 @@ export class IsometricScene extends Phaser.Scene {
     window.removeEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
     setCopyInviteHandler(null);
     this.input.keyboard?.off("keydown", this.onGodCheatKeyDown);
+    document.removeEventListener("focusin", this.onDomFocusChange);
+    document.removeEventListener("focusout", this.onDomFocusChange);
     window.removeEventListener("resize", this.onWindowResize);
     window.visualViewport?.removeEventListener("resize", this.onWindowResize);
     window.visualViewport?.removeEventListener("scroll", this.onWindowResize);
@@ -472,8 +482,11 @@ export class IsometricScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     // Consume every frame so a press during dialogue/encounters never replays.
+    // A focused text field / slider owns the keyboard: no E, no WASD/arrows (#390).
+    const domKeys = isDomKeyboardTarget(document.activeElement);
     const interactPressed =
-      Phaser.Input.Keyboard.JustDown(this.interactKey) || this.interactTapped;
+      (Phaser.Input.Keyboard.JustDown(this.interactKey) || this.interactTapped) &&
+      !domKeys;
     this.interactTapped = false;
     this.fx?.update(
       delta,
@@ -527,17 +540,20 @@ export class IsometricScene extends Phaser.Scene {
     let dx = 0;
     let dy = 0;
 
-    if (this.cursors.left.isDown || this.wasd.A.isDown) {
-      dx -= 1;
-    }
-    if (this.cursors.right.isDown || this.wasd.D.isDown) {
-      dx += 1;
-    }
-    if (this.cursors.up.isDown || this.wasd.W.isDown) {
-      dy -= 1;
-    }
-    if (this.cursors.down.isDown || this.wasd.S.isDown) {
-      dy += 1;
+    // Keys typed into a DOM control are not movement; touch axes below still are.
+    if (!domKeys) {
+      if (this.cursors.left.isDown || this.wasd.A.isDown) {
+        dx -= 1;
+      }
+      if (this.cursors.right.isDown || this.wasd.D.isDown) {
+        dx += 1;
+      }
+      if (this.cursors.up.isDown || this.wasd.W.isDown) {
+        dy -= 1;
+      }
+      if (this.cursors.down.isDown || this.wasd.S.isDown) {
+        dy += 1;
+      }
     }
 
     const touch = getTouchAxes();

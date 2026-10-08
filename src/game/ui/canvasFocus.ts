@@ -20,7 +20,11 @@ function gameCanvas(): HTMLCanvasElement | null {
   return document.querySelector<HTMLCanvasElement>("#game canvas");
 }
 
-function isTextEntry(el: Element | null): boolean {
+/**
+ * A focused DOM control that owns the keyboard (text fields, sliders, selects,
+ * contenteditable): the game must not read E/WASD/arrows or swallow them.
+ */
+export function isDomKeyboardTarget(el: Element | null): boolean {
   return (
     el instanceof HTMLInputElement ||
     el instanceof HTMLTextAreaElement ||
@@ -33,7 +37,7 @@ function isTextEntry(el: Element | null): boolean {
 function isHudControl(el: Element | null): boolean {
   return (
     el instanceof HTMLElement &&
-    !isTextEntry(el) &&
+    !isDomKeyboardTarget(el) &&
     el.closest(HUD_SCOPE) !== null
   );
 }
@@ -43,7 +47,7 @@ function isHudControl(el: Element | null): boolean {
  * being typed in. Returns whether the canvas now has focus.
  */
 export function focusGameCanvas(): boolean {
-  if (getTopOverlayId() !== null || isTextEntry(document.activeElement)) {
+  if (getTopOverlayId() !== null || isDomKeyboardTarget(document.activeElement)) {
     return false;
   }
   const canvas = gameCanvas();
