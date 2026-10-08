@@ -109,6 +109,12 @@ export function buildVictorySummary(
     );
   }
 
+  if (reward.bondFullNames?.length) {
+    // Capped spar bond pays +0: say so (#417).
+    const [first, ...rest] = reward.bondFullNames;
+    loot.push(`Bond full for today: ${first}${rest.length > 0 ? ` +${rest.length}` : ""}`);
+  }
+
   return { title: "Victory!", rows, loot, evolutionHint };
 }
 

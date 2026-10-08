@@ -148,7 +148,12 @@ export class PreloadScene extends Phaser.Scene {
     this.load.once("complete", () => {
       createImagineAnims(this);
       markWorldAssetsReady();
-      this.scene.stop();
+      // The rest of the soundtrack (#417): the music director keeps the title
+      // theme going until each zone track lands, so New Game never waits on it.
+      this.load.off("progress", setWorldAssetsProgress);
+      queueBootAssets(this, "music");
+      this.load.once("complete", () => this.scene.stop());
+      this.load.start();
     });
     this.load.start();
   }

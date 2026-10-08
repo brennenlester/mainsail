@@ -69,6 +69,10 @@ export type CreatureInstance = {
   personality?: PersonalityId;
   /** Bond points 0..BOND_MAX (#367). Missing = 0. */
   bond?: number;
+  /** Spar + gift bond earned on a local day (`YYYY-MM-DD`), for the daily cap (#417). */
+  bondToday?: { day: string; points: number };
+  /** Epoch ms of the last favorite-material gift: the cooldown survives reloads (#417). */
+  lastGiftAt?: number;
 };
 
 export type BattleCombatant = {

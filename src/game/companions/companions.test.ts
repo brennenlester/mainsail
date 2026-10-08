@@ -21,14 +21,17 @@ import {
 import {
   addBond,
   applyBondToCombatant,
+  BOND_DAILY_CAP,
   BOND_GAIN,
   BOND_MAX,
   BOND_TIER_THRESHOLDS,
   bondBattleBonus,
   bondGainFor,
+  bondRoomToday,
   bondTier,
   bondTierProgress,
   drainBondTierUps,
+  localDay,
   tickBattleBond,
   tickStoryWinBond,
 } from "./bond";
@@ -168,32 +171,105 @@ describe("bond math", () => {
     expect(b.bond).toBe(BOND_GAIN.battleFighter);
   });
 
-  it("a typical arc ends Close on the lead and Friendly on the rest (#418)", () => {
+  it("a typical arc ends Close on the lead and Friendly on the rest (#418, #417)", () => {
     // Scripted ~20 minute arc, neutral personalities: 8 wild spar wins with
     // the lead fighting, the rival + boss first wins, one evolution of the
     // lead, two favorite gifts to the lead, two first-claim ability uses by
-    // the second companion.
+    // the second companion. All inside one local day, so the daily cap (60
+    // spar + gift points) must not bite: the lead earns 40 + 16 = 56.
     const lead = creature({ instanceId: "lead", personality: undefined });
     const second = creature({ instanceId: "second", personality: undefined });
     const third = creature({ instanceId: "third", personality: undefined });
     const party = [lead, second, third];
-    for (let i = 0; i < 8; i += 1) tickBattleBond(party, 0);
+    const t0 = new Date(2026, 9, 8, 12, 0, 0);
+    for (let i = 0; i < 8; i += 1) tickBattleBond(party, 0, t0);
     tickStoryWinBond(party); // rival
     addBond(lead, BOND_GAIN.evolution, "growth");
-    addBond(lead, BOND_GAIN.gift, "gift");
-    addBond(lead, BOND_GAIN.gift, "gift");
+    playerInventory.materials[getFavoriteMaterial("mossling")] = GIFT_COST * 2;
+    expect(giftFavorite(lead, t0.getTime()).ok).toBe(true);
+    expect(giftFavorite(lead, t0.getTime() + GIFT_COOLDOWN_MS).ok).toBe(true);
     addBond(second, BOND_GAIN.ability, "ability");
     addBond(second, BOND_GAIN.ability, "ability");
     tickStoryWinBond(party); // Matriarch
     drainBondTierUps();
-    expect(bondTier(lead.bond)).toBeGreaterThanOrEqual(2);
-    expect(bondTier(lead.bond)).toBeLessThanOrEqual(3);
-    for (const other of [second, third]) {
-      expect(bondTier(other.bond)).toBeGreaterThanOrEqual(1);
-      expect(bondTier(other.bond)).toBeLessThanOrEqual(2);
+    expect(lead.bondToday).toEqual({ day: localDay(t0), points: 56 });
+    expect(bondTier(lead.bond)).toBe(2);
+    expect(bondTier(second.bond)).toBe(1);
+    expect(bondTier(third.bond)).toBe(1);
+  });
+
+  it("halves wild-spar gain above Close, but not below it or from story wins", () => {
+    const now = new Date(2026, 9, 8, 9);
+    const close = creature({ bond: BOND_TIER_THRESHOLDS[3]! - 1 });
+    tickBattleBond([close], 0, now);
+    // Tier 2 at the moment of the win: full gain, which then crosses into Devoted.
+    expect(close.bond).toBe(BOND_TIER_THRESHOLDS[3]! - 1 + BOND_GAIN.battleFighter);
+    const before = close.bond!;
+    tickBattleBond([close], 0, now);
+    expect(close.bond! - before).toBe(Math.floor(BOND_GAIN.battleFighter / 2));
+    const bench = creature({ instanceId: "b", bond: BOND_TIER_THRESHOLDS[3]! });
+    tickBattleBond([bench], 1, now); // active bench member: base 2 -> 1
+    expect(bench.bond! - BOND_TIER_THRESHOLDS[3]!).toBe(1);
+    const story = creature({ instanceId: "s", bond: BOND_TIER_THRESHOLDS[3]! });
+    tickStoryWinBond([story]);
+    expect(story.bond! - BOND_TIER_THRESHOLDS[3]!).toBe(BOND_GAIN.storyWin);
+  });
+
+  it("caps spar + gift bond per creature per local day, resetting by date", () => {
+    const now = new Date(2026, 9, 8, 9);
+    const c = creature();
+    for (let i = 0; i < 40; i += 1) tickBattleBond([c], 0, now);
+    expect(c.bond).toBe(BOND_DAILY_CAP);
+    expect(c.bondToday).toEqual({ day: "2026-10-08", points: BOND_DAILY_CAP });
+    expect(bondRoomToday(c, now)).toBe(0);
+    // A capped creature cannot be gifted (no materials wasted).
+    playerInventory.materials["wild-fiber"] = GIFT_COST;
+    const gift = giftFavorite(c, now.getTime());
+    expect(gift.ok).toBe(false);
+    expect(gift.ok === false && gift.reason).toMatch(/tomorrow/i);
+    expect(playerInventory.materials["wild-fiber"]).toBe(GIFT_COST);
+    // Exempt sources still pay today.
+    addBond(c, BOND_GAIN.evolution, "growth");
+    addBond(c, BOND_GAIN.ability, "ability");
+    tickStoryWinBond([c]);
+    expect(c.bond).toBe(BOND_DAILY_CAP + BOND_GAIN.evolution + BOND_GAIN.ability + BOND_GAIN.storyWin);
+    expect(c.bondToday!.points).toBe(BOND_DAILY_CAP);
+    // Next local day: the allowance is back.
+    const tomorrow = new Date(2026, 9, 9, 8);
+    expect(bondRoomToday(c, tomorrow)).toBe(BOND_DAILY_CAP);
+    const before = c.bond!;
+    tickBattleBond([c], 0, tomorrow);
+    expect(c.bond! - before).toBeGreaterThan(0);
+    expect(c.bondToday).toEqual({ day: "2026-10-09", points: c.bond! - before });
+  });
+
+  it("a gift only earns what is left of today's allowance", () => {
+    const now = new Date(2026, 9, 8, 9);
+    const c = creature({ bondToday: { day: "2026-10-08", points: BOND_DAILY_CAP - 3 } });
+    playerInventory.materials["wild-fiber"] = GIFT_COST;
+    const gift = giftFavorite(c, now.getTime());
+    expect(gift.ok).toBe(true);
+    expect(c.bond).toBe(3);
+    expect(bondRoomToday(c, now)).toBe(0);
+  });
+
+  it("makes Kindred a multi-day project for a pure spar grinder", () => {
+    const grinder = creature();
+    let wins = 0;
+    let day = 0;
+    while (bondTier(grinder.bond) < 4 && day < 30) {
+      const now = new Date(2026, 9, 8 + day, 10);
+      // Spar all day long: the cap, not the player, stops the grind.
+      for (let i = 0; i < 100 && bondRoomToday(grinder, now) > 0; i += 1) {
+        tickBattleBond([grinder], 0, now);
+        wins += 1;
+      }
+      day += 1;
     }
-    // Not trivial: Kindred still takes a long grind of wild spars.
-    expect(Math.ceil(BOND_TIER_THRESHOLDS[4]! / BOND_GAIN.battleFighter)).toBeGreaterThanOrEqual(30);
+    expect(bondTier(grinder.bond)).toBe(4);
+    // ~3 real days and well over 60 wins; before #417: ~36 wins (about 15-20 minutes).
+    expect(day).toBeGreaterThanOrEqual(3);
+    expect(wins).toBeGreaterThanOrEqual(60);
   });
 
   it("exposes a small pure battle bonus", () => {
@@ -227,6 +303,25 @@ describe("favorites + gifts", () => {
     expect(playerInventory.materials["wild-fiber"]).toBe(GIFT_COST);
     expect(giftFavorite(c, 1000 + GIFT_COOLDOWN_MS - 1).ok).toBe(false);
     expect(giftFavorite(c, 1000 + GIFT_COOLDOWN_MS).ok).toBe(true);
+  });
+
+  it("treats a gift stamp from the future (clock set back) as expired", () => {
+    const c = creature({ lastGiftAt: 10_000_000 });
+    playerInventory.materials["wild-fiber"] = GIFT_COST;
+    expect(giftFavorite(c, 1_000).ok).toBe(true);
+    expect(c.lastGiftAt).toBe(1_000);
+  });
+
+  it("keeps the gift cooldown on the creature, so a reload cannot skip it (#417)", () => {
+    const c = creature();
+    playerInventory.materials["wild-fiber"] = GIFT_COST * 3;
+    expect(giftFavorite(c, 5_000).ok).toBe(true);
+    expect(c.lastGiftAt).toBe(5_000);
+    // A reloaded copy of the party member carries the stamp; module state is gone.
+    const reloaded: CreatureInstance = structuredClone(c);
+    resetCompanionStateForTests();
+    expect(giftFavorite(reloaded, 5_000 + GIFT_COOLDOWN_MS - 1).ok).toBe(false);
+    expect(giftFavorite(reloaded, 5_000 + GIFT_COOLDOWN_MS).ok).toBe(true);
   });
 });
 

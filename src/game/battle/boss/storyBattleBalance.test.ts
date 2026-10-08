@@ -162,6 +162,45 @@ describe("Wren balance", () => {
     }
   });
 
+  it("rematch pressure for two companions stays within ~1.2x of the first fight (#417)", () => {
+    // Pressure = average fight length x foe damage multiplier: how much damage
+    // a party soaks, without the win-rate saturation near 100%. The rematch
+    // adds a third creature, so it cannot be equal, but it must not be a wall.
+    const def = getStorySpar("rival-wren");
+    const damage = (rematch: boolean) =>
+      (rematch ? def.rematchChallengerScale! : def.challengerScale)[1]!.damage;
+    for (const level of [4, 6, 8]) {
+      for (const policy of ["max-damage", "skilled"] as const) {
+        const first = storyPartyRate("rival-wren", 2, policy, level, SEEDS, false);
+        const again = storyPartyRate("rival-wren", 2, policy, level, SEEDS, true);
+        const pressure = (again.avgTurns * damage(true)) / (first.avgTurns * damage(false));
+        expect(pressure, `${policy} Lv ${level}`).toBeGreaterThan(1);
+        expect(pressure, `${policy} Lv ${level}`).toBeLessThanOrEqual(1.25);
+        // A casual rematch is a fight, not a coin flip against a wall.
+        if (policy === "max-damage") {
+          expect(again.winRate, `max-damage Lv ${level}`).toBeGreaterThanOrEqual(0.65);
+          expect(again.winRate, `max-damage Lv ${level}`).toBeLessThan(first.winRate);
+        }
+      }
+    }
+  });
+
+  it("a trio never finds the rematch harder than a duo does (#417)", () => {
+    const def = getStorySpar("rival-wren");
+    for (const level of [4, 6, 8]) {
+      for (const policy of ["random", "max-damage", "skilled"] as const) {
+        for (const losses of [0, 2, 4]) {
+          const ward = hearthWardScale(def, losses);
+          const duo = storyPartyRate("rival-wren", 2, policy, level, SEEDS, true, ward).winRate;
+          const trio = storyPartyRate("rival-wren", 3, policy, level, SEEDS, true, ward).winRate;
+          expect(trio, `${policy} Lv ${level} after ${losses} losses`).toBeGreaterThanOrEqual(duo);
+        }
+      }
+    }
+    // First fight and the boss are untouched: a trio still wins the first fight at least as often.
+    expect(def.challengerScale[2]).toEqual({ hp: 1.4, damage: 1.1 });
+  });
+
   it("escalates on rematch: harder than the first win, still winnable with a party", () => {
     for (const size of [2, 3] as const) {
       const rematch = rate(size, "skilled", true);
