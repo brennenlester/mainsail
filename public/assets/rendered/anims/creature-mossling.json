@@ -1,0 +1,17 @@
+{
+  "anims": [
+    {
+      "key": "creature-mossling__idle",
+      "frames": [
+        "creature-mossling__idle_00",
+        "creature-mossling__idle_01",
+        "creature-mossling__idle_02",
+        "creature-mossling__idle_03",
+        "creature-mossling__idle_04",
+        "creature-mossling__idle_05"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    }
+  ]
+}

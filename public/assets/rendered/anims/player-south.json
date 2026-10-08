@@ -1,0 +1,28 @@
+{
+  "anims": [
+    {
+      "key": "player-south__idle",
+      "frames": [
+        "player-south__idle_00",
+        "player-south__idle_01",
+        "player-south__idle_02",
+        "player-south__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-south__walk",
+      "frames": [
+        "player-south-1",
+        "player-south-2",
+        "player-south-3",
+        "player-south-4",
+        "player-south-5",
+        "player-south-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    }
+  ]
+}

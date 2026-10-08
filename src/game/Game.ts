@@ -35,6 +35,9 @@ export function createGame(parent: string): Phaser.Game {
       antialias: true,
       pixelArt: false,
       roundPixels: false,
+      // Atlas pages are power-of-two (#360) so they get mipmaps; 4x sprites
+      // shown at 1-2x stay smooth instead of shimmering.
+      mipmapFilter: "LINEAR_MIPMAP_LINEAR",
     },
   });
 }

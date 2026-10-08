@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  IDLE_FPS,
+  IDLE_FRAME_COUNT,
+  idleBreathFrame,
   walkBobOffset,
   walkFootfallsSince,
   walkStrideFrame,
@@ -41,5 +44,15 @@ describe("walkFootfallsSince", () => {
     expect(walkFootfallsSince(0, 0.4)).toBe(0);
     expect(walkFootfallsSince(0.4, 0.6)).toBe(1);
     expect(walkFootfallsSince(0.9, 1.6)).toBe(2);
+  });
+});
+
+describe("idleBreathFrame", () => {
+  it("steps at IDLE_FPS and wraps over the rendered idle frames", () => {
+    const step = 1000 / IDLE_FPS;
+    expect(idleBreathFrame(0)).toBe(0);
+    expect(idleBreathFrame(step * 1.5)).toBe(1);
+    expect(idleBreathFrame(step * IDLE_FRAME_COUNT)).toBe(0);
+    expect(idleBreathFrame(-50)).toBe(0);
   });
 });
