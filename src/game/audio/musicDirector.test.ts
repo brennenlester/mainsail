@@ -170,6 +170,28 @@ describe("music director", () => {
     expect(scene.sound.play.mock.calls.length).toBe(before);
     setAudioMuted(false, scene);
   });
+
+  it("keeps the current music going until a still-downloading track lands (#417)", () => {
+    setAudioScreen(undefined, scene);
+    setAudioZone("shrine");
+    tickMusic(2000);
+    expect(liveKeys()).toEqual(["music-shrine"]);
+
+    const cache = scene.cache.audio as { exists: (key: string) => boolean };
+    const exists = cache.exists;
+    cache.exists = (key) => key !== "music-grove";
+    setAudioZone("grove");
+    tickMusic(2000);
+    // Wanted but not loaded yet: no silence, the shrine track stays up.
+    expect(getDesiredMusicTrack()).toBe("grove");
+    expect(liveKeys()).toEqual(["music-shrine"]);
+
+    cache.exists = exists;
+    tickMusic(300);
+    expect(liveKeys()).toContain("music-grove");
+    tickMusic(2000);
+    expect(liveKeys()).toEqual(["music-grove"]);
+  });
 });
 
 describe("audio assets on disk", () => {

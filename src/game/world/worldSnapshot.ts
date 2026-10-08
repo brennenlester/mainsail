@@ -126,7 +126,7 @@ import {
   personalitySeed,
   rollPersonality,
 } from "../companions/personality";
-import { BOND_MAX } from "../companions/bond";
+import { BOND_MAX, coerceBondToday } from "../companions/bond";
 import { isCompanionSiteId } from "../companions/abilities";
 import {
   getClaimedSiteList,
@@ -1141,11 +1141,23 @@ export function sanitizeCompanionFields(
       creature.bond = undefined;
     }
   }
+  if (creature.bondToday !== undefined) {
+    creature.bondToday = coerceBondToday(creature.bondToday);
+  }
+  // A cooldown stamp from the future (clock change / crafted save) would lock gifting.
+  if (
+    creature.lastGiftAt !== undefined &&
+    !(isFiniteNumber(creature.lastGiftAt) && creature.lastGiftAt >= 0 && creature.lastGiftAt <= Date.now())
+  ) {
+    creature.lastGiftAt = undefined;
+  }
   if (creature.nickname !== undefined) {
     creature.nickname =
       typeof creature.nickname === "string" ? coerceNickname(creature.nickname) : undefined;
   }
   if (creature.bond === undefined) Reflect.deleteProperty(creature, "bond");
+  if (creature.bondToday === undefined) Reflect.deleteProperty(creature, "bondToday");
+  if (creature.lastGiftAt === undefined) Reflect.deleteProperty(creature, "lastGiftAt");
   if (creature.nickname === undefined) Reflect.deleteProperty(creature, "nickname");
   if (creature.rare !== undefined && creature.rare !== true) Reflect.deleteProperty(creature, "rare");
   return creature;

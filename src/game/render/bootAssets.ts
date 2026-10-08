@@ -4,8 +4,10 @@ import { preloadImagineAssets } from "./imagineAssets";
 
 /**
  * Boot manifest (#410). `title` is what the title screen needs to be
- * interactive; `world` streams in behind the title; `all` is both (routes
- * that skip the title). Late-game art never appears here (see lateAssets).
+ * interactive; `world` (atlas, anims, SFX) streams in behind the title;
+ * `music` is the rest of the soundtrack, queued once the world is playable
+ * (#417); `all` is everything (routes that skip the title). Late-game art
+ * never appears here (see lateAssets).
  */
 export type BootPhase = AudioBootPhase;
 
@@ -18,7 +20,7 @@ const WORLD_IMAGES: Readonly<Record<string, string>> = {
 };
 
 export function queueBootAssets(scene: Phaser.Scene, phase: BootPhase): void {
-  if (phase !== "title") {
+  if (phase === "world" || phase === "all") {
     preloadImagineAssets(scene);
     for (const [key, url] of Object.entries(WORLD_IMAGES)) {
       scene.load.image(key, url);

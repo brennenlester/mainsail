@@ -204,6 +204,15 @@ describe("victory summary", () => {
     expect(s.evolutionHint).toContain("Moss Salve");
   });
 
+  it("tells the player when spar bond is capped for today (#417)", () => {
+    const before = [{ instanceId: "a", definitionId: "mossling", level: 1, xp: 0 }];
+    const after = [creature({ level: 1, xp: 5 })];
+    const one = buildVictorySummary(before, after, { ...reward, bondFullNames: ["Pip"] }, deps);
+    expect(one.loot.at(-1)).toBe("Bond full for today: Pip");
+    const two = buildVictorySummary(before, after, { ...reward, bondFullNames: ["Pip", "Moss", "Fern"] }, deps);
+    expect(two.loot.at(-1)).toBe("Bond full for today: Pip +2");
+  });
+
   it("skips creatures that gained nothing and evolutions already taken", () => {
     const before = [
       { instanceId: "a", definitionId: "mossling", level: 2, xp: 5 },

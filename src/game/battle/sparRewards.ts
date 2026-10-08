@@ -4,7 +4,7 @@ import { getActiveCreatures, getEffectiveMaxHp } from "../creatures/party";
 import { getMaterialForCreature, getMaterialName } from "../inventory/materials";
 import { addMaterial } from "../inventory/playerInventory";
 import { grantSparXp, XP_PER_SPAR_WIN } from "../progression/leveling";
-import { tickBattleBond } from "../companions/bond";
+import { bondRoomToday, tickBattleBond } from "../companions/bond";
 import { isDefeatScalingExcluded } from "../progression/wildLevel";
 import { recordSparWin } from "../world/sparWins";
 import { recordQuestEvent } from "../story/questProgress";
@@ -31,6 +31,8 @@ export type SparRewardSummary = {
   bonusDrop?: { label: string; materialId: string; amount: number };
   /** HP the standing actives got back after the win (#390). */
   hpRestored: number;
+  /** Actives whose spar + gift bond allowance is used up for today (#417). */
+  bondFullNames?: string[];
 };
 
 /**
@@ -203,6 +205,12 @@ export function grantSparRewards(
 
     // Battling together builds bond (#367): fighter more than the bench.
     tickBattleBond(actives, activePartyIndex);
+    const full = actives
+      .filter((c) => bondRoomToday(c) <= 0)
+      .map((c) => c.nickname ?? getCreatureDefinition(c.definitionId).name);
+    if (full.length > 0) {
+      summary.bondFullNames = full;
+    }
 
     // Prefer fighter level-up flags on the summary; also note any party level-up.
     if (!summary.leveledUp && anyLevelUp) {

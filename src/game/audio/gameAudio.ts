@@ -83,10 +83,12 @@ let unlocked = false;
 let hostScene: Phaser.Scene | null = null;
 
 /**
- * Boot audio phases (#410): the title needs only its theme and the UI click;
- * everything else streams in behind the title screen.
+ * Boot audio phases (#410, #417): the title needs only its theme and the UI
+ * click; the other SFX stream in behind the title with the atlas ("world");
+ * the remaining music ("music") waits until the world is playable so ~1 MB of
+ * tracks does not compete with the art New Game needs.
  */
-export type AudioBootPhase = "title" | "world" | "all";
+export type AudioBootPhase = "title" | "world" | "music" | "all";
 
 const TITLE_SFX: ReadonlySet<string> = new Set([SFX.uiClick]);
 const TITLE_MUSIC: ReadonlySet<string> = new Set([MUSIC_TRACKS.title.key]);
@@ -96,16 +98,16 @@ export function preloadGameAudio(
   phase: AudioBootPhase = "all",
 ): void {
   hostScene = scene;
-  const wanted = (titleAsset: boolean): boolean =>
-    phase === "all" || (phase === "title") === titleAsset;
   // Older stub SFX plus the #371 set; all under public/assets/audio.
   for (const key of getSfxKeys()) {
-    if (wanted(TITLE_SFX.has(key))) {
+    const title = TITLE_SFX.has(key);
+    if (phase === "all" || (phase === "title" && title) || (phase === "world" && !title)) {
       scene.load.audio(key, `assets/audio/${key}.wav`);
     }
   }
   for (const cfg of Object.values(MUSIC_TRACKS)) {
-    if (!cfg.lazy && wanted(TITLE_MUSIC.has(cfg.key))) {
+    const title = TITLE_MUSIC.has(cfg.key);
+    if (!cfg.lazy && (phase === "all" || (phase === "title" && title) || (phase === "music" && !title))) {
       scene.load.audio(cfg.key, [...cfg.urls]);
     }
   }
@@ -452,6 +454,11 @@ export function ensureMusic(scene: Phaser.Scene): void {
   const wanted = selectMusicTrack(ctx);
   const current = voices.find((v) => v.target === 1);
   if (current?.id === wanted) {
+    return;
+  }
+  // Deferred tracks (#417) may still be downloading: keep the current music
+  // going rather than fading into silence. The poll retries until it lands.
+  if (wanted && current && !scene.cache.audio.exists(MUSIC_TRACKS[wanted].key)) {
     return;
   }
   for (const v of voices) {
