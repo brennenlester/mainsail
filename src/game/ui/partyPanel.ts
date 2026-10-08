@@ -2,6 +2,7 @@ import { getCreatureDefinition } from "../creatures/catalog";
 import {
   ACTIVE_PARTY_LIMIT,
   getActiveCreatures,
+  getCreatureInstance,
   getEffectiveMaxHp,
   getReserveCreatures,
   moveActiveToReserve,
@@ -12,10 +13,28 @@ import type { CreatureInstance } from "../creatures/types";
 import { refreshPartyStatusLine } from "./statusPanel";
 import { popOverlay, pushOverlay } from "./overlayStack";
 import { isVisitorMode } from "../world/worldSession";
+import {
+  BOND_MAX,
+  bondTier,
+  bondTierName,
+  bondTierProgress,
+} from "../companions/bond";
+import {
+  canGift,
+  GIFT_COST,
+  giftFavorite,
+} from "../companions/companionState";
+import { getPersonality } from "../companions/personality";
+import { getMaterialCount } from "../inventory/playerInventory";
+import { getMaterialName } from "../inventory/materials";
+import { promptNickname } from "./nicknamePrompt";
 
 let partyOpen = false;
 let selectedActiveId: string | null = null;
 let selectedReserveId: string | null = null;
+/** Creature shown in the companion detail card (last one clicked). */
+let detailId: string | null = null;
+let detailNote = "";
 /** Set while BattleScene (or other combat) is active — blocks party edits. */
 let partyEditLocked = false;
 let previouslyFocused: HTMLElement | null = null;
@@ -83,6 +102,7 @@ function ensurePartyRoot(): HTMLElement {
         <button type="button" id="party-promote" class="party-action-btn" disabled>To active</button>
         <button type="button" id="party-demote" class="party-action-btn" disabled>To reserve</button>
       </div>
+      <section id="party-detail" class="party-detail" aria-live="polite"></section>
       <p id="party-hint" class="party-hint"></p>
     </div>
   `;
@@ -130,7 +150,94 @@ function ensurePartyRoot(): HTMLElement {
 function creatureRowLabel(creature: CreatureInstance): string {
   const def = getCreatureDefinition(creature.definitionId);
   const maxHp = getEffectiveMaxHp(creature);
-  return `${def.name} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)`;
+  const name = creature.nickname ? `${creature.nickname} (${def.name})` : def.name;
+  const trait = creature.personality ? ` · ${getPersonality(creature.personality).label}` : "";
+  const hearts = "♥".repeat(bondTier(creature.bond));
+  return `${name} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)${trait}${hearts ? ` ${hearts}` : ""}`;
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) {
+    node.textContent = text;
+  }
+  return node;
+}
+
+/** Companion card: personality, bond meter, favorite + gift, rename (#367). */
+function renderDetail(): void {
+  const root = document.getElementById("party-detail");
+  if (!root) {
+    return;
+  }
+  root.replaceChildren();
+  const creature = detailId ? getCreatureInstance(detailId) : undefined;
+  if (!creature) {
+    root.appendChild(el("p", "party-detail-empty", "Select a companion to see their personality and bond."));
+    return;
+  }
+  const def = getCreatureDefinition(creature.definitionId);
+  // textContent everywhere: nicknames are player input.
+  root.appendChild(el("h3", "party-detail-name", creature.nickname ? `${creature.nickname} the ${def.name}` : def.name));
+  if (creature.personality) {
+    const trait = getPersonality(creature.personality);
+    const line = el("p", "party-detail-trait");
+    line.appendChild(el("strong", "", trait.label));
+    line.appendChild(document.createTextNode(` — ${trait.blurb}`));
+    root.appendChild(line);
+  }
+  const tier = bondTier(creature.bond);
+  const bondRow = el("div", "party-bond");
+  bondRow.appendChild(el("span", "party-bond-label", `Bond: ${bondTierName(tier)}`));
+  const meter = el("span", "party-bond-meter");
+  meter.setAttribute("role", "meter");
+  meter.setAttribute("aria-valuemin", "0");
+  meter.setAttribute("aria-valuemax", String(BOND_MAX));
+  meter.setAttribute("aria-valuenow", String(creature.bond ?? 0));
+  meter.setAttribute("aria-label", `Bond ${bondTierName(tier)}`);
+  const fill = el("span", `party-bond-fill party-bond-tier-${tier}`);
+  fill.style.width = `${Math.round(bondTierProgress(creature.bond) * 100)}%`;
+  meter.appendChild(fill);
+  bondRow.appendChild(meter);
+  root.appendChild(bondRow);
+
+  const check = canGift(creature);
+  const favorite = getMaterialName(check.materialId);
+  root.appendChild(
+    el("p", "party-detail-fav", `Loves ${favorite} (you have ${getMaterialCount(check.materialId)}).`),
+  );
+  const actions = el("div", "party-detail-actions");
+  const giftBtn = el("button", "party-action-btn", `Gift ${GIFT_COST}× ${favorite}`);
+  giftBtn.type = "button";
+  giftBtn.disabled = isVisitorMode() || !check.ok;
+  giftBtn.title = check.ok ? "Raise bond" : check.reason;
+  giftBtn.addEventListener("click", () => {
+    const result = giftFavorite(creature);
+    detailNote = result.ok
+      ? result.tierUp !== undefined
+        ? `Bond deepened to ${bondTierName(result.tierUp)}!`
+        : `+${result.gained} bond`
+      : result.reason;
+    refreshPartyUi();
+  });
+  const renameBtn = el("button", "party-action-btn", creature.nickname ? "Rename" : "Nickname");
+  renameBtn.type = "button";
+  renameBtn.disabled = isVisitorMode();
+  renameBtn.addEventListener("click", () => {
+    void promptNickname(creature).then(() => {
+      detailNote = "";
+      refreshPartyUi();
+    });
+  });
+  actions.append(giftBtn, renameBtn);
+  root.appendChild(actions);
+  const note = detailNote || (check.ok ? "" : check.reason);
+  root.appendChild(el("p", "party-detail-note", note));
 }
 
 function renderList(
@@ -184,12 +291,17 @@ function refreshPartyUi(): void {
 
   renderList(activeList, actives, selectedActiveId, (id) => {
     selectedActiveId = selectedActiveId === id ? null : id;
+    detailId = id;
+    detailNote = "";
     refreshPartyUi();
   });
   renderList(reserveList, reserves, selectedReserveId, (id) => {
     selectedReserveId = selectedReserveId === id ? null : id;
+    detailId = id;
+    detailNote = "";
     refreshPartyUi();
   });
+  renderDetail();
 
   const locked = isVisitorMode() || partyEditLocked;
   if (swapBtn) {
@@ -220,6 +332,8 @@ export function openParty(): void {
   const root = ensurePartyRoot();
   selectedActiveId = null;
   selectedReserveId = null;
+  detailId = getActiveCreatures()[0]?.instanceId ?? null;
+  detailNote = "";
   refreshPartyUi();
   previouslyFocused =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;

@@ -112,6 +112,18 @@ import {
 import { TileType, type ZoneId } from "./zoneTypes";
 import { ZONES } from "./zones";
 import { CREATURES } from "../creatures/catalog";
+import {
+  isPersonalityId,
+  personalitySeed,
+  rollPersonality,
+} from "../companions/personality";
+import { BOND_MAX } from "../companions/bond";
+import { isCompanionSiteId } from "../companions/abilities";
+import {
+  getClaimedSiteList,
+  normalizeNickname,
+  setClaimedSites,
+} from "../companions/companionState";
 import { isVisitorMode } from "./worldSession";
 import {
   PLAYER_NAME_MAX_LENGTH,
@@ -186,6 +198,8 @@ export type WorldSnapshot = {
   eclipseFusionCompleted?: boolean;
   questProgress: Record<QuestId, QuestStatus>;
   party: CreatureInstance[];
+  /** Resolved companion ability sites (#367). Optional for older saves. */
+  companionSitesClaimed?: string[];
   /** Active battle party instance ids (max 7). Optional for older saves. */
   activePartyIds?: string[];
   nextInstanceId: number;
@@ -408,6 +422,8 @@ function isValidPartyMember(value: unknown): boolean {
       return false;
     }
   }
+  // Companion fields (#367) never invalidate a save: applyWorldSnapshot
+  // sanitizes them (clamp bond, drop bad nicknames, re-roll unknown traits).
   return true;
 }
 
@@ -1039,6 +1055,7 @@ export function exportWorldSnapshot(
     horizonFusionCount: worldState.horizonFusionCount,
     eclipseFusionCompleted: worldState.eclipseFusionCompleted,
     questProgress: { ...questProgress },
+    companionSitesClaimed: getClaimedSiteList(),
     party: structuredClone(playerParty.creatures),
     activePartyIds: [...playerParty.activeInstanceIds],
     nextInstanceId: getNextInstanceId(),
@@ -1046,6 +1063,38 @@ export function exportWorldSnapshot(
     items: withStagedCraftingItems(playerInventory.items),
     position,
   };
+}
+
+/**
+ * Companion fields (#367) are soft: hostile or future-version values are
+ * repaired instead of rejecting the save. Pre-#367 saves (and unknown traits)
+ * get the same deterministic personality on every load until re-saved.
+ */
+export function sanitizeCompanionFields(
+  member: CreatureInstance,
+  playerName: string | undefined,
+): CreatureInstance {
+  const creature = { ...member };
+  const speciesId = creature.speciesId ?? creature.definitionId;
+  if (!isPersonalityId(creature.personality)) {
+    creature.personality = rollPersonality(
+      personalitySeed(playerName, creature.instanceId, speciesId),
+    );
+  }
+  if (creature.bond !== undefined) {
+    if (isFiniteNumber(creature.bond)) {
+      creature.bond = Math.max(0, Math.min(BOND_MAX, Math.floor(creature.bond)));
+    } else {
+      creature.bond = undefined;
+    }
+  }
+  if (creature.nickname !== undefined) {
+    creature.nickname =
+      typeof creature.nickname === "string" ? normalizeNickname(creature.nickname) : undefined;
+  }
+  if (creature.bond === undefined) Reflect.deleteProperty(creature, "bond");
+  if (creature.nickname === undefined) Reflect.deleteProperty(creature, "nickname");
+  return creature;
 }
 
 export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
@@ -1077,10 +1126,11 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   // missing value reads owned sovereigns as absent and re-opens their claimed
   // encounters (#192).
   const party = snapshot.party.map((member) => {
-    const creature = {
-      ...member,
-      speciesId: member.speciesId ?? member.definitionId,
-    };
+    const speciesId = member.speciesId ?? member.definitionId;
+    const creature = sanitizeCompanionFields(
+      { ...member, speciesId },
+      snapshot.playerName,
+    );
     migrateLegacyPresenceCharmBuffs(creature);
     return creature;
   });
@@ -1123,6 +1173,11 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   );
   setHarborBefriendUsed(snapshot.harborBefriendUsed ?? []);
   setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
+  setClaimedSites(
+    Array.isArray(snapshot.companionSitesClaimed)
+      ? snapshot.companionSitesClaimed.filter(isCompanionSiteId)
+      : [],
+  );
   setSovereignPlateActive(snapshot.sovereignPlateActive === true, false);
   setSparWinsBySpecies(snapshot.sparWinsBySpecies ?? {}, false);
   setFirstIslandLanded(snapshot.firstIslandLanded === true, false);

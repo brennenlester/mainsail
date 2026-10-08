@@ -9,6 +9,7 @@ import {
   executeMove,
   getMatchup,
   isFainted,
+  outleveledWildBulk,
   primeOpeningCooldowns,
   readyMoves,
   wildBattleTuning,
@@ -185,9 +186,12 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
   const level = setup.level ?? 1;
   const tutorial = setup.tutorial ?? false;
   const tuning = wildBattleTuning(tutorial);
+  const wildLevel = setup.wildLevel ?? level;
   const wild: BattleCombatant = {
-    ...primeOpeningCooldowns(simCombatant(setup.wild, setup.wildLevel ?? level)),
+    ...primeOpeningCooldowns(simCombatant(setup.wild, wildLevel)),
     damageScale: tuning.damageScale,
+    // The whole sim party shares `level`, so it is also the party average.
+    bulk: outleveledWildBulk(level, wildLevel),
   };
   // One combatant per party slot; HP, statuses and cooldowns persist on the bench.
   const roster = setup.party.map((id) => primeOpeningCooldowns(simCombatant(id, level)));

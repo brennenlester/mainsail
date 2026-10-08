@@ -4,6 +4,7 @@ import { getActiveCreatures } from "../creatures/party";
 import { getMaterialForCreature, getMaterialName } from "../inventory/materials";
 import { addMaterial } from "../inventory/playerInventory";
 import { grantSparXp, XP_PER_SPAR_WIN } from "../progression/leveling";
+import { tickBattleBond } from "../companions/bond";
 import { isDefeatScalingExcluded } from "../progression/wildLevel";
 import { recordSparWin } from "../world/sparWins";
 import { recordQuestEvent } from "../story/questProgress";
@@ -163,6 +164,9 @@ export function grantSparRewards(
         }
       }
     }
+
+    // Battling together builds bond (#367): fighter more than the bench.
+    tickBattleBond(actives, activePartyIndex);
 
     // Prefer fighter level-up flags on the summary; also note any party level-up.
     if (!summary.leveledUp && anyLevelUp) {

@@ -121,7 +121,7 @@ function situationalMultiplier(
   move: MoveDefinition,
   defender: BattleCombatant,
 ): number {
-  let mult = attacker.damageScale ?? 1;
+  let mult = (attacker.damageScale ?? 1) / (defender.bulk ?? 1);
   if (hasStatus(defender, "soaked")) {
     mult *= move.type === "storm" ? SOAKED_STORM_DAMAGE_TAKEN : SOAKED_DAMAGE_TAKEN;
   }
@@ -351,7 +351,30 @@ export const TUTORIAL_WILD_DAMAGE_SCALE = 0.6;
  */
 export const WILD_DAMAGE_SCALE = 1.08;
 
-export type WildBattleTuning = { damageScale: number; matchupAware: boolean };
+/** Party average this many levels above the wild = a trivial fight. */
+export const OUTLEVELED_GAP = 3;
+export const OUTLEVELED_BULK = 0.45;
+/** Each level past the gap trims a little more, down to the floor. */
+export const OUTLEVELED_BULK_STEP = 0.05;
+export const OUTLEVELED_BULK_FLOOR = 0.3;
+
+/**
+ * Wild bulk when the party clearly outlevels it, so trivial overworld fights
+ * end in ~3-4 turns instead of grinding 7-10 (#378). Peer-level fights (gap
+ * under OUTLEVELED_GAP) keep bulk 1. Not for sovereigns (fixed tuning).
+ */
+export function outleveledWildBulk(partyAverageLevel: number, wildLevel: number): number {
+  const gap = partyAverageLevel - wildLevel;
+  if (gap < OUTLEVELED_GAP) {
+    return 1;
+  }
+  return Math.max(
+    OUTLEVELED_BULK_FLOOR,
+    OUTLEVELED_BULK - (gap - OUTLEVELED_GAP) * OUTLEVELED_BULK_STEP,
+  );
+}
+
+export type WildBattleTuning ={ damageScale: number; matchupAware: boolean };
 
 /** Tutorial wilds hit softer and don't lean into hunter matchups. */
 export function wildBattleTuning(tutorial: boolean): WildBattleTuning {

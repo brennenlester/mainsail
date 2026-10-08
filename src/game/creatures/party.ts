@@ -10,6 +10,8 @@ import { hasCraftedWeapon } from "../battle/wandererWeapons";
 import { recordQuestEvent } from "../story/questProgress";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { formatTraitLabel, rollSignatureTrait } from "./traits";
+import { personalitySeed, rollPersonality } from "../companions/personality";
+import { getPlayerName } from "../world/playerName";
 import type { CreatureInstance } from "./types";
 
 /** Battle-ready party slots. Creatures beyond this live in reserve. */
@@ -109,13 +111,17 @@ function addToPartyWithHp(
     level <= 1
       ? createNewCreatureProgress()
       : createCreatureProgressAtLevel(level);
+  const instanceId = `c-${nextInstanceId++}`;
   const instance: CreatureInstance = {
-    instanceId: `c-${nextInstanceId++}`,
+    instanceId,
     definitionId,
     speciesId: definitionId,
     currentHp: 0,
     ...progress,
     trait: rollSignatureTrait(definitionId, def.folkloreType),
+    personality: rollPersonality(
+      personalitySeed(getPlayerName(), instanceId, definitionId),
+    ),
   };
   const maxHp = getEffectiveMaxHp(instance);
   instance.currentHp =
@@ -167,14 +173,18 @@ export function addFusedCreature(
 ): CreatureInstance {
   const def = getCreatureDefinition(definitionId);
   const clampedLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(level)));
+  const instanceId = `c-${nextInstanceId++}`;
   const instance: CreatureInstance = {
-    instanceId: `c-${nextInstanceId++}`,
+    instanceId,
     definitionId,
     speciesId: definitionId,
     currentHp: 0,
     level: clampedLevel,
     xp: LEVEL_XP_THRESHOLDS[clampedLevel] ?? 0,
     trait: rollSignatureTrait(definitionId, def.folkloreType),
+    personality: rollPersonality(
+      personalitySeed(getPlayerName(), instanceId, definitionId),
+    ),
   };
   instance.currentHp = getEffectiveMaxHp(instance);
   playerParty.creatures.push(instance);

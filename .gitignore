@@ -7,3 +7,6 @@ dist
 .gstack/
 /playwright-report/
 /test-results/
+
+# Blender render helpers
+__pycache__/

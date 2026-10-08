@@ -11,6 +11,8 @@ import {
 import { ZONES } from "../world/zones";
 import type { ZoneId } from "../world/zoneTypes";
 import { popOverlay, pushOverlay } from "./overlayStack";
+import { getFavoriteMaterial } from "../companions/favorites";
+import { getMaterialName } from "../inventory/materials";
 
 let codexOpen = false;
 
@@ -74,7 +76,9 @@ function renderCodexBody(): void {
       const creatures = known
         .map((id) => {
           const def = getCreatureDefinition(id);
-          return `<li><strong>${def.name}</strong> <span class="codex-type">${def.folkloreType}</span></li>`;
+          // Favorite material unlocks with the first encounter (#367).
+          const favorite = getMaterialName(getFavoriteMaterial(id));
+          return `<li><strong>${def.name}</strong> <span class="codex-type">${def.folkloreType}</span> <span class="codex-fav">· loves ${favorite}</span></li>`;
         })
         .join("");
       return `<section class="codex-zone">

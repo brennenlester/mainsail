@@ -1,3 +1,4 @@
+import { isNicknamePromptOpen } from "./nicknamePrompt";
 /** DOM virtual stick + interact for touch devices. */
 
 export type TouchAxes = { x: number; y: number };
@@ -17,6 +18,11 @@ export function getTouchAxes(): TouchAxes {
 /** One-shot interact press (same role as keyboard JustDown(E)). */
 export function consumeTouchInteract(): boolean {
   if (!interactQueued) {
+    return false;
+  }
+  if (isNicknamePromptOpen()) {
+    // Taps meant for the nickname form must not interact with the world.
+    interactQueued = false;
     return false;
   }
   interactQueued = false;

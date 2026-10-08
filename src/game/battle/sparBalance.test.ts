@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CREATURES, getCreatureDefinition } from "../creatures/catalog";
 import { getHunterTarget } from "../creatures/folkloreTypes";
+import { outleveledWildBulk, OUTLEVELED_GAP } from "./battleLogic";
 import { sparStats, winRate, type SparPolicy } from "./sparSim";
 
 /**
@@ -20,6 +21,8 @@ const TUTORIAL_PAIRS = [
 ] as const;
 const LEVELS = [1, 10, 25, 40];
 const SEEDS = 40;
+/** Heavy sims can exceed the 5s default under load. */
+const HEAVY_TIMEOUT = 30_000;
 const POLICIES: SparPolicy[] = ["random", "max-damage", "skilled"];
 
 function hunts(attackerId: string, defenderId: string): boolean {
@@ -50,7 +53,7 @@ describe("spar balance (seeded sim)", () => {
       expect(winRate(p, w, "random", 200, opts), `${p} v ${w}`).toBeGreaterThanOrEqual(0.75);
       expect(winRate(p, w, "skilled", 200, opts), `${p} v ${w}`).toBeGreaterThanOrEqual(0.95);
     }
-  });
+  }, HEAVY_TIMEOUT);
 
   for (const level of LEVELS) {
     it(`Lv ${level} equal-level 1v1: skill matters, spars run long enough, no dead pairs`, () => {
@@ -91,7 +94,7 @@ describe("spar balance (seeded sim)", () => {
       expect(avg("skilled", "finishers")).toBeGreaterThanOrEqual(1);
       expect(avg("skilled", "finishers")).toBeLessThanOrEqual(2);
       expect(avg("skilled", "statuses")).toBeGreaterThanOrEqual(1.2);
-    });
+    }, HEAVY_TIMEOUT);
   }
 
   it("hard counters stay winnable with their counterplay: a partner + the free switch", () => {
@@ -109,7 +112,7 @@ describe("spar balance (seeded sim)", () => {
         }
       }
     }
-  });
+  }, HEAVY_TIMEOUT);
 
   it("the overworld stays soft: a starter trio beats wilds up to +2 levels", () => {
     for (const w of BASE_SPECIES) {
@@ -125,7 +128,7 @@ describe("spar balance (seeded sim)", () => {
       );
       expect(s.winRate, w).toBeGreaterThanOrEqual(0.9);
     }
-  });
+  }, HEAVY_TIMEOUT);
 
   it("previously broken pairs are fair at Lv 25-40 (#378)", () => {
     const checks: [string, string][] = [
@@ -140,5 +143,36 @@ describe("spar balance (seeded sim)", () => {
         expect(winRate(p, w, "skilled", 200, { level }), `${p} v ${w} Lv ${level}`).toBeGreaterThanOrEqual(0.4);
       }
     }
+  }, HEAVY_TIMEOUT);
+
+  it("peer-level wilds keep full bulk, so the floors above are unchanged", () => {
+    for (const level of LEVELS) {
+      for (let wildBias = -(OUTLEVELED_GAP - 1); wildBias <= 2; wildBias++) {
+        expect(outleveledWildBulk(level, level + wildBias)).toBe(1);
+      }
+    }
+    expect(outleveledWildBulk(10, 10 - OUTLEVELED_GAP)).toBeLessThan(1);
   });
+
+  it("clearly outleveled wilds (party avg +3 or more) fold in <= 4 turns", () => {
+    for (const level of [5, 10, 25, 40]) {
+      for (const gap of [OUTLEVELED_GAP, OUTLEVELED_GAP + 3]) {
+        for (const party of [["mossling"], ["mossling", "ember-wisp", "brook-nymph"]]) {
+          let turns = 0;
+          let wins = 0;
+          for (const w of BASE_SPECIES) {
+            const s = sparStats(
+              { party, wild: w, policy: "skilled", level, wildLevel: level - gap },
+              SEEDS,
+            );
+            turns += s.avgTurns;
+            wins += s.winRate;
+          }
+          const label = `Lv ${level} gap ${gap} party ${party.length}`;
+          expect(turns / BASE_SPECIES.length, label).toBeLessThanOrEqual(4);
+          expect(wins / BASE_SPECIES.length, label).toBeGreaterThanOrEqual(0.95);
+        }
+      }
+    }
+  }, HEAVY_TIMEOUT);
 });
