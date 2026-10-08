@@ -14,7 +14,7 @@ import {
   islandTemplateAtIndex,
   resetArchipelagoStream,
 } from "./archipelagoStream";
-import { QUESTS } from "../story/quests";
+import { SOVEREIGN_VOYAGE_HINTS } from "../story/sovereignVoyage";
 
 beforeEach(() => {
   resetArchipelagoStream();
@@ -77,10 +77,10 @@ describe("cairn island placement (#319)", () => {
     );
   });
 
-  it("points the obtain-cairn-sovereign hint south from the hermit", () => {
-    const quest = QUESTS["obtain-cairn-sovereign"];
-    expect(quest?.hint).toMatch(/south/i);
-    expect(quest?.hint).toMatch(/not east/i);
-    expect(quest?.hint).not.toMatch(/east of the hermit/i);
+  it("points the voyage Stone Sovereign hint south from the hermit (#369)", () => {
+    const hint = SOVEREIGN_VOYAGE_HINTS.cairn;
+    expect(hint).toMatch(/south/i);
+    expect(hint).toMatch(/not east/i);
+    expect(hint).not.toMatch(/east of the hermit/i);
   });
 });

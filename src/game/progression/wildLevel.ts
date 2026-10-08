@@ -28,6 +28,20 @@ const SPECIES_MAX_WEIGHT: Map<string, number> = (() => {
   return map;
 })();
 
+/** Story spar rounds (#369) pin one species' level while that round runs. */
+const scriptedWildLevels = new Map<string, number>();
+
+export function setScriptedWildLevel(
+  creatureId: string,
+  level: number | null,
+): void {
+  if (level === null) {
+    scriptedWildLevels.delete(creatureId);
+  } else {
+    scriptedWildLevels.set(creatureId, level);
+  }
+}
+
 export function isDefeatScalingExcluded(creatureId: string): boolean {
   return DEFEAT_SCALING_EXCLUDED.has(creatureId);
 }
@@ -84,6 +98,10 @@ export function getWildEffectiveLevel(
   creatureId: string,
   partyAverage = getPartyAverageLevel(),
 ): number {
+  const scripted = scriptedWildLevels.get(creatureId);
+  if (scripted !== undefined) {
+    return scripted;
+  }
   if (isDefeatScalingExcluded(creatureId)) {
     return 1;
   }

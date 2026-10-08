@@ -111,21 +111,20 @@ describe("Growth unlock fusion (#296)", () => {
     );
   });
 
-  it("advances evolve-bramblewarden when mossling evolves (#317)", () => {
+  it("completes the first-evolution beat when mossling evolves (#369)", () => {
     restoreQuestProgress({
       ...createEmptyQuestProgress(),
       "first-befriend": "complete",
       "first-spar": "complete",
-      "reach-village": "complete",
       "shrine-craft": "complete",
-      "evolve-bramblewarden": "active",
+      "first-evolution": "active",
     });
     const mossling = member({ instanceId: "c-m", definitionId: "mossling" });
     setPartyFromSnapshot([mossling], 1);
     setInventoryFromSnapshot({}, { "moss-salve": 1 });
 
     expect(applyShrineFusion(mossling.instanceId, "moss-salve").ok).toBe(true);
-    expect(getActiveQuestId()).toBe("evolve-hearthflame");
+    expect(getActiveQuestId()).toBe("rival-wren");
   });
 
   it("applies presence to lantern-fox and round-trips appliedEffects", () => {

@@ -1,10 +1,15 @@
 import {
+  getActiveQuestId,
   getQuestHint,
   getQuestNpcLine,
   getQuestSummary,
   peekQuestCompletionMessage,
 } from "../story/questProgress";
 import { getActiveSideQuestHint } from "../world/npcState";
+import {
+  getSovereignVoyageHint,
+  isSovereignVoyageStarted,
+} from "../story/sovereignVoyage";
 
 /** Pin the quest tracker to the top-right of the game board (not the status panel). */
 export function syncQuestHudPosition(): void {
@@ -35,11 +40,14 @@ export function refreshQuestHud(): void {
     questEl.textContent = completion ?? getQuestSummary();
   }
   if (questHintEl) {
-    const villageAsk = getActiveSideQuestHint();
-    const storyHint = getQuestHint();
-    questHintEl.textContent = villageAsk
-      ? `${storyHint} · ${villageAsk}`
-      : storyHint;
+    const parts = [getQuestHint()];
+    // A voyage already under way stays visible as an optional thread (#369);
+    // after the finale it is the story hint itself.
+    if (getActiveQuestId() && isSovereignVoyageStarted()) {
+      parts.push(getSovereignVoyageHint() ?? "");
+    }
+    parts.push(getActiveSideQuestHint() ?? "");
+    questHintEl.textContent = parts.filter(Boolean).join(" · ");
   }
   if (questNpcEl) {
     questNpcEl.textContent = getQuestNpcLine() ?? "";

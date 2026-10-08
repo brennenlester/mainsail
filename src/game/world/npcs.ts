@@ -104,8 +104,26 @@ export const NPCS: Partial<Record<ZoneId, NpcDefinition[]>> = {
   ],
 };
 
+/**
+ * Main-arc characters (#369) register here so this module stays free of story
+ * imports (npcs.ts is read at module-eval time by dailyAsk / npcState).
+ */
+type StoryNpcProvider = {
+  forZone: (zoneId: ZoneId) => NpcDefinition[];
+  byId: (npcId: string) => NpcDefinition | undefined;
+};
+
+let storyNpcProvider: StoryNpcProvider | null = null;
+
+export function registerStoryNpcProvider(provider: StoryNpcProvider): void {
+  storyNpcProvider = provider;
+}
+
+/** Villagers plus main-arc characters placed for the current beat (#369). */
 export function getZoneNpcs(zoneId: ZoneId): NpcDefinition[] {
-  return NPCS[zoneId] ?? [];
+  const story = storyNpcProvider?.forZone(zoneId) ?? [];
+  const villagers = NPCS[zoneId] ?? [];
+  return story.length > 0 ? [...villagers, ...story] : villagers;
 }
 
 export function findNpcNearPlayer(
@@ -136,6 +154,10 @@ export function nearestNpcDistance(
 }
 
 export function getNpcById(npcId: string): NpcDefinition | undefined {
+  const story = storyNpcProvider?.byId(npcId);
+  if (story) {
+    return story;
+  }
   for (const npcs of Object.values(NPCS)) {
     const match = npcs?.find((npc) => npc.id === npcId);
     if (match) {

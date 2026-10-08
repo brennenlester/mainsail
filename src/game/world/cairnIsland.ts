@@ -1,5 +1,5 @@
 /**
- * Stone Cairn archipelago island for Cairn Sovereign (#319 / main quest step 16).
+ * Stone Cairn archipelago island for Cairn Sovereign (#319; optional Sovereign voyage, #369).
  * Layout locals are NW-relative to the 9×9 island footprint.
  */
 

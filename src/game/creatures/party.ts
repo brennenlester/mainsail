@@ -127,7 +127,7 @@ function addToPartyWithHp(
   if (playerParty.activeInstanceIds.length < ACTIVE_PARTY_LIMIT) {
     playerParty.activeInstanceIds.push(instance.instanceId);
   }
-  recordQuestEvent({ type: "befriend_creature" });
+  recordQuestEvent({ type: "befriend_creature", creatureId: definitionId });
   notifyWorldChanged();
   return instance;
 }

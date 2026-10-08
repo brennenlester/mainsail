@@ -18,8 +18,10 @@ export const TileType = {
   OverworldGate: 2,
   Water: 3,
   Dock: 4,
-  /** Hearth Crossing east gate — opens with the Act 2 main quest (#316). */
+  /** Hearth Crossing east gate — opens at the first-evolution beat (#369). */
   VillageGate: 5,
+  /** Folklore Fields → Mistwood exit — opens when the rival beat is won (#369). */
+  MistwoodGate: 6,
 } as const;
 
 export type TileType = (typeof TileType)[keyof typeof TileType];

@@ -30,18 +30,26 @@ On a fresh save (or after Reset / `?new=1`), enter a display name (1–16 charac
 
 ### Confined region
 
-Start in **Whisper Grove**, then walk map exits through **Moon Shrine** to **Hearth Crossing**. North of the village are **Folklore Fields** (north gate into **Moonwake Harbor**, east into **Mistwood Reach** / **Emberfen Hollow**), locked until Story quest 2 is complete. From Harbor, sail east past East Landing into the open **Archipelago** sea — a **100×100** open ocean with a 2D grid of multi-biome 9×9 islands (lush, barren, and mixed) and docks you can hop between.
+Start in **Whisper Grove**, then walk map exits through **Moon Shrine** to **Hearth Crossing**. North of the village are **Folklore Fields** (north gate into **Moonwake Harbor**, east into **Mistwood Reach** / **Emberfen Hollow**), locked until Story 2 is complete. The east path into Mistwood opens once you beat the rival Wren (Story 5). From Harbor, sail east past East Landing into the open **Archipelago** sea — a **100×100** open ocean with a 2D grid of multi-biome 9×9 islands (lush, barren, and mixed) and docks you can hop between.
 
 ### Story quests
 
-The HUD shows `Story N/18: …` and a short “Next” hint. Steps 3–4 also show a short villager line. Host progress saves automatically.
+The HUD shows `Story N/8: …`, a short “Next” hint, and on some beats a line from a villager or the rival Wren. The main arc runs about 20 minutes. Host progress saves automatically.
 
-1. **Befriend a wild creature** — walk until an encounter appears, then choose **Befriend**.
-2. **Win a training spar** — choose **Spar** and win. This **opens the overworld gate**.
-3. **Reach Hearth Crossing** — follow the path Grove → Shrine → Village plaza.
-4. **Craft a relic at Moon Shrine** — stand on the moon altar, press **E**, craft any relic.
+1. **Befriend your first companion.** Walk until an encounter appears, then choose **Befriend**. The toast names your companion's temperament.
+2. **Win a training spar.** Choose **Spar** and win; a hunter tip teaches one matchup. This **opens the overworld gate**.
+3. **Craft a relic at Moon Shrine.** Stand on the moon altar, press **E**, and craft any relic. Moss Salve or Ember Charm sets up the next beat.
+4. **Grow your first companion.** Apply Moss Salve to a Mossling or Ember Charm to an Ember Wisp. The cottage gate in Hearth Crossing opens; Warden Bryn gives a Grove starter if you are missing one.
+5. **Beat Wren, the rival.** Talk to Wren in the Hearth Crossing plaza and accept her spar. She fights with two companions in a row, and your HP carries over between rounds. Losing patches your party up for a retry. Winning gives Brook Tonic ×2 and **opens the Mistwood path**.
+6. **Walk the Mistwood path.** Take the east exit of Folklore Fields into Mistwood Reach.
+7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). She fights in two forms and announces each one, along with the type that hunts it, before it rises. Swap your lead or Switch in the spar. Reward: Folklore Dust ×5 and a Moonwake Draught.
+8. **Return to the Moon Shrine.** Talk to Wren there for the finale. The main story is complete.
 
-Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done, then `OPEN`. Relic craft starts step 5.
+Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens. After the arc, Wren stays in the plaza for tougher rematches.
+
+**Optional side threads** never block the story: village asks, cottage minigames, daily asks, and the **Sovereign voyage**. The voyage goes: craft a Boat → Tide Sovereign on Reed's isle → Stone Sovereign on the cairn isle → Sovereign Seal → Horizon fusion at the Moon Shrine, with Eclipse beyond. After the finale, the HUD shows it as `Optional — Sovereign voyage: …`.
+
+Saves from the older 18-step story move to the matching new beat. Nothing you have finished is undone, and a voyage already under way stays on its step.
 
 ### Hearth Crossing villagers
 
@@ -55,7 +63,7 @@ Each cottage is home to one villager you can talk to with **E**:
 | Weaver Sable | Weaver's Cottage | Moss Fiber ×3 |
 | Hearthkeep Odd | Hearthkeep Cottage | Brook Tonic ×1 |
 
-A villager hands over their gift the first time you speak to them, once per save. Once Act 2 starts (after the first shrine relic), the east cottage gate opens. **Warden Bryn** then also gives a Mossling or Ember Wisp if you do not already have that Grove line (Bramblewarden / Hearthflame count). After that they cycle through local talk — some of which is worth listening to. Visitors on an invite link can explore the cottages and talk to everyone, but never receive gifts.
+A villager hands over their gift the first time you speak to them, once per save. Once Story 4 starts (after the first shrine relic), the east cottage gate opens. **Warden Bryn** then also gives a Mossling or Ember Wisp if you do not already have that Grove line (Bramblewarden / Hearthflame count). After that they cycle through local talk — some of which is worth listening to. Visitors on an invite link can explore the cottages and talk to everyone, but never receive gifts.
 
 Talk again after the gift and each villager will offer a **side ask**:
 

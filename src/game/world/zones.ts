@@ -5,6 +5,7 @@ import {
   hermitDoorWorld,
 } from "./archipelagoStream";
 import {
+  MISTWOOD_GATE,
   VILLAGE_CODE_GATE,
   VILLAGE_COTTAGE_DOORS,
   VILLAGE_OVERWORLD_GATE,
@@ -190,6 +191,7 @@ for (const y of [13, 14]) {
 }
 overworldTiles[14][7] = TileType.Floor; // village gate (boat dock moved to Harbor)
 overworldTiles[13][7] = TileType.Floor; // approach from land spawn (7,12)
+overworldTiles[MISTWOOD_GATE.y][MISTWOOD_GATE.x] = TileType.MistwoodGate;
 
 const OVERWORLD: ZoneDefinition = {
   id: "overworld",

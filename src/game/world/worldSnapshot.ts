@@ -19,6 +19,8 @@ import {
   questProgress,
   isFullQuestProgress,
   isLegacyQuestProgress,
+  isSpine18QuestProgress,
+  syncStoryAfterWorldRestore,
   syncVillageGateForStoryQuest,
 } from "../story/questProgress";
 import {
@@ -260,11 +262,20 @@ function isSpawnWalkable(
   if (tile === TileType.VillageGate) {
     return villageGateUnlocked;
   }
+  // Mistwood gate is derived from quest progress on load (#369); a stand there
+  // predates the gate, so accept it whenever the overworld itself is open.
+  if (tile === TileType.MistwoodGate) {
+    return overworldUnlocked;
+  }
   return false;
 }
 
 function acceptsQuestProgress(value: unknown): boolean {
-  return isFullQuestProgress(value) || isLegacyQuestProgress(value);
+  return (
+    isFullQuestProgress(value) ||
+    isLegacyQuestProgress(value) ||
+    isSpine18QuestProgress(value)
+  );
 }
 
 function isValidCountMap(value: unknown): value is Record<string, number> {
@@ -1184,5 +1195,8 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   // Saves predating the achievement can already have a full codex; award after
   // the inventory is restored so the items are not overwritten.
   evaluateCodexAchievement(worldState.discoveredCreatures);
+  // Needs party + discovered zones: migrated saves catch up evolved / walked
+  // beats, and a walked Mistwood path never re-locks (#369).
+  syncStoryAfterWorldRestore();
   pendingPosition = snapshot.position;
 }

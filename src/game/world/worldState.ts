@@ -5,8 +5,13 @@ import { evaluateCodexAchievement } from "../progression/achievements";
 /** Story progression flags — quest completion updates overworld access. */
 export const worldState = {
   overworldUnlocked: false,
-  /** East Hearth Crossing cottage gate — opens at Act 2 start (#316). */
+  /** East Hearth Crossing cottage gate — opens at the first-evolution beat (#369). */
   villageGateUnlocked: false,
+  /**
+   * Folklore Fields → Mistwood region gate (#369). Derived from quest progress
+   * + discovered zones on load (not persisted on its own).
+   */
+  mistwoodPathOpen: false,
   /** Zones visited (kept for saves / invites; codex uses creature discoveries). */
   discoveredZones: [] as ZoneId[],
   /** Creature species seen in an encounter — shown in every matching habitat. */
@@ -49,6 +54,10 @@ export function setVillageGateUnlocked(unlocked: boolean, notify = true): void {
   if (notify) {
     notifyWorldChanged();
   }
+}
+
+export function setMistwoodPathOpen(open: boolean): void {
+  worldState.mistwoodPathOpen = open;
 }
 
 export function isVillageGateUnlocked(): boolean {

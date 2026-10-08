@@ -1,7 +1,6 @@
 import { addToPartyFainted, countCreatures } from "../creatures/party";
 import type { MoveDefinition } from "../creatures/types";
 import { addItem, canAddItem, getItemCount, ownsSovereignPlate, BOULDER_CROWN_ID } from "../inventory/playerInventory";
-import { recordQuestEvent } from "../story/questProgress";
 import type { ZoneId } from "../world/zoneTypes";
 import { TileType } from "../world/zoneTypes";
 import {
@@ -208,9 +207,5 @@ export function resolveCairnSovereignOutcome(
   if (outcome === "spar-win" || ownsSovereignPlate()) {
     result.crownGranted = grantCrownIfMissing(BOULDER_CROWN_ID);
   }
-  recordQuestEvent({
-    type: "obtain_creature",
-    creatureId: CAIRN_SOVEREIGN_ID,
-  });
   return result;
 }

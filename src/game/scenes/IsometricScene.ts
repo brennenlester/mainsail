@@ -92,9 +92,9 @@ import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters"
 import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
-  getActiveQuestId,
   recordQuestEvent,
 } from "../story/questProgress";
+import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { consumeAchievementToast } from "../progression/achievements";
 import {
   flashInviteStatus,
@@ -568,7 +568,7 @@ export class IsometricScene extends Phaser.Scene {
     }
     const sailing = isSailing();
     if (sailing) {
-      if (getActiveQuestId() !== "obtain-tide-sovereign") {
+      if (getSovereignVoyageStep() !== "tide") {
         this.tryGodSailEncounter(step);
       }
       return;
@@ -1067,18 +1067,12 @@ export class IsometricScene extends Phaser.Scene {
     if (islandIndex === null) {
       return;
     }
-    const active = getActiveQuestId();
-    if (
-      active === "obtain-tide-sovereign" &&
-      islandIndex === HERMIT_ISLAND_INDEX
-    ) {
+    const voyageStep = getSovereignVoyageStep();
+    if (voyageStep === "tide" && islandIndex === HERMIT_ISLAND_INDEX) {
       this.scheduleGodSailEncounter(true);
       return;
     }
-    if (
-      active === "obtain-cairn-sovereign" &&
-      islandIndex === CAIRN_ISLAND_INDEX
-    ) {
+    if (voyageStep === "cairn" && islandIndex === CAIRN_ISLAND_INDEX) {
       this.scheduleGodLandEncounter(true);
     }
   }

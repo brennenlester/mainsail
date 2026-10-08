@@ -8,7 +8,14 @@ import {
   confirmOddRest,
   type ConversationPrompt,
 } from "../world/npcState";
+import type { StorySparId } from "../story/questTypes";
 import { refreshPartyStatusLine } from "../ui/statusPanel";
+import {
+  beginStorySpar,
+  forfeitStorySpar,
+  getActiveStorySpar,
+  launchStorySparRound,
+} from "../battle/storySpar";
 
 const PANEL_WIDTH = 470;
 const PANEL_HEIGHT = 220;
@@ -145,10 +152,22 @@ export class DialogueScene extends Phaser.Scene {
     this.bodyText.setText(this.lines[this.lineIndex] ?? "");
     const isLast = this.lineIndex >= this.lines.length - 1;
     const confirming = this.prompt.kind === "confirm-rest" && isLast;
-    this.advanceButton.setText(confirming ? "Rest" : isLast ? "Goodbye" : "Next");
-    this.advanceButton.setBackgroundColor(confirming ? "#7ed6a8" : "#f0c878");
-    this.declineButton.setVisible(confirming);
-    if (confirming) {
+    const challenging = this.prompt.kind === "challenge" && isLast;
+    const label =
+      this.prompt.kind === "challenge" && isLast
+        ? this.prompt.label
+        : confirming
+          ? "Rest"
+          : isLast
+            ? "Goodbye"
+            : "Next";
+    this.advanceButton.setText(label);
+    this.advanceButton.setBackgroundColor(
+      confirming ? "#7ed6a8" : challenging ? "#f09a78" : "#f0c878",
+    );
+    this.declineButton.setText(challenging ? "Not yet" : "No");
+    this.declineButton.setVisible(confirming || challenging);
+    if (confirming || challenging) {
       this.declineButton.setPosition(
         this.advanceButton.x - this.advanceButton.displayWidth - 12,
         this.advanceButton.y,
@@ -163,6 +182,10 @@ export class DialogueScene extends Phaser.Scene {
     if (this.lineIndex >= this.lines.length - 1) {
       if (this.prompt.kind === "confirm-rest") {
         this.applyRest();
+        return;
+      }
+      if (this.prompt.kind === "challenge") {
+        this.startStorySpar(this.prompt.sparId);
         return;
       }
       this.close();
@@ -180,10 +203,43 @@ export class DialogueScene extends Phaser.Scene {
     refreshPartyStatusLine();
   }
 
+  /**
+   * Rival / boss challenge (#369): hand off to the story spar adapter. After
+   * each round BattleScene resumes IsometricScene; we reopen this dialogue for
+   * the interlude telegraph or the outcome banter.
+   */
+  private startStorySpar(sparId: StorySparId): void {
+    if (this.closing) {
+      return;
+    }
+    if (!getActiveStorySpar() && !beginStorySpar(sparId)) {
+      this.close();
+      return;
+    }
+    this.closing = true;
+    const npcId = this.npc.id;
+    const iso = this.scene.get("IsometricScene");
+    this.cameras.main.fadeOut(130, 255, 255, 255);
+    this.time.delayedCall(140, () => {
+      const launched = launchStorySparRound(this, () => {
+        iso.events.once("resume", () => {
+          iso.scene.pause();
+          iso.scene.launch("DialogueScene", { npcId });
+        });
+      });
+      this.scene.stop("DialogueScene");
+      if (!launched) {
+        this.scene.resume("IsometricScene");
+      }
+    });
+  }
+
   private close(): void {
     if (this.closing) {
       return;
     }
+    // Walking away between rounds forfeits the story spar (cheap failure).
+    forfeitStorySpar();
     this.closing = true;
     this.cameras.main.fadeOut(130, 255, 255, 255);
     this.time.delayedCall(140, () => {

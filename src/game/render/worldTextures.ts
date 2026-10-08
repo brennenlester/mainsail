@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { hasWorldTexture } from "./imagineAssets";
+import { hasWorldTexture, imagineTexture } from "./imagineAssets";
 import { TILE_HEIGHT, TILE_WIDTH } from "../isometric";
 import type { ZoneId } from "../world/zoneTypes";
 import { NPC_DISPLAY, fitContainDisplay } from "./displaySizes";
@@ -795,11 +795,13 @@ export function applyNpcSprite(
   npc: { spriteKey: string; tint: number },
   size: { width: number; height: number } = NPC_DISPLAY,
 ): Phaser.GameObjects.Image {
-  const key = scene.textures.exists(npc.spriteKey)
-    ? npc.spriteKey
-    : NPC_TEXTURE_KEY;
-  image.setTexture(key);
-  if (key === NPC_TEXTURE_KEY) {
+  // Atlas frames too, so a creature-shaped story NPC (#369 boss) can reuse creature art.
+  const found = hasWorldTexture(scene, npc.spriteKey);
+  const [key, frame] = found
+    ? imagineTexture(scene, npc.spriteKey)
+    : [NPC_TEXTURE_KEY, undefined];
+  image.setTexture(key, frame);
+  if (!found) {
     image.setTint(npc.tint);
   } else {
     image.clearTint();

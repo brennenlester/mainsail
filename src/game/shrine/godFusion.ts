@@ -12,7 +12,6 @@ import {
   SOVEREIGN_SEAL_ID,
 } from "../inventory/playerInventory";
 import { isVisitorMode } from "../world/worldSession";
-import { recordQuestEvent } from "../story/questProgress";
 import {
   canHuntParentSovereigns,
   getCairnSovereignObtained,
@@ -133,7 +132,6 @@ export function applyGodFusion(
   addFusedCreature(HORIZON_SOVEREIGN_ID, level);
   recordHorizonFusion();
   reopenParentSovereignEncounters();
-  recordQuestEvent({ type: "fuse_horizon" });
   return {
     ok: true,
     message:
