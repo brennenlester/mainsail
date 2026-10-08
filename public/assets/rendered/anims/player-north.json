@@ -1,0 +1,28 @@
+{
+  "anims": [
+    {
+      "key": "player-north__idle",
+      "frames": [
+        "player-north__idle_00",
+        "player-north__idle_01",
+        "player-north__idle_02",
+        "player-north__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-north__walk",
+      "frames": [
+        "player-north-1",
+        "player-north-2",
+        "player-north-3",
+        "player-north-4",
+        "player-north-5",
+        "player-north-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    }
+  ]
+}

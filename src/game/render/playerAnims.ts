@@ -1,7 +1,11 @@
 import Phaser from "phaser";
 import { PLAYER_DISPLAY, fitDisplay } from "./displaySizes";
 import { hasImagineFrame, imagineTexture } from "./imagineAssets";
-import { WALK_FRAME_COUNT, walkStrideFrame } from "./playerWalk";
+import {
+  WALK_FRAME_COUNT,
+  idleBreathFrame,
+  walkStrideFrame,
+} from "./playerWalk";
 
 const FRAME_WIDTH = 48;
 const FRAME_HEIGHT = 64;
@@ -141,7 +145,13 @@ export function ensurePlayerAnims(scene: Phaser.Scene): void {
   }
 }
 
-/** Idle frame 0, or distance-synced walk pose while moving. */
+/** Rendered idle breath frame key when the atlas has it (#360). */
+function idleBreathKey(scene: Phaser.Scene, facing: Facing): string | null {
+  const key = `player-${facing}__idle_${String(idleBreathFrame(scene.time.now)).padStart(2, "0")}`;
+  return hasImagineFrame(scene, key) ? key : null;
+}
+
+/** Idle breath (or frame 0), or distance-synced walk pose while moving. */
 export function applyPlayerPose(
   sprite: Phaser.GameObjects.Sprite,
   facing: Facing,
@@ -149,10 +159,9 @@ export function applyPlayerPose(
   walkPhase: number,
 ): void {
   sprite.anims.stop();
-  const frame = moving
-    ? walkStrideFrame(walkPhase, WALK_FRAME_COUNT[facing])
-    : 0;
-  const key = textureKey(facing, frame);
+  const key = moving
+    ? textureKey(facing, walkStrideFrame(walkPhase, WALK_FRAME_COUNT[facing]))
+    : (idleBreathKey(sprite.scene, facing) ?? textureKey(facing, 0));
   const [texture, atlasFrame] = imagineTexture(sprite.scene, key);
   if (
     sprite.texture.key !== texture ||

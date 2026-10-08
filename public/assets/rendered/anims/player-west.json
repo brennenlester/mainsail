@@ -1,0 +1,28 @@
+{
+  "anims": [
+    {
+      "key": "player-west__idle",
+      "frames": [
+        "player-west__idle_00",
+        "player-west__idle_01",
+        "player-west__idle_02",
+        "player-west__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "player-west__walk",
+      "frames": [
+        "player-west-1",
+        "player-west-2",
+        "player-west-3",
+        "player-west-4",
+        "player-west-5",
+        "player-west-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    }
+  ]
+}

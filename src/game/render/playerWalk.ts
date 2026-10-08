@@ -4,16 +4,27 @@ export const WALK_CYCLES_PER_TILE = 0.85;
 /** Vertical lift (px up) at mid-pass between contact poses. */
 export const WALK_BOB_AMPLITUDE = 2;
 
-/** Walk texture indices 1..N per facing (0 is always idle). Hybrid #134 sheet plan. */
+/** Walk texture indices 1..N per facing (0 is always idle). Blender sheets, #360. */
 export const WALK_FRAME_COUNT: Record<
   "south" | "north" | "east" | "west",
   number
 > = {
-  east: 4,
-  west: 4,
-  south: 2,
-  north: 2,
+  east: 6,
+  west: 6,
+  south: 6,
+  north: 6,
 };
+
+/** Rendered idle breath frames `player-{facing}__idle_NN` (#360). */
+export const IDLE_FRAME_COUNT = 4;
+/** Idle breath cadence (frames per second). */
+export const IDLE_FPS = 4;
+
+/** Idle breath frame index for a clock time in ms. */
+export function idleBreathFrame(timeMs: number, count = IDLE_FRAME_COUNT): number {
+  const n = Math.max(1, Math.floor(count));
+  return Math.floor(Math.max(0, timeMs) / (1000 / IDLE_FPS)) % n;
+}
 
 function wrap01(phase: number): number {
   const wrapped = phase % 1;

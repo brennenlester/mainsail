@@ -26,6 +26,22 @@ else
   miss "Krita — brew bundle --file=Brewfile  (cask krita)"
 fi
 
+blender_bin=""
+for candidate in "${BLENDER:-}" "/Applications/Blender.app/Contents/MacOS/Blender" "${HOME}/Applications/Blender.app/Contents/MacOS/Blender"; do
+  if [[ -n "$candidate" && -x "$candidate" ]]; then
+    blender_bin="$candidate"
+    break
+  fi
+done
+if [[ -z "$blender_bin" ]] && command -v blender >/dev/null 2>&1; then
+  blender_bin="$(command -v blender)"
+fi
+if [[ -n "$blender_bin" ]]; then
+  ok "Blender $("$blender_bin" --version 2>/dev/null | head -n 1 | sed 's/^Blender //') (npm run render:assets)"
+else
+  miss "Blender — https://www.blender.org/download/  (needed for npm run render:assets)"
+fi
+
 if app_exists Audacity; then
   ok Audacity
 else
