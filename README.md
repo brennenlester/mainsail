@@ -141,11 +141,35 @@ Filling every codex page (all 27 creatures that appear in habitat encounter tabl
 3. Broken, oversized, or tampered `?card=` links show an error notice and load nothing. A valid `?join=` invite takes precedence over `?card=`.
 4. **Rare variants:** roughly 1 in 16 befriended companions is a colour-shifted ✦ Rare. They are tinted in the overworld, starred in the party HUD, and highlighted on the card.
 
+### Eclipse Trials (post-game)
+
+1. After the finale (or on an older save that already finished the story) an **Eclipse Gate** sigil glows in the Moon Shrine yard, north of the altar; the dock's **…** menu also gets **Eclipse Trial (daily)**.
+2. A trial is five battles with your real party — four seeded foes at your party's average level +0..+3, then the **Eclipse Shade** boss (two forms, telegraphed Umbral Eclipse: Guard the turn after she gathers the dark). Each round shows its 1-2 Eclipse modifiers first (Kindled, Twin Shadows, Rootbound, Glass Cannons, Soaked Arena, Moonfed, Short Fuse, Iron Hide). After each cleared round pick one of three boons (keys 1-3) or skip it for score (4 / S).
+3. The seed is the UTC date, so everyone gets the same gauntlet each day. No befriending and nothing to lose: a faint ends the trial and the party (HP, XP, bond, items) is restored exactly. Saving pauses during a trial, so closing the tab mid-trial keeps your pre-trial save.
+4. Score = rounds cleared + speed + grit (little damage taken) + perfect parries + skipped boons → a title from Ember Initiate to Eclipse Warden. Once per UTC day: Folklore Dust by rounds cleared (3+ rounds; top-up only, 7 max) and, on the first full clear, a small seeded chance of a rare tint for the lead (otherwise a small bond bump).
+5. **Share result** paints a 1080×1350 Trial Result card and a `?trial=YYYY-MM-DD&by=<code>` link. Friends get a "Beat my score" preview; **Try it** runs that day's trial as a sandboxed practice run (their finished party, or a borrowed Lv 9 trio) that never writes a save.
+
+Balance (`src/game/trials/trialBalance.test.ts`; reference classes: evolved starters, non-starters such as Brook Nymph + Thunder Finch, and unevolved starters, every lead order). Weaker parties face foes eased toward their base stats (`trialPartyStrength`). Each day's re-roll is chosen offline by a fairness gate (headless sims: overall skilled clear 38-52%, every class at least 36%) and committed to `src/game/trials/trialTable.json` (`npm run trials:table` rebuilds it; a test re-runs the gate on sampled days), so the game never runs sims:
+
+| Policy (all classes) | Full clear | Rounds cleared (mean) | Cleared ≥1 / 2 / 3 / 4 / 5 |
+|--------|-----------:|----------------------:|----------------------------|
+| skilled | 54% | 3.85 | 99 / 91 / 79 / 61 / 54% |
+| max-damage (typical) | 21% | 2.94 | 95 / 83 / 59 / 36 / 21% |
+| random | 1% | 1.83 | 90 / 58 / 27 / 7 / 1% |
+
+| Class (skilled, 365 days) | Median day | Hardest day |
+|---|---:|---:|
+| evolved | 53% | 29% |
+| non-starter | 49% | 20% |
+| unevolved | 53% | 24% |
+
+Rewards: a run is paid against the day it started (today or a run that crossed UTC midnight); each of the last 7 claimed days is remembered, so moving the clock back never pays twice; the bonus bond bump goes through the daily bond cap. Multiple tabs: the last tab to save wins, like the rest of the save. The results screen says why nothing was paid. Leaving between rounds scores the rounds already cleared. Trial links open today's or past days (up to a year, never before the table starts on 2026-10-01), never tomorrow's; a day past the table's end shows "Trials continue next season" instead of an ungated roll (a test fails once the table runs less than a year ahead, so it gets regenerated).
+
 **Link previews (Vercel):** `index.html` carries static Open Graph / Twitter tags pointing at `public/og-image.jpg` on the canonical play URL. Social crawlers do not run JavaScript, so every link — including `?card=` links and preview deploys — unfurls with that static image; the personal card travels as the shared PNG. Per-card preview images would need a server/edge function rendering the card from `?card=` (out of scope: no backend). If the canonical host changes, update the absolute `og:image` / `og:url` URLs in `index.html`.
 
 ### Save and resume
 
-Host progress (party, inventory, quests, position, gate) lives in `localStorage`. Append `?new=1` or use **Reset game** to start over (`?new=1` is ignored on `?join=` and `?card=` links). A valid `?join=` invite always takes precedence over the local save.
+Host progress (party, inventory, quests, position, gate) lives in `localStorage`. Append `?new=1` or use **Reset game** to start over (`?new=1` is ignored on `?join=`, `?card=` and `?trial=` links). A valid `?join=` invite always takes precedence over the local save.
 
 ---
 
@@ -195,6 +219,7 @@ These are for local development only; they are not part of normal play:
 - `src/game/story/` — quest definitions and progress
 - `src/game/world/` — zones, collision, invites, saves
 - `src/game/share/` — Companion Card, `?card=` share codes, ghost challenge, rare variants
+- `src/game/trials/` — Eclipse Trials: daily seed and plan, modifiers / boons, boss, headless sim, save record, `?trial=` links, trial scene
 - `src/game/creatures/` — catalog and party
 - `src/game/companions/` — personality, bond, favorite materials, overworld abilities
 - `src/game/inventory/` / `src/game/crafting/` / `src/game/shrine/` — materials and Moon Shrine

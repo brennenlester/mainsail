@@ -20,7 +20,9 @@ import {
   storyArenaVariant,
   StoryBattleUi,
 } from "../battle/boss/storyBattleUi";
-import { reportStoryBattleResult, type StoryBattleInit } from "../battle/storySpar";
+import { isStorySparId, reportStoryBattleResult, type StoryBattleInit } from "../battle/storySpar";
+// Type-only: the trial runtime is its own lazy chunk (#420).
+import type { TrialBattle, TrialStrip } from "../trials/trialBattle";
 import type { BossForm } from "../story/storySpars";
 import { getStorySpar } from "../story/storySpars";
 import { getActiveQuestId } from "../story/questProgress";
@@ -305,6 +307,9 @@ export class BattleScene extends Phaser.Scene {
   private fallbackActions: { fight?: () => void; retreat?: () => void } = {};
   /** Rival / boss battle (#385): rules in battle/boss/storyBattle, art in storyBattleUi. */
   private story: StoryBattle | null = null;
+  /** Eclipse Trial round (#420): rules in trials/trialBattle; the boss round also sets `story`. */
+  private trial: TrialBattle | null = null;
+  private trialStrip: TrialStrip | null = null;
   private titleOverride: string | undefined;
   private blockedToast?: Phaser.GameObjects.Container;
   /** Movement keys (S / arrows) held as the battle opens never fire hotkeys (#418). */
@@ -352,10 +357,14 @@ export class BattleScene extends Phaser.Scene {
     title?: string;
     /** Challenge ghost fights: the sharer's nickname for the foe (display only). */
     wildNickname?: string;
+    /** Eclipse Trial round (#420): no befriend, no rewards; the runner settles it. */
+    trial?: TrialBattle;
   }): void {
     this.titleOverride = data.title;
     this.blockedToast = undefined;
     this.lastBlockedAt = -Infinity;
+    this.trial = data.trial ?? null;
+    this.trialStrip = null;
     this.story = data.story
       ? new StoryBattle(getStorySpar(data.story.sparId), {
           partyAverage: getPartyAverageLevel(),
@@ -365,9 +374,9 @@ export class BattleScene extends Phaser.Scene {
           wardNextIn: data.story.wardNextIn,
           maxLevel: MAX_LEVEL,
         })
-      : null;
+      : (this.trial?.boss ?? null);
     this.storyUi = null;
-    this.allowBefriend = data.allowBefriend === true && !this.story;
+    this.allowBefriend = data.allowBefriend === true && !this.story && !this.trial;
     this.wildCreatureId = data.wildCreatureId;
     this.zoneId = data.zoneId;
     this.befriendMisses = data.befriendMisses ?? 0;
@@ -397,12 +406,13 @@ export class BattleScene extends Phaser.Scene {
     this.intentObjects = [];
     this.freeSwitchAvailable = true;
     this.rng = Math.random;
-    this.tutorialSpar = !this.story && isHunterMatchupTeachActive();
+    this.tutorialSpar = !this.story && !this.trial && isHunterMatchupTeachActive();
     this.benchState = new Map();
     this.fainted = new Set();
 
     const wildDef = getCreatureDefinition(data.wildCreatureId);
-    if (!wildDef.excludeFromCodex) {
+    // Trial foes reach the codex after the run settles (trialRun), never mid-trial.
+    if (!wildDef.excludeFromCodex && !data.trial) {
       markCreatureDiscovered(data.wildCreatureId);
     }
     const wildLevel = getWildEffectiveLevel(data.wildCreatureId);
@@ -429,7 +439,13 @@ export class BattleScene extends Phaser.Scene {
       this.wildCreatureId = this.story.spriteCreatureId;
       this.wild = this.story.foe;
       this.wildLevel = this.story.foeLevel;
+    } else if (this.trial) {
+      this.wildCreatureId = this.trial.foeCreatureId;
+      this.wild = this.trial.foe;
+      this.wildLevel = this.trial.foeLevel;
     }
+    // Eclipse entry statuses land on the foe as the round opens.
+    this.trial?.startFoe();
 
     const actives = getActiveCreatures();
     const activeIndex = actives.findIndex((c) => c.currentHp > 0);
@@ -514,10 +530,12 @@ export class BattleScene extends Phaser.Scene {
     this.log(
       this.story
         ? (this.story.isBoss
-            ? `The ${this.wild.name} rises from the smoking peat — ${this.story.form?.label ?? ""}!`
+            ? `The ${this.wild.name} rises${this.trial ? " out of the eclipse" : " from the smoking peat"} — ${this.story.form?.label ?? ""}!`
             : `Wren sends out ${this.wild.name}! (${this.story.remainingFoes + 1} to beat)`) +
           (this.story.ward < 1 ? " The shrine's warmth steadies you." : "")
-        : wildOpens
+        : this.trial
+          ? `Eclipse Trial, round ${this.trial.round.index + 1}: ${this.wild.name} steps out of the dark.`
+          : wildOpens
           ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
           : `A training spar with ${this.wild.name} begins.`,
     );
@@ -556,9 +574,17 @@ export class BattleScene extends Phaser.Scene {
     const ui = L.ui;
 
     const fastToggle = this.addFastToggle();
-    // A warded story battle uses this strip for the Hearth Ward row (#399);
-    // its title already ran in the VS banner and the foe bar names the foe.
-    if (!this.story || this.story.ward >= 1) {
+    if (this.trial) {
+      // Eclipse Trial strip (#420): round pips, modifier chips, score. A
+      // reflow destroyed the old one with every other child.
+      this.trialStrip = this.trial.createStrip(
+        this,
+        { left: L.topRow.left, right: fastToggle.x - fastToggle.width - 8 * ui, y: L.topRow.y },
+        ui,
+      );
+    } else if (!this.story || this.story.ward >= 1) {
+      // A warded story battle uses this strip for the Hearth Ward row (#399);
+      // its title already ran in the VS banner and the foe bar names the foe.
       const title = this.add
         .text(
           (L.topRow.left + L.topRow.right) / 2,
@@ -1066,9 +1092,13 @@ export class BattleScene extends Phaser.Scene {
     if (benched) {
       combatant.statuses = benched.statuses;
       combatant.cooldowns = benched.cooldowns;
+      this.trial?.decoratePlayer(combatant, false);
       return combatant;
     }
-    return primeOpeningCooldowns(combatant);
+    primeOpeningCooldowns(combatant);
+    // Eclipse modifiers / boons (#420): stats always, entry statuses on a fresh entrance.
+    this.trial?.decoratePlayer(combatant, true);
+    return combatant;
   }
 
   /** Remember the outgoing creature's battle state before a switch. */
@@ -1858,7 +1888,8 @@ export class BattleScene extends Phaser.Scene {
     this.swapPlayerSprite();
     const freeSwitch = voluntarySwitch && this.freeSwitchAvailable;
     if (freeSwitch) {
-      this.freeSwitchAvailable = false;
+      // Swift Swap (#420) leaves a second free switch.
+      this.freeSwitchAvailable = this.trial?.takeFreeSwitch() ?? false;
     }
     this.log(
       freeSwitch
@@ -1890,6 +1921,7 @@ export class BattleScene extends Phaser.Scene {
     this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
     this.dimActionButtons();
+    this.trial?.notePlayerTurn();
     const result = executeMove(this.player, move, this.wild, this.rng);
     // A boss form threshold clamps the hit and the boss transforms (her turn).
     const transformed = this.story?.checkTransform() ?? null;
@@ -1908,6 +1940,9 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
       message += this.tickEndOfTurn(this.player, "player");
+      if ((this.trial?.playerEndTurn(this.player) ?? []).length > 0) {
+        message += " Pure Light washes it clean.";
+      }
       this.log(message);
       this.refreshHp();
       this.buildActionButtons();
@@ -1965,13 +2000,19 @@ export class BattleScene extends Phaser.Scene {
       const guarded = this.player.guarding === true;
       const result = executeMove(this.wild, intent.move, this.player, this.rng);
       const parried = this.story?.onFoeActed(intent.move, guarded, result).parried ?? false;
+      this.trial?.noteFoeMove(guarded, intent.role, result.attack?.kind === "hit");
+      // Twin Shadows (#420): on its echo turn the foe strikes again.
+      const echo = this.trial?.afterFoeMove(this.wild, this.player, intent.move, this.rng) ?? null;
       present = () => {
-        const line = this.describeMove(this.wild, this.player, result, "player");
-        if (!parried) {
-          return line;
+        let line = this.describeMove(this.wild, this.player, result, "player");
+        if (parried) {
+          this.storyUi?.playParry(this.wildSprite);
+          line += ` ${this.wild.name} staggers — she loses her next turn!`;
         }
-        this.storyUi?.playParry(this.wildSprite);
-        return `${line} ${this.wild.name} staggers — she loses her next turn!`;
+        if (echo) {
+          line += ` Twin Shadows! ${this.describeMove(this.wild, this.player, echo, "player")}`;
+        }
+        return line;
       };
     }
     this.fx.attack("wild", intent.move, intent.role, () => this.finishWildTurn(present));
@@ -1985,6 +2026,12 @@ export class BattleScene extends Phaser.Scene {
     // A guard lasts until the guarding creature's next turn.
     this.player.guarding = false;
     message += this.tickEndOfTurn(this.wild, "wild");
+    const regen = this.trial?.foeEndTurn(this.wild) ?? 0;
+    if (regen > 0) {
+      message += ` Moonfed: ${this.wild.name} +${regen} HP.`;
+      this.fx.heal("wild");
+    }
+    this.trialStrip?.refresh();
     // Burn can carry the boss across a form threshold too.
     const transformed = this.story?.checkTransform() ?? null;
     if (!isFainted(this.player) && !isFainted(this.wild)) {
@@ -2038,7 +2085,7 @@ export class BattleScene extends Phaser.Scene {
       this.showSwitchMenu();
       return;
     }
-    if (!this.story && !this.usingArmedWanderer && hasCraftedWeapon()) {
+    if (!this.story && !this.trial && !this.usingArmedWanderer && hasCraftedWeapon()) {
       this.forcedSwitch = true;
       this.waitingForPlayer = true;
       this.log(`${this.player.name} fainted!`);
@@ -2521,7 +2568,20 @@ export class BattleScene extends Phaser.Scene {
     }
 
     let panel: ResultPanelOptions;
-    if (playerWon && this.wildCreatureId === TIDE_SOVEREIGN_ID) {
+    if (this.trial) {
+      // Eclipse Trial (#420): no XP / Dust / bond here; the runner settles the round.
+      this.trial.reportResult(playerWon);
+      const boss = this.trial.isBoss;
+      const line = playerWon
+        ? boss
+          ? "The Eclipse Shade unravels into moonlight."
+          : `Round ${this.trial.round.index + 1} cleared.`
+        : "The eclipse swallows the light. Your companions are safe — nothing is lost.";
+      this.log(line);
+      panel = playerWon
+        ? { tone: "special", title: boss ? "Eclipse broken!" : "Round cleared!", line }
+        : { tone: "defeat", line };
+    } else if (playerWon && this.wildCreatureId === TIDE_SOVEREIGN_ID) {
       const result = resolveTideSovereignOutcome("spar-win");
       const line = result
         ? formatGodClaimJoinLine(
@@ -2549,7 +2609,9 @@ export class BattleScene extends Phaser.Scene {
       panel = { tone: "special", title: "Victory!", line };
     } else if (this.story && (!playerWon || getActiveQuestId() !== this.story.def.id)) {
       // Story loss or rematch win: storySpar rolls rewards back either way.
-      reportStoryBattleResult(this.story.def.id, playerWon);
+      if (isStorySparId(this.story.def.id)) {
+        reportStoryBattleResult(this.story.def.id, playerWon);
+      }
       const line = playerWon
         ? `${this.story.def.name} yields. Bragging rights only on a rematch.`
         : this.story.isBoss
@@ -2558,7 +2620,7 @@ export class BattleScene extends Phaser.Scene {
       this.log(line);
       panel = playerWon ? { tone: "special", title: "Victory!", line } : { tone: "defeat", line };
     } else if (playerWon) {
-      if (this.story) {
+      if (this.story && isStorySparId(this.story.def.id)) {
         reportStoryBattleResult(this.story.def.id, true);
       }
       const before: PartySnapshotEntry[] = getActiveCreatures().map((c) => ({
@@ -2625,6 +2687,10 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeOut(140, 255, 255, 255);
     this.time.delayedCall(145, () => {
       this.scene.stop("BattleScene");
+      if (this.trial) {
+        // The trial scene takes over (it listens for this shutdown); the world stays paused.
+        return;
+      }
       this.scene.stop("EncounterScene");
       this.scene.resume("IsometricScene");
     });

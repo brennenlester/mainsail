@@ -1,5 +1,6 @@
 import type { FolkloreType } from "../creatures/folkloreTypes";
 import type { MoveDefinition } from "../creatures/types";
+import type { ArenaVariant } from "../render/arenaLayers";
 import type { NpcGift } from "../world/npcs";
 import type { StorySparId } from "./questTypes";
 
@@ -130,6 +131,28 @@ export type StorySparDefinition = {
    * — this companion joins if no party creature has `type` yet.
    */
   coverageGift?: { type: FolkloreType; creatureId: string; nickname: string };
+};
+
+/**
+ * What one StoryBattle needs. Story spars satisfy it; Eclipse Trials (#420)
+ * build their boss at runtime with their own id and arena.
+ */
+export type StoryBattleDefinition = Pick<
+  StorySparDefinition,
+  | "name"
+  | "title"
+  | "theme"
+  | "rounds"
+  | "rematchRounds"
+  | "rematchLevelBonus"
+  | "challengerScale"
+  | "rematchChallengerScale"
+  | "boss"
+  | "assist"
+> & {
+  id: string;
+  /** Arena override (default: ember for a boss theme, village for the rival). */
+  arena?: ArenaVariant;
 };
 
 export const RIVAL_NPC_ID = "rival-wren";
@@ -290,7 +313,7 @@ export function hearthWardTriesToNext(def: StorySparDefinition, losses: number):
 
 /** Scale for a party of `size` standing companions (1 when the table is empty). */
 export function challengerScaleFor(
-  def: StorySparDefinition,
+  def: Pick<StoryBattleDefinition, "challengerScale" | "rematchChallengerScale">,
   size: number,
   rematch = false,
 ): ChallengerScale {
@@ -305,7 +328,7 @@ export function getStorySpar(id: StorySparId): StorySparDefinition {
 
 /** Opponent roster for this challenge (rematches add the escalation creatures). */
 export function storySparRoster(
-  def: StorySparDefinition,
+  def: Pick<StoryBattleDefinition, "rounds" | "rematchRounds">,
   rematch: boolean,
 ): readonly StorySparRound[] {
   return rematch ? [...def.rounds, ...def.rematchRounds] : def.rounds;

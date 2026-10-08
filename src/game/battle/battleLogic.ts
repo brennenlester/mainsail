@@ -137,7 +137,7 @@ function situationalMultiplier(
   }
   if (defender.guarding) {
     // Reading the telegraph pays: a guarded finisher is parried.
-    mult *= finisher ? GUARD_FINISHER_DAMAGE_TAKEN : GUARD_DAMAGE_TAKEN;
+    mult *= (finisher ? GUARD_FINISHER_DAMAGE_TAKEN : GUARD_DAMAGE_TAKEN) * (defender.guardTakenScale ?? 1);
   }
   return mult;
 }
