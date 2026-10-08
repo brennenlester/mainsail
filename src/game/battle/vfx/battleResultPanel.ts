@@ -217,8 +217,7 @@ export function showBattleResultPanel(
         backgroundColor: victory ? "#ffe6a8" : "#dff4ec",
         padding: { x: 22, y: 8 },
       })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true }),
+      .setOrigin(0.5),
   );
 
   let done = false;
@@ -232,10 +231,26 @@ export function showBattleResultPanel(
     scene.input.keyboard?.off("keydown-ENTER", close);
     onContinue();
   };
+  setTouchHitArea(btn);
   btn.on("pointerdown", close);
-  // Keys arm after a beat so a held key from the last move doesn't skip the card.
+  // Keys / veil taps arm after a beat so a held key or tap from the last move doesn't skip the card.
   scene.time.delayedCall(mode.fast ? 150 : 600, () => {
     scene.input.keyboard?.once("keydown-SPACE", close);
     scene.input.keyboard?.once("keydown-ENTER", close);
+    veil.on("pointerdown", close);
+  });
+}
+
+/** Design-space px for a ~44 CSS px target when the 640 board is drawn 360 px wide. */
+export const MIN_TOUCH_TARGET = Math.ceil((44 * 640) / 360);
+
+/** Pad a text button's hit area to at least MIN_TOUCH_TARGET on each axis (visual size unchanged). */
+export function setTouchHitArea(text: Phaser.GameObjects.Text): void {
+  const w = Math.max(text.width, MIN_TOUCH_TARGET);
+  const h = Math.max(text.height, MIN_TOUCH_TARGET);
+  text.setInteractive({
+    hitArea: new Phaser.Geom.Rectangle((text.width - w) / 2, (text.height - h) / 2, w, h),
+    hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+    useHandCursor: true,
   });
 }

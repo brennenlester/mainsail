@@ -17,6 +17,7 @@ import {
 } from "../battle/vfx/battleTiming";
 import { damageNumberStyle } from "../battle/vfx/damageNumbers";
 import {
+  setTouchHitArea,
   showBattleResultPanel,
   type ResultPanelOptions,
 } from "../battle/vfx/battleResultPanel";
@@ -137,7 +138,8 @@ const INTENT_MIN_LEFT = 268;
 const WILD_HOME = { x: DESIGN_SIZE / 2 + 116, y: 211 };
 const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 118, y: 299 };
 
-const HUD_FONT = "Source Sans 3, system-ui, sans-serif";
+// Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
+const HUD_FONT = '"Source Sans 3", system-ui, sans-serif';
 const HP_BAR_WIDTH = 176;
 const HUD_PLATE_WIDTH = 236;
 
@@ -452,8 +454,8 @@ export class BattleScene extends Phaser.Scene {
         padding: { x: 7, y: 3 },
       })
       .setOrigin(1, 0.5)
-      .setDepth(6)
-      .setInteractive({ useHandCursor: true });
+      .setDepth(6);
+    setTouchHitArea(btn);
     btn.on("pointerdown", () => {
       const next = !fastBattleEnabled();
       setFastBattleEnabled(next);
