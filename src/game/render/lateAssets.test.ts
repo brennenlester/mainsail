@@ -1,19 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
-import type Phaser from "phaser";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { HEARTH_LOTS_BOARD_TEXTURE } from "../minigames/hearthLots";
 import {
   LATE_CREATURE_IDS,
   LATE_IMAGES,
+  type LateTextures,
+  fetchLateImage,
+  fetchLateImages,
   isLateImageKey,
   isLateImagePending,
   lateCreatureKeys,
   lateImageStatus,
-  loadLateImages,
-  queueLateImages,
   resetLateImagesForTest,
+  setLateImageFactoryForTest,
 } from "./lateAssets";
 
 const PUBLIC = path.resolve(__dirname, "../../../public");
@@ -40,102 +41,63 @@ describe("late-game images (#410)", () => {
   });
 });
 
-type Handler = (...args: unknown[]) => void;
+type FakeImage = { onload: (() => void) | null; onerror: (() => void) | null; src: string };
 
-function emitter() {
-  const handlers = new Map<string, Set<Handler>>();
-  const self = {
-    on(e: string, h: Handler) {
-      if (!handlers.has(e)) handlers.set(e, new Set());
-      handlers.get(e)!.add(h);
-      return self;
-    },
-    once(e: string, h: Handler) {
-      const wrapped: Handler = (...a) => {
-        self.off(e, wrapped);
-        h(...a);
-      };
-      return self.on(e, wrapped);
-    },
-    off(e: string, h?: Handler) {
-      if (h) handlers.get(e)?.delete(h);
-      else handlers.delete(e);
-      return self;
-    },
-    emit(e: string, ...a: unknown[]) {
-      for (const h of [...(handlers.get(e) ?? [])]) h(...a);
-    },
-  };
-  return self;
-}
+describe("shared late image fetch (#410)", () => {
+  const KEY = "creature-horizon-sovereign";
+  let requests: FakeImage[];
+  let textures: LateTextures & { added: string[] };
 
-/** Minimal scene: an event-emitting loader, scene events and a texture set. */
-function fakeScene(textures = new Set<string>()) {
-  const queued: string[] = [];
-  let loading = false;
-  const load = Object.assign(emitter(), {
-    image: (key: string) => queued.push(key),
-    isLoading: () => loading,
-    start: () => {
-      loading = true;
-    },
-  });
-  const events = emitter();
-  const scene = { textures: { exists: (k: string) => textures.has(k) }, load, events };
-  /** Finish the batch: keys in `fail` error, the rest land in the cache. */
-  const finish = (fail: string[] = []): void => {
-    for (const key of queued.splice(0)) {
-      if (fail.includes(key)) load.emit("loaderror", { key });
-      else textures.add(key);
-    }
-    loading = false;
-    load.emit("complete");
-  };
-  return { scene: scene as unknown as Phaser.Scene, queued, finish, events };
-}
-
-describe("late image fetch state (#410)", () => {
-  afterEach(() => resetLateImagesForTest());
-  const KEY = "creature-tide-sovereign";
-
-  it("never queues a key twice while it is in flight", () => {
-    const a = fakeScene();
-    const b = fakeScene();
-    expect(queueLateImages(a.scene, [KEY], null)).toBe(1);
-    expect(queueLateImages(a.scene, [KEY], null)).toBe(0);
-    expect(queueLateImages(b.scene, [KEY], null)).toBe(0);
-    expect(lateImageStatus(b.scene, KEY)).toBe("loading");
-  });
-
-  it("resolves a waiter on another scene once the fetch lands", async () => {
+  beforeEach(() => {
+    requests = [];
+    setLateImageFactoryForTest(() => {
+      const image: FakeImage = { onload: null, onerror: null, src: "" };
+      requests.push(image);
+      return image;
+    });
     const cache = new Set<string>();
-    const a = fakeScene(cache);
-    const b = fakeScene(cache);
-    queueLateImages(a.scene, [KEY], null);
-    const waiting = loadLateImages(b.scene, [KEY]);
-    a.finish();
-    await expect(waiting).resolves.toBe(true);
+    textures = {
+      added: [],
+      exists: (key) => cache.has(key),
+      addImage(key) {
+        cache.add(key);
+        this.added.push(key);
+      },
+    };
+  });
+  afterEach(() => resetLateImagesForTest());
+
+  it("serves two concurrent consumers from one request", async () => {
+    // e.g. the shrine prefetch, then an encounter scene's preload.
+    const prefetch = fetchLateImages(textures, [KEY]);
+    expect(lateImageStatus(textures, KEY)).toBe("loading");
+    expect(isLateImagePending(textures, KEY)).toBe(true);
+    const encounter = fetchLateImage(textures, KEY);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].src).toBe(LATE_IMAGES[KEY]);
+    requests[0].onload!();
+    await expect(Promise.all([prefetch, encounter])).resolves.toEqual([true, true]);
+    expect(textures.added).toEqual([KEY]);
+    expect(lateImageStatus(textures, KEY)).toBe("ready");
+    await fetchLateImage(textures, KEY);
+    expect(requests).toHaveLength(1);
   });
 
   it("marks failures (fallback allowed) and refetches only on retry", async () => {
-    const a = fakeScene();
-    const first = loadLateImages(a.scene, [KEY]);
-    a.finish([KEY]);
+    const first = fetchLateImage(textures, KEY);
+    requests[0].onerror!();
     await expect(first).resolves.toBe(false);
-    expect(isLateImagePending(a.scene, KEY)).toBe(false);
-    expect(queueLateImages(a.scene, [KEY], null)).toBe(0);
-    const retry = loadLateImages(a.scene, [KEY], null, true);
-    expect(a.queued).toEqual([KEY]);
-    a.finish();
+    expect(isLateImagePending(textures, KEY)).toBe(false);
+    await expect(fetchLateImage(textures, KEY)).resolves.toBe(false);
+    expect(requests).toHaveLength(1);
+    const retry = fetchLateImage(textures, KEY, true);
+    expect(requests).toHaveLength(2);
+    requests[1].onload!();
     await expect(retry).resolves.toBe(true);
   });
 
-  it("frees a key whose scene shut down mid-fetch", async () => {
-    const a = fakeScene();
-    const waiting = loadLateImages(a.scene, [KEY]);
-    a.events.emit("shutdown");
-    await expect(waiting).resolves.toBe(false);
-    expect(lateImageStatus(a.scene, KEY)).toBe("missing");
-    expect(queueLateImages(fakeScene().scene, [KEY], null)).toBe(1);
+  it("ignores keys that are not late art", async () => {
+    await expect(fetchLateImages(textures, ["creature-mossling"])).resolves.toBe(true);
+    expect(requests).toHaveLength(0);
   });
 });

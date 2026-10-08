@@ -5,7 +5,7 @@ import { getItemIconSrc, getItemName } from "../inventory/materials";
 import { getItemCount } from "../inventory/playerInventory";
 import { applyShrineFusion, getEligibleCreaturesForItem } from "../shrine/fusion";
 import { launchEvolutionScene } from "../evolution/launchEvolution";
-import { lateCreatureKeys, lateImageStatus, loadLateImages } from "../render/lateAssets";
+import { fetchLateImages, lateCreatureKeys, lateImageStatus } from "../render/lateAssets";
 import { hideLoadingVeil, showLoadingVeil } from "../ui/loadingVeil";
 import {
   applyEclipseFusion,
@@ -441,7 +441,7 @@ export class ShrineScene extends Phaser.Scene {
       // Silently prefetch the new sovereign's art while the card is read
       // (#410); it must be in before the sovereign joins the party.
       const artKeys = lateCreatureKeys([resultId]);
-      void loadLateImages(this, artKeys, null);
+      void fetchLateImages(this.textures, artKeys);
       const apply = (): void => {
         const result = run();
         this.setStatus(result.message);
@@ -453,7 +453,7 @@ export class ShrineScene extends Phaser.Scene {
         this.renderTabContent();
       };
       const btn = createShrineButton(label, "primary", () => {
-        if (artKeys.every((key) => lateImageStatus(this, key) === "ready")) {
+        if (artKeys.every((key) => lateImageStatus(this.textures, key) === "ready")) {
           apply();
           return;
         }
@@ -461,7 +461,7 @@ export class ShrineScene extends Phaser.Scene {
         // retrying a failed fetch. Nothing is consumed until the art is in.
         btn.disabled = true;
         showLoadingVeil("The seal awakens…");
-        void loadLateImages(this, artKeys, null, true).then((ok) => {
+        void fetchLateImages(this.textures, artKeys, true).then((ok) => {
           hideLoadingVeil();
           // Esc / tab switch while loading cancels: keep the texture, spend nothing.
           if (!this.panel || !this.sys.isActive() || !btn.isConnected) {

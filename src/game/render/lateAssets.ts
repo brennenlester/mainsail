@@ -1,12 +1,11 @@
-import type Phaser from "phaser";
-import { hideLoadingVeil, showLoadingVeil } from "../ui/loadingVeil";
-
 /**
  * Post-game art that never rides the boot preload (#410): ~6.8 MB of
- * standalone PNGs only a late-game save ever shows. The scene that first
- * shows one queues it in its own `preload()` (Phaser holds `create()` until
- * it lands, so there is no missing-texture frame) or fetches it ahead with
- * `loadLateImages`.
+ * standalone PNGs only a late-game save ever shows.
+ *
+ * Fetches are game-wide, not scene-bound: one request per key no matter how
+ * many scenes want it or which of them shut down meanwhile; the image goes
+ * straight into the shared texture manager. Scenes hold their `create()` on
+ * the same per-key promise (`waitForLateImages` in `lateAssetWait.ts`).
  */
 export const LATE_IMAGES: Readonly<Record<string, string>> = {
   "creature-tide-sovereign": "assets/creatures/creature-tide-sovereign.png",
@@ -24,16 +23,21 @@ export const LATE_CREATURE_IDS: readonly string[] = [
   "eclipse-sovereign",
 ];
 
-/** Fetches in flight (on any scene's loader) and fetches that failed. */
-const inflight = new Set<string>();
-const failed = new Set<string>();
-const settleListeners = new Set<() => void>();
+/** The slice of Phaser's TextureManager this module needs. */
+export type LateTextures = {
+  exists(key: string): boolean;
+  addImage(key: string, source: HTMLImageElement): unknown;
+};
 
-function notifySettled(): void {
-  for (const listener of [...settleListeners]) {
-    listener();
-  }
-}
+type ImageLike = {
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+  src: string;
+};
+
+let makeImage = (): ImageLike => new Image() as unknown as ImageLike;
+const fetches = new Map<string, Promise<boolean>>();
+const failed = new Set<string>();
 
 export function isLateImageKey(key: string): boolean {
   return Object.prototype.hasOwnProperty.call(LATE_IMAGES, key);
@@ -50,134 +54,91 @@ export function lateCreatureKeys(creatureIds: Iterable<string>): string[] {
   return [...keys];
 }
 
-/**
- * True while a late key has neither loaded nor failed: procedural fallbacks
- * must not claim the key in that window, or the real PNG could never load.
- */
-export function isLateImagePending(scene: Phaser.Scene, key: string): boolean {
-  return isLateImageKey(key) && !failed.has(key) && !scene.textures.exists(key);
-}
-
 export type LateImageStatus = "ready" | "loading" | "failed" | "missing";
 
-export function lateImageStatus(scene: Phaser.Scene, key: string): LateImageStatus {
-  if (scene.textures.exists(key)) {
+export function lateImageStatus(textures: LateTextures, key: string): LateImageStatus {
+  if (textures.exists(key)) {
     return "ready";
   }
-  if (inflight.has(key)) {
+  if (fetches.has(key)) {
     return "loading";
   }
   return failed.has(key) ? "failed" : "missing";
 }
 
 /**
- * Queue missing late images on the scene loader; returns how many were
- * queued. Keys already loaded or in flight anywhere are skipped (no
- * duplicate-key loads). A slow fetch shows the loading veil with `caption`
- * (null: never, e.g. a silent prefetch). `retry` re-queues failed keys.
+ * True while a late key has neither loaded nor failed: procedural fallbacks
+ * must not claim the key in that window, or the real PNG could never land.
  */
-export function queueLateImages(
-  scene: Phaser.Scene,
-  keys: Iterable<string>,
-  caption: string | null = "Something stirs…",
-  retry = false,
-): number {
-  const queued: string[] = [];
-  for (const key of keys) {
-    const url = LATE_IMAGES[key];
-    if (!url || inflight.has(key) || scene.textures.exists(key) || (failed.has(key) && !retry)) {
-      continue;
-    }
-    failed.delete(key);
-    inflight.add(key);
-    scene.load.image(key, url);
-    queued.push(key);
-  }
-  if (queued.length === 0) {
-    return 0;
-  }
-  const mine = new Set(queued);
-  const onError = (file: { key: string }): void => {
-    if (mine.has(file.key)) {
-      // ensure* procedural art fills in for this key until a retry lands.
-      failed.add(file.key);
-    }
-  };
-  let progress = 0;
-  let shown = false;
-  const onProgress = (value: number): void => {
-    progress = value;
-    if (shown && caption) {
-      showLoadingVeil(caption, progress);
-    }
-  };
-  // Only veil a slow fetch; a cached PNG lands before anyone would notice.
-  const veil =
-    caption === null
-      ? undefined
-      : window.setTimeout(() => {
-          shown = true;
-          showLoadingVeil(caption, progress);
-        }, 150);
-  const cleanup = (): void => {
-    window.clearTimeout(veil);
-    scene.load.off("loaderror", onError);
-    scene.load.off("progress", onProgress);
-    scene.load.off("complete", cleanup);
-    scene.events.off("shutdown", abort);
-    if (shown) {
-      hideLoadingVeil();
-    }
-    // Textures join the cache when the batch completes. A key with neither a
-    // texture nor an error (scene shut down mid-fetch) is free to refetch.
-    for (const key of mine) {
-      inflight.delete(key);
-    }
-    mine.clear();
-    notifySettled();
-  };
-  // The scene shut down mid-fetch (its loader is reset): nothing will settle.
-  const abort = (): void => cleanup();
-  scene.load.on("loaderror", onError);
-  scene.load.on("progress", onProgress);
-  scene.load.once("complete", cleanup);
-  scene.events.once("shutdown", abort);
-  return queued.length;
+export function isLateImagePending(textures: LateTextures, key: string): boolean {
+  const status = lateImageStatus(textures, key);
+  return isLateImageKey(key) && (status === "loading" || status === "missing");
 }
 
 /**
- * Fetch late images outside `preload()` (prefetch on approach, or before an
- * action that will show them). Resolves true once every key is renderable,
- * false if any fetch failed (procedural art stands in). Safe to call
- * repeatedly; `retry` re-fetches failed keys.
+ * Fetch one late image (or join the fetch already running). Resolves true
+ * once the texture exists, false if the fetch failed (procedural art stands
+ * in). A failed key is only refetched with `retry`.
  */
-export function loadLateImages(
-  scene: Phaser.Scene,
-  keys: Iterable<string>,
-  caption: string | null = null,
+export function fetchLateImage(
+  textures: LateTextures,
+  key: string,
   retry = false,
 ): Promise<boolean> {
-  const wanted = [...keys].filter((key) => isLateImageKey(key));
-  if (queueLateImages(scene, wanted, caption, retry) > 0 && !scene.load.isLoading()) {
-    scene.load.start();
+  const url = LATE_IMAGES[key];
+  if (!url) {
+    return Promise.resolve(false);
   }
-  return new Promise((resolve) => {
-    const check = (): void => {
-      const states = wanted.map((key) => lateImageStatus(scene, key));
-      if (states.includes("loading")) {
-        return;
+  if (textures.exists(key)) {
+    return Promise.resolve(true);
+  }
+  const running = fetches.get(key);
+  if (running) {
+    return running;
+  }
+  if (failed.has(key) && !retry) {
+    return Promise.resolve(false);
+  }
+  failed.delete(key);
+  const fetch = new Promise<boolean>((resolve) => {
+    const image = makeImage();
+    image.onload = () => {
+      fetches.delete(key);
+      if (!textures.exists(key)) {
+        textures.addImage(key, image as HTMLImageElement);
       }
-      settleListeners.delete(check);
-      resolve(states.every((s) => s === "ready"));
+      resolve(true);
     };
-    settleListeners.add(check);
-    check();
+    image.onerror = () => {
+      fetches.delete(key);
+      failed.add(key);
+      resolve(false);
+    };
+    image.src = url;
   });
+  fetches.set(key, fetch);
+  return fetch;
 }
 
-/** Test hook: forget fetch state between cases. */
+/** Fetch several late images; true when every one is renderable. */
+export function fetchLateImages(
+  textures: LateTextures,
+  keys: Iterable<string>,
+  retry = false,
+): Promise<boolean> {
+  const wanted = [...keys].filter(isLateImageKey);
+  return Promise.all(wanted.map((key) => fetchLateImage(textures, key, retry))).then((all) =>
+    all.every(Boolean),
+  );
+}
+
+/** Test hooks. */
+export function setLateImageFactoryForTest(factory: () => ImageLike): void {
+  makeImage = factory;
+}
+
 export function resetLateImagesForTest(): void {
-  inflight.clear();
+  fetches.clear();
   failed.clear();
-  settleListeners.clear();
+  makeImage = () => new Image() as unknown as ImageLike;
 }

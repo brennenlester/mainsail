@@ -24,8 +24,9 @@ export function stepTypeAhead(
   event: Pick<KeyboardEvent, "key" | "isComposing">,
 ): TypeAheadStep {
   if (isComposingKey(event)) {
-    // Can't be replayed: stop buffering rather than prefill half a word.
-    return { buffer: null, consumed: false };
+    // Composition can't be replayed: keep what was typed, add nothing, and
+    // leave the event alone.
+    return { buffer, consumed: false };
   }
   if (event.key === "Backspace") {
     return { buffer: buffer.slice(0, -1), consumed: true };

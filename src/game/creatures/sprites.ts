@@ -682,7 +682,7 @@ export function ensureCreatureTextures(scene: Phaser.Scene): void {
     }
     // Late-game PNG not fetched yet (#410): leave the key free so the scene
     // that shows it can still load the real art; a failed fetch draws here.
-    if (isLateImagePending(scene, creature.spriteKey)) {
+    if (isLateImagePending(scene.textures, creature.spriteKey)) {
       continue;
     }
 

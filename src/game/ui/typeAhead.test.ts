@@ -18,10 +18,15 @@ describe("name type-ahead (#410)", () => {
     expect(stepTypeAhead("Ab", key(" "))).toEqual({ buffer: "Ab ", consumed: true });
   });
 
-  it("stops buffering on IME / dead keys and lets them through", () => {
+  it("keeps the buffer through IME / dead keys and lets them through", () => {
     for (const ev of [key("Process"), key("Dead"), key("Unidentified"), key("a", true)]) {
       expect(isComposingKey(ev)).toBe(true);
-      expect(stepTypeAhead("Ab", ev)).toEqual({ buffer: null, consumed: false });
+      expect(stepTypeAhead("Te", ev)).toEqual({ buffer: "Te", consumed: false });
     }
+    let buffer = "Te";
+    for (const ev of [key("Process", true), key("Process", true), key("s"), key("s")]) {
+      buffer = stepTypeAhead(buffer, ev).buffer ?? buffer;
+    }
+    expect(buffer).toBe("Tess");
   });
 });

@@ -5,7 +5,8 @@ import { addToParty, hasCreature } from "../creatures/party";
 import { formatEncounterMatchup } from "../battle/battleLogic";
 import { resolveMatchup } from "../creatures/folkloreTypes";
 import { ensureCreatureTextures } from "../creatures/sprites";
-import { lateCreatureKeys, queueLateImages } from "../render/lateAssets";
+import { lateCreatureKeys } from "../render/lateAssets";
+import { waitForLateImages } from "../render/lateAssetWait";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
 import {
   ENCOUNTER_CREATURE_DISPLAY,
@@ -152,7 +153,7 @@ export class EncounterScene extends Phaser.Scene {
   /** Favorite-material / offering icons are DOM PNGs; pull the few this card needs. */
   preload(): void {
     // Sovereign art is fetched on first meeting (#410); create waits for it.
-    queueLateImages(this, lateCreatureKeys([this.creatureId]));
+    waitForLateImages(this, lateCreatureKeys([this.creatureId]));
     for (const id of [getFavoriteMaterial(this.creatureId), FOLK_SEAL_ID, FAVORITE_BAIT_ID]) {
       const src = getIngredientIconSrc(id);
       if (src && !this.textures.exists(iconKey(id))) {

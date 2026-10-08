@@ -8,7 +8,8 @@ import {
   queueBootAssets,
   setWorldAssetsProgress,
 } from "../render/bootAssets";
-import { lateCreatureKeys, queueLateImages } from "../render/lateAssets";
+import { lateCreatureKeys } from "../render/lateAssets";
+import { waitForLateImages } from "../render/lateAssetWait";
 import { playerParty } from "../creatures/party";
 import { worldState } from "../world/worldState";
 import { readShareParam } from "../share/shareCode";
@@ -56,7 +57,7 @@ export class PreloadScene extends Phaser.Scene {
     // straight into play, so they load everything now.
     queueBootAssets(this, title ? "title" : "all");
     if (!title) {
-      queueLateImages(this, bootLateImageKeys(), null);
+      waitForLateImages(this, bootLateImageKeys(), null);
     }
   }
 
@@ -142,7 +143,7 @@ export class PreloadScene extends Phaser.Scene {
     this.cameras.main.setVisible(false);
     this.load.removeAllListeners("progress");
     queueBootAssets(this, "world");
-    queueLateImages(this, bootLateImageKeys(), null);
+    waitForLateImages(this, bootLateImageKeys(), null);
     this.load.on("progress", setWorldAssetsProgress);
     this.load.once("complete", () => {
       createImagineAnims(this);

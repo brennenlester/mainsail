@@ -55,7 +55,11 @@ test("cold boot skips late-game art; keys typed during world start reach the nam
   // New Game, then type straight away: nothing typed during the fade or the
   // world's first frame may be lost.
   await page.keyboard.press("Enter");
-  await page.keyboard.type("Tess", { delay: 20 });
+  await page.keyboard.type("Te", { delay: 20 });
+  // An IME composition mid-word must not drop what was typed around it.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.imeSetComposition", { text: "ß", selectionStart: 1, selectionEnd: 1 });
+  await page.keyboard.type("ss", { delay: 20 });
   await expect(page.locator("#name-intro")).toBeVisible();
   await expect(page.locator("#name-intro-input")).toBeFocused();
   await expect(page.locator("#name-intro-input")).toHaveValue("Tess");
@@ -126,5 +130,33 @@ test("Hearth Lots fetches its painted board when the table opens", async ({ page
         .some((o) => (o as { texture?: { key: string } }).texture?.key === "minigame-hearth-lots-board");
     }),
   ).toBe(true);
+  expect(await missing(page)).toEqual([]);
+});
+
+test("two consumers share one in-flight sovereign fetch; the encounter waits for it", async ({ page }) => {
+  const urls = trackRequests(page);
+  // Hold the PNG so the prefetch is still in flight when the encounter opens.
+  await page.route(/creature-horizon-sovereign\.png/, async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+  await page.goto("/?new=1");
+  await page.locator("#name-intro-input").fill("Tess");
+  await page.locator("#name-intro-submit").click();
+  await expect(page.locator("#name-intro")).toBeHidden();
+  await watchMissingTextures(page);
+
+  await page.evaluate(async () => {
+    const late = await import("/src/game/render/lateAssets.ts");
+    const g = (window as unknown as { __game: { textures: never; scene: { getScene(k: string): { scene: { launch(k: string, d: unknown): void; pause(): void } } } } }).__game;
+    // Shrine-style silent prefetch, then an encounter before it lands.
+    void late.fetchLateImage(g.textures, "creature-horizon-sovereign");
+    const iso = g.scene.getScene("IsometricScene");
+    iso.scene.launch("EncounterScene", { creatureId: "horizon-sovereign" });
+    iso.scene.pause();
+  });
+  await expect.poll(() => activeScenes(page), { timeout: 15_000 }).toContain("EncounterScene");
+  await page.waitForTimeout(600);
+  expect(urls.filter((u) => /creature-horizon-sovereign\.png/.test(u))).toHaveLength(1);
   expect(await missing(page)).toEqual([]);
 });

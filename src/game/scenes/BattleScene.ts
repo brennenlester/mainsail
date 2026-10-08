@@ -73,7 +73,8 @@ import {
 } from "../creatures/party";
 import { hasPresenceGrowth, presenceTintForCreature } from "../shrine/presence";
 import { ensureCreatureTextures } from "../creatures/sprites";
-import { lateCreatureKeys, queueLateImages } from "../render/lateAssets";
+import { lateCreatureKeys } from "../render/lateAssets";
+import { waitForLateImages } from "../render/lateAssetWait";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
 import { resolveArenaLayers } from "../render/arenaLayers";
 import { hasWorldTexture, imagineTexture } from "../render/imagineAssets";
@@ -454,7 +455,7 @@ export class BattleScene extends Phaser.Scene {
 
   preload(): void {
     // Sovereign art (wild or a fresh companion) is fetched on demand (#410).
-    queueLateImages(
+    waitForLateImages(
       this,
       lateCreatureKeys([this.wildCreatureId, ...getActiveCreatures().map((c) => c.definitionId)]),
     );
