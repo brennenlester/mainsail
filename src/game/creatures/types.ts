@@ -62,6 +62,8 @@ export type CreatureInstance = {
   appliedEffects?: string[];
   /** Rolled signature trait (immunity or damage-buff). */
   trait?: CreatureTrait;
+  /** Rare colour-shifted variant rolled at befriend (#368). Absent = normal. */
+  rare?: true;
 };
 
 export type BattleCombatant = {

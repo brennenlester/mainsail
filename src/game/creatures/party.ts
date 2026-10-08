@@ -11,6 +11,7 @@ import { recordQuestEvent } from "../story/questProgress";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { formatTraitLabel, rollSignatureTrait } from "./traits";
 import type { CreatureInstance } from "./types";
+import { rollRareVariant } from "../share/rareVariant";
 
 /** Battle-ready party slots. Creatures beyond this live in reserve. */
 export const ACTIVE_PARTY_LIMIT = 7;
@@ -117,6 +118,9 @@ function addToPartyWithHp(
     ...progress,
     trait: rollSignatureTrait(definitionId, def.folkloreType),
   };
+  if (rollRareVariant()) {
+    instance.rare = true;
+  }
   const maxHp = getEffectiveMaxHp(instance);
   instance.currentHp =
     currentHp === "full"

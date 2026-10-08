@@ -9,5 +9,6 @@ export function shouldResetHostSave(
   inviteStatus: InviteParseResult["status"],
   params: URLSearchParams,
 ): boolean {
-  return inviteStatus === "absent" && params.has("new");
+  // A shared ?card= link with &new=1 appended must not wipe a save either (#368).
+  return inviteStatus === "absent" && params.has("new") && !params.has("card");
 }

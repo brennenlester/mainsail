@@ -12,6 +12,7 @@ import type { CreatureInstance } from "../creatures/types";
 import { refreshPartyStatusLine } from "./statusPanel";
 import { popOverlay, pushOverlay } from "./overlayStack";
 import { isVisitorMode } from "../world/worldSession";
+import { isRareVariant } from "../share/rareVariant";
 
 let partyOpen = false;
 let selectedActiveId: string | null = null;
@@ -130,7 +131,8 @@ function ensurePartyRoot(): HTMLElement {
 function creatureRowLabel(creature: CreatureInstance): string {
   const def = getCreatureDefinition(creature.definitionId);
   const maxHp = getEffectiveMaxHp(creature);
-  return `${def.name} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)`;
+  const rare = isRareVariant(creature) ? " ✦" : "";
+  return `${def.name}${rare} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)`;
 }
 
 function renderList(
