@@ -129,6 +129,7 @@ import {
   initTouchControls,
   setTouchControlsEnabled,
 } from "../ui/touchControls";
+import { PARTY_CHANGED_EVENT } from "../creatures/partyEvents";
 import { canOccupy } from "../world/collision";
 import { applyNameIntroKeyboardGate } from "../input/nameIntroKeyboardGate";
 import {
@@ -265,6 +266,7 @@ export class IsometricScene extends Phaser.Scene {
   /** Successful walk distance used to consume the first-step WASD ghost. */
   private walkHintTravel = 0;
   private walkHint?: Phaser.GameObjects.Text;
+  private walkHintFading = false;
   private godSailTravelSinceEncounter = 0;
   private godLandTravelSinceEncounter = 0;
   private inEncounter = false;
@@ -283,6 +285,12 @@ export class IsometricScene extends Phaser.Scene {
   private unbindPlayerName?: () => void;
   private worldOrigin = { x: 0, y: 0 };
   private onWindowResize = () => this.onResize();
+  /** Party changed via Party UI while the overworld is live (paused paths celebrate on resume). */
+  private onPartyChanged = (): void => {
+    if (this.scene.isActive()) {
+      this.celebrateResume(false);
+    }
+  };
   private layoutLocked = false;
   private isMoving = false;
   /** Distance-driven gait phase (cycles); advances only when a step applies. */
@@ -368,6 +376,9 @@ export class IsometricScene extends Phaser.Scene {
     ensureGroveMusic(this);
     this.input.on("pointerdown", () => unlockAudioFromGesture(this));
     this.fx = new OverworldFx(this);
+    this.fx.notePartyBaseline();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdown());
+    window.addEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
     this.companions = this.createCompanions();
 
     this.loadZone(this.currentZoneId);
@@ -429,6 +440,7 @@ export class IsometricScene extends Phaser.Scene {
     this.unbindPlayerName?.();
     this.unbindPlayerName = undefined;
     this.fx?.destroy();
+    window.removeEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
     setCopyInviteHandler(null);
     this.input.keyboard?.off("keydown", this.onGodCheatKeyDown);
     window.removeEventListener("resize", this.onWindowResize);
@@ -1135,6 +1147,7 @@ export class IsometricScene extends Phaser.Scene {
     this.partyFollowers = createPartyOverworldFollowerState();
     this.shrinePrompt = undefined;
     this.walkHint = undefined;
+    this.walkHintFading = false;
     this.dockBoat = undefined;
     this.sailingBoat = undefined;
     this.nameTag = undefined;
@@ -1748,8 +1761,22 @@ export class IsometricScene extends Phaser.Scene {
 
   private syncWalkHint(): void {
     if (!shouldShowWalkHint(this.walkHintTravel)) {
-      this.walkHint?.destroy();
-      this.walkHint = undefined;
+      const hint = this.walkHint;
+      if (hint?.active && !this.walkHintFading) {
+        // Fade rather than pop; the main loop keeps placing it until gone.
+        this.walkHintFading = true;
+        this.tweens.add({
+          targets: hint,
+          alpha: 0,
+          duration: 280,
+          onComplete: () => {
+            hint.destroy();
+            if (this.walkHint === hint) {
+              this.walkHint = undefined;
+            }
+          },
+        });
+      }
       // Same first-step gate that kills the WASD ghost unlocks host invite (#257).
       unlockHostInviteChrome();
       return;
