@@ -4,6 +4,7 @@ import {
   playFaintSfx,
   playHitPlayerSfx,
   playHitWildSfx,
+  playMoveTypeSfx,
   STRONG_HIT_DAMAGE,
 } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
@@ -941,6 +942,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private playerTurn(move: MoveDefinition): void {
+    playMoveTypeSfx(this, move.type);
     this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
     const result = executeMove(this.player, move, this.wild, this.rng);

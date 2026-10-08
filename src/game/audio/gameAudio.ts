@@ -1,15 +1,61 @@
 import type Phaser from "phaser";
+import type { ZoneId } from "../world/zoneTypes";
+import {
+  clampVolume,
+  readMutedPreference,
+  readVolumePreference,
+  writeMutedPreference,
+  writeVolumePreference,
+} from "./audioSettings";
+import {
+  isNightHour,
+  MUSIC_TRACKS,
+  moveSfxCategory,
+  selectMusicTrack,
+  stepFade,
+  stepSurfaceForZone,
+  type MusicContext,
+  type MusicTrackId,
+  type StepSurface,
+} from "./musicTracks";
 
 const SFX = {
   step: "sfx-step",
+  stepGrass: "sfx-step-grass",
+  stepStone: "sfx-step-stone",
+  stepWood: "sfx-step-wood",
+  stepSand: "sfx-step-sand",
   gather: "sfx-gather",
   encounter: "sfx-encounter",
   shrine: "sfx-shrine",
   craft: "sfx-craft",
+  craftSuccess: "sfx-craft-success",
   hitWild: "sfx-hit-wild",
   hitPlayer: "sfx-hit-player",
   faint: "sfx-faint",
   battleWin: "sfx-battle-win",
+  uiClick: "sfx-ui-click",
+  levelUp: "sfx-level-up",
+  evolve: "sfx-evolve",
+  ability: "sfx-ability",
+  moveFire: "sfx-move-fire",
+  moveWater: "sfx-move-water",
+  moveGrove: "sfx-move-grove",
+  moveNeutral: "sfx-move-neutral",
+} as const;
+
+const STEP_BY_SURFACE: Record<StepSurface, string> = {
+  grass: SFX.stepGrass,
+  stone: SFX.stepStone,
+  wood: SFX.stepWood,
+  sand: SFX.stepSand,
+};
+
+const MOVE_BY_CATEGORY = {
+  fire: SFX.moveFire,
+  water: SFX.moveWater,
+  grove: SFX.moveGrove,
+  neutral: SFX.moveNeutral,
 } as const;
 
 /** Damage at or above this uses the strong hit visual/audio beat (#265). */
@@ -20,97 +66,115 @@ export function getSfxKeys(): readonly string[] {
   return Object.values(SFX);
 }
 
-const MUSIC_GROVE = "music-grove-loop";
-
 const STEP_COOLDOWN_MS = 220;
-const MUTE_KEY = "ivyward-audio-muted";
-/** Pre-rename key; migrate on read so mute preference is not lost. */
-const LEGACY_MUTE_KEY = "poke-audio-muted";
+/** How often the music director re-reads scene/clock context. */
+const MUSIC_POLL_MS = 250;
 
-function readMutedPreference(): boolean {
-  try {
-    const current = localStorage.getItem(MUTE_KEY);
-    if (current !== null) {
-      return current === "1";
-    }
-    const legacy = localStorage.getItem(LEGACY_MUTE_KEY);
-    if (legacy === null) {
-      return false;
-    }
-    localStorage.setItem(MUTE_KEY, legacy);
-    localStorage.removeItem(LEGACY_MUTE_KEY);
-    return legacy === "1";
-  } catch {
-    return false;
+let muted = readMutedPreference();
+let volume = readVolumePreference();
+let lastStepAt = 0;
+let unlocked = false;
+let hostScene: Phaser.Scene | null = null;
+
+export function preloadGameAudio(scene: Phaser.Scene): void {
+  hostScene = scene;
+  // Older stub SFX plus the #371 set; all under public/assets/audio.
+  for (const key of getSfxKeys()) {
+    scene.load.audio(key, `assets/audio/${key}.wav`);
+  }
+  for (const cfg of Object.values(MUSIC_TRACKS)) {
+    scene.load.audio(cfg.key, [...cfg.urls]);
   }
 }
 
-let muted = readMutedPreference();
-let lastStepAt = 0;
-let music: Phaser.Sound.BaseSound | null = null;
-let unlocked = false;
-
-export function preloadGameAudio(scene: Phaser.Scene): void {
-  // ponytail: short authored WAV stubs; swap for real mix when available
-  scene.load.audio(SFX.step, "assets/audio/sfx-step.wav");
-  scene.load.audio(SFX.gather, "assets/audio/sfx-gather.wav");
-  scene.load.audio(SFX.encounter, "assets/audio/sfx-encounter.wav");
-  scene.load.audio(SFX.shrine, "assets/audio/sfx-shrine.wav");
-  scene.load.audio(SFX.craft, "assets/audio/sfx-craft.wav");
-  scene.load.audio(SFX.hitWild, "assets/audio/sfx-hit-wild.wav");
-  scene.load.audio(SFX.hitPlayer, "assets/audio/sfx-hit-player.wav");
-  scene.load.audio(SFX.faint, "assets/audio/sfx-faint.wav");
-  scene.load.audio(SFX.battleWin, "assets/audio/sfx-battle-win.wav");
-  scene.load.audio(MUSIC_GROVE, "assets/audio/music-grove-loop.wav");
-}
+// --------------------------------------------------------------------------
+// Settings: mute + master volume
+// --------------------------------------------------------------------------
 
 export function isAudioMuted(): boolean {
   return muted;
 }
 
+export function getAudioVolume(): number {
+  return volume;
+}
+
+function applySoundSettings(scene?: Phaser.Scene): void {
+  const target = scene ?? hostScene;
+  if (target?.sound) {
+    target.sound.mute = muted;
+    target.sound.volume = volume;
+  }
+}
+
 export function setAudioMuted(next: boolean, scene?: Phaser.Scene): void {
   muted = next;
-  try {
-    localStorage.setItem(MUTE_KEY, next ? "1" : "0");
-    localStorage.removeItem(LEGACY_MUTE_KEY);
-  } catch {
-    // ponytail: ignore quota/private-mode failures
-  }
-  if (scene) {
-    scene.sound.mute = muted;
-  }
-  if (muted) {
-    music?.pause();
-  } else if (scene) {
-    ensureGroveMusic(scene);
+  writeMutedPreference(next);
+  applySoundSettings(scene);
+  if (!muted && scene) {
+    ensureMusic(scene);
   }
   syncMuteButton();
 }
 
+export function setAudioVolume(next: number, scene?: Phaser.Scene): void {
+  volume = clampVolume(next);
+  writeVolumePreference(volume);
+  applySoundSettings(scene);
+  syncMuteButton();
+}
+
 export function syncMuteButton(): void {
+  if (typeof document === "undefined") {
+    return;
+  }
   const btn = document.getElementById("mute-audio-btn");
   if (btn) {
     btn.textContent = muted ? "Unmute" : "Mute";
     btn.setAttribute("aria-pressed", muted ? "true" : "false");
   }
+  const slider = document.getElementById("volume-audio-range") as HTMLInputElement | null;
+  if (slider) {
+    slider.value = String(Math.round(volume * 100));
+  }
 }
 
 /** Unlock WebAudio on first user gesture (browser autoplay policy). */
 export function unlockAudioFromGesture(scene: Phaser.Scene): void {
+  hostScene = scene;
   if (unlocked) {
     return;
   }
   unlocked = true;
   scene.sound.unlock();
-  scene.sound.mute = muted;
-  ensureGroveMusic(scene);
+  applySoundSettings(scene);
+  installMusicDirector(scene);
+  ensureMusic(scene);
 }
 
-function playSfx(scene: Phaser.Scene, key: string, volume = 0.45): void {
-  if (muted || !scene.cache.audio.exists(key)) {
+// --------------------------------------------------------------------------
+// SFX
+// --------------------------------------------------------------------------
+
+function playSfx(
+  scene: Phaser.Scene | null | undefined,
+  key: string,
+  volumeScale = 0.45,
+  rate?: number,
+): void {
+  if (!scene || muted || !scene.cache.audio.exists(key)) {
     return;
   }
-  scene.sound.play(key, { volume });
+  scene.sound.play(key, rate === undefined ? { volume: volumeScale } : { volume: volumeScale, rate });
+}
+
+function playSfxLater(key: string, volumeScale: number, delayMs: number, scene?: Phaser.Scene): void {
+  const target = scene ?? hostScene;
+  if (delayMs <= 0) {
+    playSfx(target, key, volumeScale);
+    return;
+  }
+  setTimeout(() => playSfx(target, key, volumeScale), delayMs);
 }
 
 export function playStepSfx(scene: Phaser.Scene, nowMs: number): void {
@@ -119,7 +183,10 @@ export function playStepSfx(scene: Phaser.Scene, nowMs: number): void {
     return;
   }
   lastStepAt = nowMs;
-  playSfx(scene, SFX.step, 0.28);
+  const surfaceKey = ctx.zoneId ? STEP_BY_SURFACE[stepSurfaceForZone(ctx.zoneId)] : SFX.step;
+  const key = scene.cache.audio.exists(surfaceKey) ? surfaceKey : SFX.step;
+  // Small pitch wobble keeps repeated footfalls from sounding mechanical.
+  playSfx(scene, key, 0.3, 0.92 + Math.random() * 0.16);
 }
 
 export function playGatherSfx(scene: Phaser.Scene): void {
@@ -134,8 +201,10 @@ export function playShrineSfx(scene: Phaser.Scene): void {
   playSfx(scene, SFX.shrine, 0.45);
 }
 
+/** Craft thunk plus the success sparkle. */
 export function playCraftSfx(scene: Phaser.Scene): void {
-  playSfx(scene, SFX.craft, 0.45);
+  playSfx(scene, SFX.craft, 0.4);
+  playSfxLater(SFX.craftSuccess, 0.4, 140, scene);
 }
 
 /** Wild takes damage (player attack lands). */
@@ -152,35 +221,243 @@ export function playFaintSfx(scene: Phaser.Scene): void {
   playSfx(scene, SFX.faint, 0.5);
 }
 
+/** Win: plays the victory sting over the music when available, else the stub SFX. */
 export function playBattleWinSfx(scene: Phaser.Scene): void {
-  playSfx(scene, SFX.battleWin, 0.55);
+  if (!startVictorySting(scene)) {
+    playSfx(scene, SFX.battleWin, 0.55);
+  }
 }
 
-export function ensureGroveMusic(scene: Phaser.Scene): void {
-  if (!unlocked || !scene.cache.audio.exists(MUSIC_GROVE)) {
+export function playUiClickSfx(scene?: Phaser.Scene): void {
+  playSfx(scene ?? hostScene, SFX.uiClick, 0.35);
+}
+
+/** Scene-less so logic modules can call it; `delayMs` lets it land after a sting. */
+export function playLevelUpSfx(delayMs = 0, scene?: Phaser.Scene): void {
+  playSfxLater(SFX.levelUp, 0.5, delayMs, scene);
+}
+
+/** Scene-less so logic modules can call it. */
+export function playEvolveSfx(scene?: Phaser.Scene): void {
+  playSfx(scene ?? hostScene, SFX.evolve, 0.6);
+}
+
+/** Overworld/companion ability use (hook point for #367). */
+export function playAbilitySfx(scene?: Phaser.Scene): void {
+  playSfx(scene ?? hostScene, SFX.ability, 0.45);
+}
+
+/** Move cast sound by battle type: fire / water / grove / neutral. */
+export function playMoveTypeSfx(scene: Phaser.Scene, type: string): void {
+  playSfx(scene, MOVE_BY_CATEGORY[moveSfxCategory(type)], 0.4);
+}
+
+// --------------------------------------------------------------------------
+// Music director: picks a track from context, crossfades, gated on first input
+// --------------------------------------------------------------------------
+
+type Voice = {
+  id: MusicTrackId;
+  sound: Phaser.Sound.BaseSound & { setVolume?: (v: number) => unknown };
+  /** 0..1 fade level; actual volume is level * track gain. */
+  level: number;
+  target: number;
+};
+
+const ctx: MusicContext = {
+  shrineOpen: false,
+  battle: false,
+  victory: false,
+  night: false,
+};
+let voices: Voice[] = [];
+let victoryUntil = 0;
+/** Latched after a win so the still-open battle scene does not restart battle music. */
+let battleWon = false;
+let pollAccumMs = 0;
+let directorInstalled = false;
+
+export function setAudioZone(zoneId: ZoneId): void {
+  ctx.zoneId = zoneId;
+  if (hostScene && unlocked) {
+    ensureMusic(hostScene);
+  }
+}
+
+/** Title (or other non-world) screens claim the music with `screen: "title"`. */
+export function setAudioScreen(screen: "title" | undefined, scene?: Phaser.Scene): void {
+  ctx.screen = screen;
+  const target = scene ?? hostScene;
+  if (target && unlocked) {
+    ensureMusic(target);
+  }
+}
+
+function isSceneActive(scene: Phaser.Scene, key: string): boolean {
+  try {
+    return scene.scene.manager.isActive(key);
+  } catch {
+    return false;
+  }
+}
+
+function refreshContext(scene: Phaser.Scene | null): void {
+  if (scene?.scene?.manager) {
+    const active = isSceneActive(scene, "BattleScene") || isSceneActive(scene, "EncounterScene");
+    if (!active) {
+      battleWon = false;
+    }
+    ctx.battle = active && !battleWon;
+    ctx.shrineOpen = isSceneActive(scene, "ShrineScene");
+  }
+  ctx.night = isNightHour(new Date().getHours());
+  if (ctx.victory && Date.now() >= victoryUntil) {
+    ctx.victory = false;
+  }
+}
+
+/** Track the director currently wants (null before any zone/screen is known). */
+export function getDesiredMusicTrack(): MusicTrackId | null {
+  refreshContext(hostScene);
+  return selectMusicTrack(ctx);
+}
+
+function startVictorySting(scene: Phaser.Scene): boolean {
+  const cfg = MUSIC_TRACKS.victory;
+  if (!unlocked || !scene.cache.audio.exists(cfg.key)) {
+    return false;
+  }
+  battleWon = true;
+  ctx.battle = false;
+  ctx.victory = true;
+  victoryUntil = Date.now() + (cfg.durationMs ?? 0);
+  ensureMusic(scene);
+  return true;
+}
+
+function setVoiceVolume(voice: Voice): void {
+  voice.sound.setVolume?.(voice.level * MUSIC_TRACKS[voice.id].gain);
+}
+
+function startVoice(scene: Phaser.Scene, id: MusicTrackId): void {
+  const cfg = MUSIC_TRACKS[id];
+  if (!scene.cache.audio.exists(cfg.key)) {
     return;
   }
-  if (!music) {
-    music = scene.sound.add(MUSIC_GROVE, {
-      loop: true,
-      volume: 0.22,
-    });
+  const revived = voices.find((v) => v.id === id && v.target === 0);
+  if (revived) {
+    revived.target = 1;
+    return;
   }
-  scene.sound.mute = muted;
-  if (!muted && music && !music.isPlaying) {
-    music.play();
+  const sound = scene.sound.add(cfg.key, { loop: cfg.loop, volume: 0 }) as Voice["sound"];
+  const voice: Voice = { id, sound, level: 0, target: 1 };
+  voices.push(voice);
+  setVoiceVolume(voice);
+  sound.play();
+}
+
+/** Re-evaluate context and crossfade to the right track. Safe to call often. */
+export function ensureMusic(scene: Phaser.Scene): void {
+  hostScene = scene;
+  if (!unlocked) {
+    return;
   }
+  refreshContext(scene);
+  const wanted = selectMusicTrack(ctx);
+  const current = voices.find((v) => v.target === 1);
+  if (current?.id === wanted) {
+    return;
+  }
+  for (const v of voices) {
+    if (v.target === 1) {
+      v.target = 0;
+    }
+  }
+  if (wanted) {
+    startVoice(scene, wanted);
+  }
+}
+
+/** Legacy name kept so existing call sites keep working; now context-driven. */
+export function ensureGroveMusic(scene: Phaser.Scene): void {
+  ensureMusic(scene);
+}
+
+/** One director tick: fades every voice and (throttled) re-reads context. Exported for tests. */
+export function tickMusic(dtMs: number): void {
+  pollAccumMs += dtMs;
+  if (hostScene && pollAccumMs >= MUSIC_POLL_MS) {
+    pollAccumMs = 0;
+    ensureMusic(hostScene);
+  }
+  for (const v of voices) {
+    const cfg = MUSIC_TRACKS[v.id];
+    v.level = stepFade(v.level, v.target, dtMs, v.target === 1 ? cfg.fadeInMs : cfg.fadeOutMs);
+    setVoiceVolume(v);
+  }
+  const done = voices.filter((v) => v.target === 0 && v.level === 0);
+  if (done.length > 0) {
+    voices = voices.filter((v) => !done.includes(v));
+    for (const v of done) {
+      v.sound.destroy();
+    }
+  }
+}
+
+function installMusicDirector(scene: Phaser.Scene): void {
+  if (directorInstalled || !scene.game?.events) {
+    return;
+  }
+  directorInstalled = true;
+  scene.game.events.on("poststep", (_time: number, delta: number) => tickMusic(delta));
+}
+
+// --------------------------------------------------------------------------
+// HUD controls and global input hooks
+// --------------------------------------------------------------------------
+
+let gestureHooksInstalled = false;
+
+/** First pointer/key anywhere unlocks audio; every HUD button click gets a UI tick. */
+function installGlobalAudioHooks(scene: Phaser.Scene): void {
+  if (gestureHooksInstalled || typeof document === "undefined") {
+    return;
+  }
+  gestureHooksInstalled = true;
+  const unlock = () => {
+    if (hostScene) {
+      unlockAudioFromGesture(hostScene);
+    }
+  };
+  document.addEventListener("pointerdown", unlock, { once: true, capture: true });
+  document.addEventListener("keydown", unlock, { once: true, capture: true });
+  document.addEventListener("click", (event) => {
+    const button = (event.target as Element | null)?.closest?.("button");
+    if (button && !(button as HTMLButtonElement).disabled) {
+      playUiClickSfx(scene);
+    }
+  });
 }
 
 export function initMuteControl(scene: Phaser.Scene): void {
+  hostScene = scene;
+  applySoundSettings(scene);
   syncMuteButton();
+  installGlobalAudioHooks(scene);
   const btn = document.getElementById("mute-audio-btn");
-  if (!btn || btn.dataset.bound === "1") {
-    return;
+  if (btn && btn.dataset.bound !== "1") {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      unlockAudioFromGesture(scene);
+      setAudioMuted(!muted, scene);
+    });
   }
-  btn.dataset.bound = "1";
-  btn.addEventListener("click", () => {
-    unlockAudioFromGesture(scene);
-    setAudioMuted(!muted, scene);
-  });
+  const slider = document.getElementById("volume-audio-range") as HTMLInputElement | null;
+  if (slider && slider.dataset.bound !== "1") {
+    slider.dataset.bound = "1";
+    slider.addEventListener("input", () => {
+      unlockAudioFromGesture(scene);
+      setAudioVolume(Number(slider.value) / 100, scene);
+    });
+  }
 }

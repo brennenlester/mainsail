@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  getPartyAverageLevel,
   getRarityBias,
   getSpeciesMaxEncounterWeight,
   getWildEffectiveLevel,
@@ -10,10 +11,24 @@ import {
   RARITY_BIAS_UNCOMMON,
 } from "./wildLevel";
 import { setSparWinsBySpecies } from "../world/sparWins";
+import { setPartyFromSnapshot } from "../creatures/party";
+import type { CreatureInstance } from "../creatures/types";
+
+function member(instanceId: string, level: number): CreatureInstance {
+  return {
+    instanceId,
+    definitionId: "mossling",
+    speciesId: "mossling",
+    currentHp: 10,
+    level,
+    xp: 0,
+  };
+}
 
 describe("wildLevel", () => {
   beforeEach(() => {
     setSparWinsBySpecies({}, false);
+    setPartyFromSnapshot([], 1);
   });
 
   it("classifies rarity from max encounter weight", () => {
@@ -32,17 +47,32 @@ describe("wildLevel", () => {
     expect(getWildEffectiveLevel("tide-sovereign", 100)).toBe(1);
   });
 
-  it("maps wins to wild level with rarity bias and a level-50 cap", () => {
-    expect(getWildEffectiveLevel("mossling", 0)).toBe(1);
-    expect(getWildEffectiveLevel("mossling", 2)).toBe(2);
-    expect(getWildEffectiveLevel("mossling", 10)).toBe(6);
-    // Rare: +6 bias
-    expect(getWildEffectiveLevel("lantern-fox", 0)).toBe(7);
+  it("sets wild level to party average plus a small rarity bias, capped at 50", () => {
+    expect(RARITY_BIAS_UNCOMMON).toBe(1);
+    expect(RARITY_BIAS_RARE).toBe(2);
+    expect(getWildEffectiveLevel("mossling", 1)).toBe(1);
+    expect(getWildEffectiveLevel("mossling", 5)).toBe(5);
+    expect(getWildEffectiveLevel("lantern-fox", 5)).toBe(7);
+    expect(getWildEffectiveLevel("lantern-fox", 1)).toBe(3);
     expect(getWildEffectiveLevel("mossling", 200)).toBe(50);
   });
 
-  it("reads live spar win counts when wins arg is omitted", () => {
-    setSparWinsBySpecies({ mossling: 4 }, false);
+  it("does not scale with spar wins (no treadmill)", () => {
+    setSparWinsBySpecies({ mossling: 40 }, false);
+    expect(getWildEffectiveLevel("mossling", 3)).toBe(3);
+    setPartyFromSnapshot([member("a", 3)], 1, ["a"]);
     expect(getWildEffectiveLevel("mossling")).toBe(3);
+  });
+
+  it("reads the active party average when no level is passed", () => {
+    expect(getPartyAverageLevel()).toBe(1);
+    setPartyFromSnapshot(
+      [member("a", 4), member("b", 7), member("c", 40)],
+      4,
+      ["a", "b"],
+    );
+    expect(getPartyAverageLevel()).toBe(6);
+    expect(getWildEffectiveLevel("mossling")).toBe(6);
+    expect(getWildEffectiveLevel("tide-sovereign")).toBe(1);
   });
 });

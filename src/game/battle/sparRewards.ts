@@ -1,3 +1,4 @@
+import { playLevelUpSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { getActiveCreatures } from "../creatures/party";
 import { getMaterialForCreature, getMaterialName } from "../inventory/materials";
@@ -24,11 +25,19 @@ export type SparRewardSummary = {
   creatureName?: string;
   /** Per-active shares (empty when no active party fighter). */
   xpShares: SparXpShareEntry[];
+  /** Variance drop rolled on top of the guaranteed rewards, if any. */
+  bonusDrop?: { label: string; materialId: string; amount: number };
 };
 
+/** Fraction of the spar XP pool the active fighter takes when others are benched. */
+export const FIGHTER_XP_SHARE = 0.5;
+
 /**
- * Split total XP across `recipientCount` actives.
- * Floor equal shares; leftover XP goes to the fighter (index `fighterIndex`).
+ * Split total XP across `recipientCount` actives. The fighter (index
+ * `fighterIndex`) takes `FIGHTER_XP_SHARE` of the pool; benched actives split
+ * the rest evenly, with leftover points going one each to the first benched
+ * actives in party order. A lone
+ * fighter takes the whole pool.
  */
 export function splitSparXp(
   totalXp: number,
@@ -38,20 +47,56 @@ export function splitSparXp(
   if (recipientCount <= 0 || totalXp <= 0) {
     return [];
   }
-  const base = Math.floor(totalXp / recipientCount);
-  const remainder = totalXp - base * recipientCount;
-  const shares = Array.from({ length: recipientCount }, () => base);
   const fighter = Math.min(Math.max(fighterIndex, 0), recipientCount - 1);
-  shares[fighter] += remainder;
-  return shares;
+  if (recipientCount === 1) {
+    return [totalXp];
+  }
+  const benchCount = recipientCount - 1;
+  const fighterXp = Math.ceil(totalXp * FIGHTER_XP_SHARE);
+  const benchPool = totalXp - fighterXp;
+  const benchEach = Math.floor(benchPool / benchCount);
+  let leftover = benchPool - benchEach * benchCount;
+  return Array.from({ length: recipientCount }, (_, i) => {
+    if (i === fighter) {
+      return fighterXp;
+    }
+    return benchEach + (leftover-- > 0 ? 1 : 0);
+  });
 }
 
-/** Pinned #266/#267 spar-win table: +1 Folklore Dust (plus +1 species material, +70 XP). */
+/** Pinned #266/#267 spar-win floor: +1 Folklore Dust (plus +1 species material, +70 XP pool). */
 export const SPAR_WIN_DUST_GAIN = 1;
+
+export type SparBonusDrop = {
+  /** Cumulative roll threshold in [0, 1); first entry with roll < upTo wins. */
+  upTo: number;
+  label: string;
+  /** "species" resolves to the defeated creature's material. */
+  materialId: "species" | "folklore-dust";
+  amount: number;
+};
+
+/**
+ * Bonus drops on top of the guaranteed Dust + species material (#370).
+ * Rolls past the last threshold drop nothing extra (~55% of wins).
+ */
+export const SPAR_BONUS_DROPS: readonly SparBonusDrop[] = [
+  { upTo: 0.05, label: "Moonlit find", materialId: "folklore-dust", amount: 3 },
+  { upTo: 0.2, label: "Lucky scrap", materialId: "folklore-dust", amount: 1 },
+  { upTo: 0.45, label: "Bonus haul", materialId: "species", amount: 1 },
+];
+
+export function rollSparBonusDrop(
+  rng: () => number = Math.random,
+): SparBonusDrop | undefined {
+  const roll = rng();
+  return SPAR_BONUS_DROPS.find((drop) => roll < drop.upTo);
+}
 
 export function grantSparRewards(
   wildCreatureId: string,
   activePartyIndex: number,
+  rng: () => number = Math.random,
 ): SparRewardSummary {
   const summary: SparRewardSummary = {
     dustGained: SPAR_WIN_DUST_GAIN,
@@ -66,6 +111,20 @@ export function grantSparRewards(
   if (matId) {
     addMaterial(matId, 1);
     summary.materialId = matId;
+  }
+
+  const bonus = rollSparBonusDrop(rng);
+  if (bonus) {
+    const bonusMaterial =
+      bonus.materialId === "species" ? matId : bonus.materialId;
+    if (bonusMaterial) {
+      addMaterial(bonusMaterial, bonus.amount);
+      summary.bonusDrop = {
+        label: bonus.label,
+        materialId: bonusMaterial,
+        amount: bonus.amount,
+      };
+    }
   }
 
   const actives = getActiveCreatures();
@@ -116,6 +175,10 @@ export function grantSparRewards(
     }
   }
 
+  if (summary.leveledUp) {
+    playLevelUpSfx(1400);
+  }
+
   recordQuestEvent({ type: "win_spar" });
 
   if (!isDefeatScalingExcluded(wildCreatureId)) {
@@ -131,6 +194,11 @@ export function formatRewardMessage(reward: SparRewardSummary): string {
     parts.push(`+1 ${getMaterialName(reward.materialId)}, +1 Folklore Dust.`);
   } else {
     parts.push(`+1 Folklore Dust.`);
+  }
+  if (reward.bonusDrop) {
+    parts.push(
+      `${reward.bonusDrop.label}! +${reward.bonusDrop.amount} ${getMaterialName(reward.bonusDrop.materialId)}.`,
+    );
   }
   if (reward.xpShares.length > 1) {
     const shareText = reward.xpShares

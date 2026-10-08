@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  FIGHTER_XP_SHARE,
   formatRewardMessage,
   grantSparRewards,
+  rollSparBonusDrop,
   SPAR_WIN_DUST_GAIN,
   splitSparXp,
 } from "./sparRewards";
@@ -14,7 +16,7 @@ import {
   getMaterialCount,
   setInventoryFromSnapshot,
 } from "../inventory/playerInventory";
-import { XP_PER_SPAR_WIN } from "../progression/leveling";
+import { getLevelForXp, XP_PER_SPAR_WIN } from "../progression/leveling";
 import { restoreQuestProgress } from "../story/questProgress";
 import { QUEST_ORDER } from "../story/quests";
 import type { QuestId, QuestStatus } from "../story/questTypes";
@@ -40,16 +42,45 @@ function lockedProgress(): Record<QuestId, QuestStatus> {
   ) as Record<QuestId, QuestStatus>;
 }
 
+/** rng that never triggers a bonus drop. */
+const NO_BONUS = () => 0.99;
+
 describe("splitSparXp", () => {
-  it("splits evenly when divisible", () => {
-    expect(splitSparXp(10, 2, 0)).toEqual([5, 5]);
-    expect(splitSparXp(10, 5, 2)).toEqual([2, 2, 2, 2, 2]);
+  it("gives a lone fighter the whole pool", () => {
+    expect(splitSparXp(70, 1, 0)).toEqual([70]);
   });
 
-  it("gives remainder XP to the fighter", () => {
-    expect(splitSparXp(10, 3, 0)).toEqual([4, 3, 3]);
-    expect(splitSparXp(10, 3, 1)).toEqual([3, 4, 3]);
-    expect(splitSparXp(10, 3, 2)).toEqual([3, 3, 4]);
+  it("splits evenly between two actives", () => {
+    expect(splitSparXp(10, 2, 0)).toEqual([5, 5]);
+  });
+
+  it("gives the fighter FIGHTER_XP_SHARE and the bench the rest", () => {
+    expect(FIGHTER_XP_SHARE).toBe(0.5);
+    expect(splitSparXp(70, 7, 0)).toEqual([35, 6, 6, 6, 6, 6, 5]);
+    expect(splitSparXp(70, 3, 2)).toEqual([18, 17, 35]);
+  });
+
+  it("gives leftover bench XP in order and always conserves the pool", () => {
+    expect(splitSparXp(10, 5, 2)).toEqual([2, 1, 5, 1, 1]);
+    for (let n = 1; n <= 7; n++) {
+      for (let f = 0; f < n; f++) {
+        const shares = splitSparXp(70, n, f);
+        expect(shares.reduce((a, b) => a + b, 0)).toBe(70);
+        shares.forEach((x, i) => {
+          if (i !== f) expect(shares[f]!).toBeGreaterThanOrEqual(x);
+        });
+      }
+    }
+  });
+});
+
+describe("rollSparBonusDrop", () => {
+  it("maps the injected roll onto the table with variance", () => {
+    expect(rollSparBonusDrop(() => 0)?.label).toBe("Moonlit find");
+    expect(rollSparBonusDrop(() => 0.1)?.label).toBe("Lucky scrap");
+    expect(rollSparBonusDrop(() => 0.3)?.label).toBe("Bonus haul");
+    expect(rollSparBonusDrop(() => 0.5)).toBeUndefined();
+    expect(rollSparBonusDrop(() => 0.99)).toBeUndefined();
   });
 });
 
@@ -68,7 +99,7 @@ describe("grantSparRewards XP share", () => {
 
     const a = member({ instanceId: "a" });
     setPartyFromSnapshot([a], 4, ["a"]);
-    const reward = grantSparRewards("mossling", 0);
+    const reward = grantSparRewards("mossling", 0, NO_BONUS);
     expect(reward.dustGained).toBe(1);
     expect(reward.xpGained).toBe(70);
     expect(reward.materialId).toBeTruthy();
@@ -90,7 +121,7 @@ describe("grantSparRewards XP share", () => {
     });
     setPartyFromSnapshot([a, b, c], 4, ["a", "b"]);
 
-    const reward = grantSparRewards("mossling", 0);
+    const reward = grantSparRewards("mossling", 0, NO_BONUS);
     expect(reward.xpGained).toBe(XP_PER_SPAR_WIN);
     expect(reward.xpShares).toHaveLength(2);
     expect(playerParty.creatures.find((x) => x.instanceId === "a")?.xp).toBe(35);
@@ -99,7 +130,7 @@ describe("grantSparRewards XP share", () => {
     expect(getSparWinsForSpecies("mossling")).toBe(1);
   });
 
-  it("gives remainder to the fighter when shares are uneven", () => {
+  it("favors the active fighter over benched actives", () => {
     const creatures = [
       member({ instanceId: "a" }),
       member({ instanceId: "b", definitionId: "ember-wisp", speciesId: "ember-wisp" }),
@@ -110,13 +141,49 @@ describe("grantSparRewards XP share", () => {
       }),
     ];
     setPartyFromSnapshot(creatures, 4, ["a", "b", "c"]);
-    grantSparRewards("mossling", 1);
-    expect(playerParty.creatures.map((x) => x.xp)).toEqual([23, 24, 23]);
+    grantSparRewards("mossling", 1, NO_BONUS);
+    expect(playerParty.creatures.map((x) => x.xp)).toEqual([18, 35, 17]);
+  });
+
+  it("levels a fighter to Lv5 in 3 wins with a 7-slot party, Lv10 in 12", () => {
+    const creatures = Array.from({ length: 7 }, (_, i) =>
+      member({ instanceId: `m${i}` }),
+    );
+    setPartyFromSnapshot(creatures, 7, creatures.map((c) => c.instanceId));
+    const levelAfter = (wins: number) => {
+      let xp = 0;
+      for (let i = 0; i < wins; i++) xp += splitSparXp(XP_PER_SPAR_WIN, 7, 0)[0]!;
+      return getLevelForXp(xp);
+    };
+    expect(levelAfter(2)).toBe(4);
+    expect(levelAfter(3)).toBe(5);
+    expect(levelAfter(11)).toBe(9);
+    expect(levelAfter(12)).toBe(10);
+  });
+
+  it("applies bonus drops from the injected rng", () => {
+    setPartyFromSnapshot([member({ instanceId: "a" })], 2, ["a"]);
+    const rare = grantSparRewards("mossling", 0, () => 0);
+    expect(rare.bonusDrop).toEqual({
+      label: "Moonlit find",
+      materialId: "folklore-dust",
+      amount: 3,
+    });
+    expect(getMaterialCount("folklore-dust")).toBe(4);
+    expect(formatRewardMessage(rare)).toContain("Moonlit find! +3 Folklore Dust.");
+
+    const haul = grantSparRewards("mossling", 0, () => 0.3);
+    expect(haul.bonusDrop?.materialId).toBe("moss-fiber");
+    expect(getMaterialCount("moss-fiber")).toBe(3);
+
+    const plain = grantSparRewards("mossling", 0, NO_BONUS);
+    expect(plain.bonusDrop).toBeUndefined();
+    expect(getMaterialCount("moss-fiber")).toBe(4);
   });
 
   it("does not record spar wins for sovereigns", () => {
     setPartyFromSnapshot([member({ instanceId: "a" })], 2, ["a"]);
-    grantSparRewards("tide-sovereign", 0);
+    grantSparRewards("tide-sovereign", 0, NO_BONUS);
     expect(getSparWinsForSpecies("tide-sovereign")).toBe(0);
   });
 

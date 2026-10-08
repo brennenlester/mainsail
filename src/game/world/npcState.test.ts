@@ -211,7 +211,7 @@ describe("party-size side quest", () => {
     expect(getSideQuestStatus("odd-company")).toBe("complete");
     const restTalk = beginConversation(ODD);
     expect(restTalk.prompt).toEqual({ kind: "advance" });
-    expect(restTalk.lines[0]).toContain("Wood ×20");
+    expect(restTalk.lines[0]).toContain("Wood ×5");
     expect(getItemCount("moonwake-draught")).toBe(1);
   });
 });
@@ -305,14 +305,14 @@ describe("Odd paid rest", () => {
     ]);
   });
 
-  it("offers a confirmable first rest after the quest for 20 of each material", () => {
+  it("offers a confirmable first rest after the quest for 5 of each material", () => {
     unlockOddRest();
     setInventoryFromSnapshot(restMaterials, {});
     const talk = beginConversation(ODD);
     expect(talk.prompt).toEqual({ kind: "confirm-rest" });
-    expect(talk.lines[0]).toContain("Wood ×20");
-    expect(talk.lines[0]).toContain("Wild Fiber ×20");
-    expect(talk.lines[0]).toContain("Pebble ×20");
+    expect(talk.lines[0]).toContain("Wood ×5");
+    expect(talk.lines[0]).toContain("Wild Fiber ×5");
+    expect(talk.lines[0]).toContain("Pebble ×5");
     expect(getMaterialCount("wood")).toBe(40);
   });
 
@@ -322,9 +322,9 @@ describe("Odd paid rest", () => {
     beginConversation(ODD);
     const lines = confirmOddRest();
     expect(lines[0]).toMatch(/whole again/i);
-    expect(getMaterialCount("wood")).toBe(20);
-    expect(getMaterialCount("wild-fiber")).toBe(20);
-    expect(getMaterialCount("pebble")).toBe(20);
+    expect(getMaterialCount("wood")).toBe(35);
+    expect(getMaterialCount("wild-fiber")).toBe(35);
+    expect(getMaterialCount("pebble")).toBe(35);
     expect(hasPurchasedOddRest()).toBe(true);
     expect(getOddRestCost()).toBe(ODD_REST_REPEAT_COST);
     expect(playerParty.creatures[0]!.currentHp).toBe(
@@ -337,7 +337,7 @@ describe("Odd paid rest", () => {
     expect(playerParty.creatures[1]!.currentHp).toBeGreaterThan(0);
   });
 
-  it("charges 5 of each after the first rest", () => {
+  it("charges the same 5 of each after the first rest", () => {
     unlockOddRest();
     setInventoryFromSnapshot(restMaterials, {});
     confirmOddRest();
@@ -346,9 +346,9 @@ describe("Odd paid rest", () => {
     expect(talk.prompt).toEqual({ kind: "confirm-rest" });
     expect(talk.lines[0]).toContain("Wood ×5");
     confirmOddRest();
-    expect(getMaterialCount("wood")).toBe(15);
-    expect(getMaterialCount("wild-fiber")).toBe(15);
-    expect(getMaterialCount("pebble")).toBe(15);
+    expect(getMaterialCount("wood")).toBe(30);
+    expect(getMaterialCount("wild-fiber")).toBe(30);
+    expect(getMaterialCount("pebble")).toBe(30);
   });
 
   it("keeps the cheaper price after the first-rest flag is restored", () => {
@@ -367,14 +367,14 @@ describe("Odd paid rest", () => {
   it("does not consume or flag when materials are short", () => {
     unlockOddRest();
     setInventoryFromSnapshot(
-      { wood: 19, "wild-fiber": 20, pebble: 20 },
+      { wood: 4, "wild-fiber": 5, pebble: 5 },
       {},
     );
     const talk = beginConversation(ODD);
     expect(talk.prompt).toEqual({ kind: "advance" });
-    expect(talk.lines[0]).toContain("Wood ×20");
-    expect(confirmOddRest()[0]).toContain("Wood ×20");
-    expect(getMaterialCount("wood")).toBe(19);
+    expect(talk.lines[0]).toContain("Wood ×5");
+    expect(confirmOddRest()[0]).toContain("Wood ×5");
+    expect(getMaterialCount("wood")).toBe(4);
     expect(hasPurchasedOddRest()).toBe(false);
   });
 
@@ -426,7 +426,8 @@ describe("Odd paid rest", () => {
     beginConversation(ODD);
     expect(getMaterialCount("wood")).toBe(40);
     expect(hasPurchasedOddRest()).toBe(false);
-    expect(ODD_REST_FIRST_COST).toBe(20);
+    expect(ODD_REST_FIRST_COST).toBe(5);
+    expect(ODD_REST_REPEAT_COST).toBeLessThanOrEqual(ODD_REST_FIRST_COST);
   });
 });
 

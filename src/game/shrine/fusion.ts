@@ -1,3 +1,4 @@
+import { playEvolveSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
   getCreatureInstance,
@@ -64,6 +65,7 @@ export function applyShrineFusion(
   const message = applyEffect(creature, effect, key);
   if (effect.effectType === "evolution" && effect.evolvesTo) {
     recordQuestEvent({ type: "evolve_creature", evolvesTo: effect.evolvesTo });
+    playEvolveSfx();
   }
   return { ok: true, message };
 }
