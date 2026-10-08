@@ -6,11 +6,13 @@ import { FUSION_ITEM_IDS } from "./consumables";
 import { listRecipePages } from "../ui/recipePanel";
 import { describeShrineEffect, SHRINE_EFFECTS } from "./shrineEffects";
 
-/** Zones with wild tables that carry a signature / late-game encounter identity. */
+/**
+ * Zones with wild tables that carry a signature / late-game encounter identity.
+ * Hearth Crossing is a safe plaza with no wild table since #411.
+ */
 const SIGNATURE_ZONES = [
   "grove",
   "shrine",
-  "village",
   "overworld",
   "mistwood",
   "emberfen",

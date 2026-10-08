@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getStorySpar, hearthWardScale } from "../../story/storySpars";
-import { storyPartyRate } from "./storyBattleBalance";
+import { storyPartyRate, WREN_ARRIVAL_PARTIES, WREN_LONE_PARTIES } from "./storyBattleBalance";
 import { storyBattleStats } from "./storyBattleSim";
 
 /**
@@ -8,7 +8,9 @@ import { storyBattleStats } from "./storyBattleSim";
  * 96-100% for any 2+ party and the rival at 96-100% even for max-damage play.
  * Measured on the shared StoryBattle controller with the sparSim policies at
  * the expected beat levels (rival Lv 6, boss Lv 8). Wide bands: these pin the
- * shape (hard but fair, skill matters), not exact numbers.
+ * shape (hard but fair, skill matters), not exact numbers. #411 re-pinned Wren
+ * on the real arrival party (Lv 4, one evolved + a friend); the boss bands
+ * are unchanged.
  */
 const SEEDS = 300;
 
@@ -87,14 +89,67 @@ describe("Wren balance", () => {
   const rate = (size: 1 | 2 | 3, policy: "random" | "max-damage" | "skilled", rematch = false) =>
     storyPartyRate("rival-wren", size, policy, 6, SEEDS, rematch).winRate;
 
-  it("is no longer a walkover for careless play", () => {
+  /*
+   * #411: the release-gate playthrough arrived at Lv 4 with one evolved
+   * companion, and the old 2-companion scale (HP ×1.55, damage ×1.22) made a
+   * second, weaker companion a liability (Bramblewarden alone 44% max-damage,
+   * + Bryn's Lv 1 Ember Wisp 13%). Bands now pin the arrival party: a
+   * sensible first try (max-damage: best hit every turn, no swaps) wins
+   * ~65-80%; reading matchups (skilled) wins more; mashing (random) can lose.
+   * Evolved duos / trios at Lv 6 are over-prepared for the first gate and may
+   * cruise; the boss is where they are tested.
+   */
+  const arrival = (
+    entry: { party: readonly string[]; levels: readonly number[] },
+    policy: "random" | "max-damage" | "skilled",
+    ward = 1,
+  ) =>
+    storyBattleStats(
+      { sparId: "rival-wren", party: entry.party, level: entry.levels[0]!, levels: entry.levels, policy, ward },
+      SEEDS,
+    ).winRate;
+
+  it("is fair on a first try for the typical arrival party (evolved Lv 4 lead + a friend)", () => {
+    const sensible = WREN_ARRIVAL_PARTIES.map((p) => arrival(p, "max-damage"));
+    const mean = sensible.reduce((a, b) => a + b, 0) / sensible.length;
+    expect(mean).toBeGreaterThanOrEqual(0.65);
+    expect(mean).toBeLessThanOrEqual(0.8);
+    for (const [i, p] of WREN_ARRIVAL_PARTIES.entries()) {
+      const label = `${p.party.join("+")} Lv ${p.levels.join("/")}`;
+      expect(sensible[i]!, label).toBeGreaterThanOrEqual(0.55);
+      expect(sensible[i]!, label).toBeLessThanOrEqual(0.85);
+      expect(arrival(p, "skilled"), label).toBeGreaterThanOrEqual(0.85);
+      expect(arrival(p, "random"), label).toBeLessThanOrEqual(0.7);
+    }
+  });
+
+  it("rewards bringing a friend: every arrival duo beats its lead alone", () => {
+    for (const lone of WREN_LONE_PARTIES) {
+      const alone = arrival(lone, "max-damage");
+      expect(alone, `${lone.party[0]} alone`).toBeLessThanOrEqual(0.5);
+      for (const duo of WREN_ARRIVAL_PARTIES.filter((p) => p.party[0] === lone.party[0])) {
+        expect(arrival(duo, "max-damage"), duo.party.join("+")).toBeGreaterThan(alone + 0.15);
+      }
+    }
+    // An unevolved lone companion is a wall: the nudge names Bryn's gift.
+    expect(arrival({ party: ["mossling"], levels: [4] }, "max-damage")).toBeLessThanOrEqual(0.1);
+  });
+
+  it("Hearth Ward lifts a lone evolved companion after two and four losses", () => {
+    const def = getStorySpar("rival-wren");
+    for (const lone of WREN_LONE_PARTIES) {
+      expect(arrival(lone, "max-damage", hearthWardScale(def, 2)), lone.party[0]).toBeGreaterThanOrEqual(0.5);
+      expect(arrival(lone, "max-damage", hearthWardScale(def, 4)), lone.party[0]).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+
+  it("over-prepared parties still need care alone, and skilled play wins with a party", () => {
     for (const size of [2, 3] as const) {
-      expect(rate(size, "max-damage"), `max-damage ${size}`).toBeLessThanOrEqual(0.75);
-      expect(rate(size, "random"), `random ${size}`).toBeLessThanOrEqual(0.5);
-      expect(rate(size, "skilled"), `skilled ${size}`).toBeGreaterThanOrEqual(0.8);
+      expect(rate(size, "skilled"), `skilled ${size}`).toBeGreaterThanOrEqual(0.9);
     }
     expect(rate(1, "skilled")).toBeGreaterThanOrEqual(0.55);
     expect(rate(1, "skilled")).toBeLessThanOrEqual(0.9);
+    expect(rate(1, "random")).toBeLessThanOrEqual(0.4);
   });
 
   it("rematch Hearth Ward keeps casual rematches winnable after losses", () => {

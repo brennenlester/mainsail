@@ -59,7 +59,7 @@ Repeating cycle (**spine loop**):
 | 2 | Win a training spar (hunter tip teaches one matchup) | **Overworld gate opens** |
 | 3 | Craft a relic at Moon Shrine | First relic (Moss Salve / Ember Charm sets up beat 4) |
 | 4 | Grow your first companion (either Grove evolution) | Evolution cutscene (skippable; the first one offers the Companion Card share); **cottage gate opens** when the beat starts (Bryn gifts a missing Grove starter) |
-| 5 | Beat Wren, the rival | One battle ("Wren, the Rival", VS banner, rival theme). Wren sends a scaled 2-creature team in sequence. Banter changes on a win or a loss. The first win gives Brook Tonic ×2, **opens the Mistwood path**, and adds Pip the Brook Nymph if the party has no water type |
+| 5 | Beat Wren, the rival | One battle ("Wren, the Rival", VS banner, rival theme). Wren sends a scaled 2-creature team in sequence. Banter changes on a win or a loss. A lone companion gets a "bring a friend" line from Wren (dialogue + HUD) before the fight, naming Bryn's Grove gift when he has one, and the hint names his cottage (#411). Tuned on the real arrival party (Lv 4, one evolved + a friend): a best-hit-every-turn first try wins ~65-80%, a lone evolved companion ~18-44% until the Hearth Ward steps in. The first win gives Brook Tonic ×2, **opens the Mistwood path**, and adds Pip the Brook Nymph if the party has no water type |
 | 6 | Walk the Mistwood path | **Region unlock** — new creatures |
 | 7 | Face the Cinder Matriarch | **Boss battle** in Emberfen Hollow, with an ember arena, a boss theme and a boss bar with a phase pip. Mire form (fen) becomes Cinder form (ember) at 50% HP, inside the same battle. Each form runs a fixed intent pattern. The telegraphed signature, Cinderfall, has a wind-up; Guard parries it and staggers her. Wren assists every few turns (cleanse / heal / daze, or drench when her form hunts your lead; Soaked douses Cinder form). HP and damage scale to the number of challengers. **Hearth Ward** catch-up: ×0.85 after 2 losses in a row and ×0.75 after 4 (persisted per challenge, reset on a win), shown as a chip above the foe's bar with "N more tries until the ward strengthens" (#399). Reward: Moonwake Draught + ember egg |
 | 8 | Return to the Moon Shrine | **Finale**: a scripted shrine scene with Wren. The egg hatches into **Cinderling** (a rare Cinder Toad with a signature Ember Spit). Main story complete; hook toward the optional Sovereign voyage (Horizon / Eclipse fusion). On `story:finale-complete` the credits card (companion recap, Share, Keep exploring) shows once per save (persisted `storyFinaleCardShown`, #399) |
@@ -146,11 +146,13 @@ Social hosting (invite links) remains in the client and is **frozen** — not th
 
 ### Encounters
 
-Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**. Cottage interiors are safe rooms (no wild spawns). Harbor has no wild table yet. Archipelago: **on foot** on islands can meet island-exclusive creatures; **sailing skips** wild encounters.
+Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**. Safe zones never roll wild encounters (#411, `safe` on the zone / `isSafeZone`): the Hearth Crossing plaza and every cottage interior. Harbor has no wild table yet. Archipelago: **on foot** on islands can meet island-exclusive creatures; **sailing skips** wild encounters.
 
 [inferred: travel threshold `ENCOUNTER_TRAVEL_THRESHOLD` = 0.75 tiles of movement before a roll.]
 
 **Pacing (#390, `encounters/encounterPacing.ts`):** after an encounter ends the player walks at least 12 tiles (14 after a Flee) before the next roll, and entering a zone grants a 6-tile grace. Habitat rates are otherwise unchanged.
+
+**Living routes (#411):** the story routes (Folklore Fields, Mistwood Reach, Emberfen Hollow) are short (~30 tiles on a straight walk from the Fields gate to the Matriarch), so grace + gap could leave the whole walk empty. After 20 route tiles without an encounter, the next eligible roll is a sure hit; gaps and grace still apply. Measured (Playwright, straight post-Wren walk ×8): runs with an encounter 4/8 → 8/8, first by ~20 tiles; back-and-forth patrol ~3.3 → ~5.7 encounters per 100 route tiles (Whisper Grove is ~5).
 
 **Soft recovery (#390):** E at the Moon Shrine altar fully heals the party for free (fainted included); a won wild spar restores 20% max HP to standing companions; a fully fainted active party wakes beside the altar. Odd's paid rest is optional flavour.
 
@@ -160,10 +162,10 @@ Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**. Cottag
 | --- | --- |
 | Whisper Grove | Mossling, Ember Wisp |
 | Moon Shrine | Ember Wisp, Brook Nymph |
-| Hearth Crossing | Brook Nymph, Mossling |
-| Folklore Fields | Rootwalker, Lantern Fox, Stone Hound |
-| Mistwood Reach | Thunder Finch, Lantern Fox, Mist Serpent |
-| Emberfen Hollow | Peat Sprite, Cinder Toad, Bog Lantern |
+| Hearth Crossing | (none: safe plaza) |
+| Folklore Fields | Rootwalker, Mossling, Brook Nymph, Lantern Fox, Stone Hound, Thunder Finch |
+| Mistwood Reach | Thunder Finch, Rootwalker, Lantern Fox, Mist Serpent, Bog Lantern |
+| Emberfen Hollow | Peat Sprite, Cinder Toad, Ember Wisp, Bog Lantern, Brook Nymph (a water answer before the Matriarch) |
 | Moonwake Harbor | (none) |
 | Archipelago islands | One exclusive per island (Isle Fernling, Salt Scuttle, Shoal Wisp, Tide Urchin, Coral Skitter, Drift Kelpie, Dune Hermit, Brackish Newt, Pearl Moth, Reef Spinner, Mist Anemone, Barnacle Toad, Gulf Lantern, Spray Finch, Lagoon Hare, Atoll Wisp) |
 

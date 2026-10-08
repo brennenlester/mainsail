@@ -6,6 +6,7 @@ import {
   GROVE_ENCOUNTER_CHANCE,
   HABITAT_PROFILES,
   isInteriorZone,
+  isSafeZone,
   profilesEqual,
   VARIATION_ZONE_IDS,
 } from "./habitatProfiles";
@@ -71,6 +72,29 @@ describe("habitatProfiles", () => {
           false,
         );
       }
+    }
+  });
+
+  it("marks Hearth Crossing and every interior safe, and no wild habitat (#411)", () => {
+    for (const zoneId of [
+      "village",
+      "warden-cottage",
+      "weaver-cottage",
+      "hearthkeep-cottage",
+      "hermit-cottage",
+    ] as const) {
+      expect(isSafeZone(zoneId), zoneId).toBe(true);
+    }
+    for (const zoneId of [
+      "grove",
+      "shrine",
+      "overworld",
+      "mistwood",
+      "emberfen",
+      "archipelago",
+      "harbor",
+    ] as const) {
+      expect(isSafeZone(zoneId), zoneId).toBe(false);
     }
   });
 

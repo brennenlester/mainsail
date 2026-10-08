@@ -64,7 +64,7 @@ import {
   ENCOUNTER_TRAVEL_THRESHOLD,
   shouldAttemptWildEncounter,
 } from "../encounters/tables";
-import { getHabitatProfile } from "../encounters/habitatProfiles";
+import { getHabitatProfile, isSafeZone } from "../encounters/habitatProfiles";
 import {
   onZoneEnter,
   resolveWildEncounterCreature,
@@ -94,7 +94,7 @@ import {
   type PendingGodLandEncounter,
 } from "../encounters/godLand";
 import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters";
-import { overworldEncounterPacer } from "../encounters/encounterPacing";
+import { isRouteZone, overworldEncounterPacer } from "../encounters/encounterPacing";
 import { visitShrineAltar, wakeStrandedParty } from "../world/shrineHeal";
 import { isDomKeyboardTarget } from "../ui/canvasFocus";
 import {
@@ -703,7 +703,7 @@ export class IsometricScene extends Phaser.Scene {
     if (this.inEncounter || this.pendingGodLandEncounter) {
       return;
     }
-    overworldEncounterPacer.walk(step);
+    overworldEncounterPacer.walk(step, isRouteZone(this.currentZoneId));
     if (isEncounterImmune(this.time.now)) {
       return;
     }
@@ -714,7 +714,7 @@ export class IsometricScene extends Phaser.Scene {
     ) {
       return;
     }
-    if (isVisitorMode()) {
+    if (isVisitorMode() || isSafeZone(this.currentZoneId)) {
       return;
     }
     const tileX = Math.round(this.playerGridX);
@@ -745,7 +745,9 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
     const guaranteed =
-      scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
+      scripted !== null ||
+      shouldGuaranteeWildTrigger(profile, this.currentZoneId) ||
+      overworldEncounterPacer.routeEncounterDue();
     if (
       !guaranteed &&
       !rollWildTriggerChance(profile, () => overworldEncounterPacer.random())

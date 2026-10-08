@@ -130,6 +130,11 @@ export function isInteriorZone(zoneId: ZoneId): boolean {
   return ZONES[zoneId]?.interior === true;
 }
 
+/** No wild encounters roll in safe zones: the town plaza and every interior (#411). */
+export function isSafeZone(zoneId: ZoneId): boolean {
+  return ZONES[zoneId]?.safe === true || isInteriorZone(zoneId);
+}
+
 export function getHabitatProfile(zoneId: ZoneId): HabitatProfile {
   if (zoneId in HABITAT_PROFILES) {
     return HABITAT_PROFILES[zoneId as VariationZoneId];

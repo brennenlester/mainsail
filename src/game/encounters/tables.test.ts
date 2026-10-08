@@ -18,12 +18,13 @@ import { getMaterialForCreature } from "../inventory/materials";
 describe("getHabitatsForCreature", () => {
   it("lists every habitat that can spawn the creature", () => {
     expect(getHabitatsForCreature("ember-wisp").sort()).toEqual([
+      "emberfen",
       "grove",
       "shrine",
     ]);
     expect(getHabitatsForCreature("mossling").sort()).toEqual([
       "grove",
-      "village",
+      "overworld",
     ]);
   });
 
@@ -34,6 +35,50 @@ describe("getHabitatsForCreature", () => {
   it("registers archipelago exclusives under the archipelago habitat", () => {
     for (const id of getArchipelagoExclusiveIds()) {
       expect(getHabitatsForCreature(id)).toEqual(["archipelago"]);
+    }
+  });
+});
+
+describe("living routes (#411)", () => {
+  // Species with the rendered (Blender toon) art; routes use only these.
+  const NEW_ART = new Set([
+    "bog-lantern",
+    "brook-nymph",
+    "cinder-toad",
+    "ember-wisp",
+    "lantern-fox",
+    "mist-serpent",
+    "mossling",
+    "peat-sprite",
+    "rootwalker",
+    "stone-hound",
+    "thunder-finch",
+  ]);
+
+  it("gives every story route at least five species, all with rendered art", () => {
+    for (const zoneId of ["overworld", "mistwood", "emberfen"] as const) {
+      const table = ZONE_ENCOUNTERS[zoneId];
+      expect(table.length, zoneId).toBeGreaterThanOrEqual(5);
+      for (const entry of table) {
+        expect(NEW_ART.has(entry.id), `${zoneId}: ${entry.id}`).toBe(true);
+      }
+      // No single species dominates a route (Mistwood was ~80% Thunder Finch).
+      const total = table.reduce((sum, e) => sum + e.weight, 0);
+      const top = Math.max(...table.map((e) => e.weight));
+      expect(top / total, zoneId).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  it("keeps Hearth Crossing and the cottages free of wild creatures", () => {
+    for (const zoneId of [
+      "village",
+      "warden-cottage",
+      "weaver-cottage",
+      "hearthkeep-cottage",
+      "hermit-cottage",
+    ] as const) {
+      expect(ZONE_ENCOUNTERS[zoneId], zoneId).toEqual([]);
+      expect(rollWildCreature(zoneId), zoneId).toBeNull();
     }
   });
 });

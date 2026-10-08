@@ -58,7 +58,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "rival-wren": {
     id: "rival-wren",
     title: "Beat Wren, the rival",
-    hint: "Find Wren in the Hearth Crossing plaza and accept her spar — she fights with two companions, one after the other.",
+    hint: "Find Wren in the Hearth Crossing plaza. She fights two companions in a row, so bring two. Short one? Warden Bryn (Warden's Cottage, east gate) gifts the Ember Wisp or Mossling you're missing.",
     objective: { type: "win_story_spar", sparId: "rival-wren" },
     payoff: "the Mistwood path opens east of Folklore Fields",
     npcLine: {
