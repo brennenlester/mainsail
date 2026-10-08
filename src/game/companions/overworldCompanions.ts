@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { getCreatureDefinition } from "../creatures/catalog";
+import { displayName } from "../creatures/displayName";
 import { getActiveCreatures, getCreatureInstance, playerParty } from "../creatures/party";
 import type { CreatureInstance } from "../creatures/types";
 import { playAbilitySfx } from "../audio/gameAudio";
@@ -365,8 +365,4 @@ export class OverworldCompanions {
       }
     }
   }
-}
-
-export function displayName(creature: CreatureInstance): string {
-  return creature.nickname ?? getCreatureDefinition(creature.definitionId).name;
 }

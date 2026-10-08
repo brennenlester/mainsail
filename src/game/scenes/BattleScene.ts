@@ -1,3 +1,5 @@
+import { displayNameMarked } from "../creatures/displayName";
+import { refreshPartyStatusLine } from "../ui/statusPanel";
 import Phaser from "phaser";
 import {
   playBattleWinSfx,
@@ -890,7 +892,7 @@ export class BattleScene extends Phaser.Scene {
     }
     const trait = partyCreature.trait;
     const combatant: BattleCombatant = {
-      name: def.name,
+      name: displayNameMarked(partyCreature),
       level: partyCreature.level,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
@@ -935,6 +937,7 @@ export class BattleScene extends Phaser.Scene {
     const partyCreature = getActiveCreatures()[index];
     if (partyCreature) {
       partyCreature.currentHp = this.player.currentHp;
+      refreshPartyStatusLine();
     }
   }
 
@@ -1395,7 +1398,7 @@ export class BattleScene extends Phaser.Scene {
 
       const nameX = rowX + 82;
       const name = this.add
-        .text(nameX, -rowH / 2 + 10, creature.nickname ?? def.name, {
+        .text(nameX, -rowH / 2 + 10, displayNameMarked(creature), {
           fontFamily: HUD_FONT,
           fontSize: "19px",
           fontStyle: "bold",

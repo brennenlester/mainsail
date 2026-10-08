@@ -11,6 +11,8 @@ import {
  * go through textContent — share data is untrusted and never touches HTML.
  */
 
+const POINTER_TYPES_PHASER_USES = ["mousedown", "mouseup", "touchstart", "touchend", "touchcancel"] as const;
+
 export type SheetButton = {
   label: string;
   variant?: "primary" | "quiet";
@@ -101,6 +103,12 @@ export function openShareSheet(options: {
     sheet.append(el("p", "share-note", options.note));
   }
   root.append(sheet);
+  // Phaser listens for mouseup / touchend on `window`, so a tap on this sheet
+  // also "releases" whatever canvas button sits underneath it (the evolution
+  // scene's Share button re-opened the sheet and swallowed Download, #401).
+  for (const type of POINTER_TYPES_PHASER_USES) {
+    root.addEventListener(type, (event) => event.stopPropagation());
+  }
   (document.getElementById("app") ?? document.body).append(root);
 
   const playfield = document.getElementById("playfield");

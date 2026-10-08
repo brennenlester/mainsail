@@ -103,6 +103,21 @@ describe("renderPartyHpHud", () => {
     expect(row?.querySelectorAll(".hp-pip--filled")).toHaveLength(0);
   });
 
+  it("shows the nickname, falling back to the species name (#401)", () => {
+    setPartyFromSnapshot(
+      [
+        member({ instanceId: "a", currentHp: 28, nickname: "Sprout" }),
+        member({ instanceId: "b", definitionId: "stone-hound", currentHp: 28 }),
+      ],
+      3,
+      ["a", "b"],
+    );
+    const el = document.createElement("div");
+    renderPartyHpHud(el);
+    const names = [...el.querySelectorAll(".party-hp-name")].map((n) => n.textContent);
+    expect(names).toEqual(["Sprout", "Stone Hound"]);
+  });
+
   it("fits seven active rows without omitting any", () => {
     const creatures = Array.from({ length: 7 }, (_, i) =>
       member({

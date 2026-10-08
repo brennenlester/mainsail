@@ -48,6 +48,7 @@ export function snapshotFromParty(
       presence: hasPresenceGrowth(c),
       // Hearts = bond tier + 1 (Wary 1 … Kindred 5).
       bond: bondTier(c.bond) + 1,
+      ...(c.nickname ? { nickname: c.nickname } : {}),
     })),
   };
 }

@@ -399,7 +399,7 @@ export class EvolutionScene extends Phaser.Scene {
           playUiClickSfx(this);
           void openCompanionShare({
             title: "Show off your companion",
-            subtitle: `${this.reveal.after.name} just grew — send your card to a friend.`,
+            subtitle: `${this.reveal.nickname ?? this.reveal.after.name} just grew — send your card to a friend.`,
           });
         }),
       );
