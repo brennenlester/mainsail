@@ -83,7 +83,7 @@ export type StoryHud = {
   barWidth: number;
   /** Scaled plate; chips are added into it in local coords. */
   container: Phaser.GameObjects.Container;
-  /** Room for the name line left of the phase label (base px). */
+  /** Room for the name line (base px). */
   nameWidth?: number;
 };
 
@@ -194,13 +194,14 @@ export class StoryBattleUi {
     if (boss) {
       this.phaseLabel = add(
         s.add
-          .text(width - 12, 6, "", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
-          .setOrigin(1, 0),
+          // Bottom-right row, so a long name never collides with it on a phone.
+          .text(width - 12, 52, "", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
+          .setOrigin(1, 0.5),
       );
       this.createIcon(box);
     }
     this.syncPhase();
-    this.createWardRow(box);
+    this.createWardRow(box, width);
     const hud: StoryHud = {
       name,
       hp,
@@ -210,7 +211,7 @@ export class StoryBattleUi {
       chipY: 52,
       barWidth,
       container: box,
-      nameWidth: width - 12 - (this.phaseLabel?.width ?? 0) - 10 - barX,
+      nameWidth: width - 12 - barX,
     };
     this.hud = hud;
     return hud;
@@ -253,7 +254,7 @@ export class StoryBattleUi {
    * with the foe's plate, above it in the bar's scaled box, plus a quiet
    * "tries until it strengthens" line.
    */
-  private createWardRow(box: Phaser.GameObjects.Container): void {
+  private createWardRow(box: Phaser.GameObjects.Container, width: number): void {
     if (this.battle.ward >= 1) {
       return;
     }
@@ -288,6 +289,17 @@ export class StoryBattleUi {
           .setOrigin(0, 0.5)
           .setAlpha(0.8),
       );
+      // The Fast toggle shares this row at the right: shrink the hint, then drop it.
+      const text = box.last as Phaser.GameObjects.Text;
+      const room = width - chip.width - 10 - 100;
+      let size = Math.round(WARD_HINT_FONT_PX * k);
+      while (text.width > room && size > 11) {
+        size -= 1;
+        text.setFontSize(size);
+      }
+      if (text.width > room) {
+        text.destroy();
+      }
     }
   }
 

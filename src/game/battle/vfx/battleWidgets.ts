@@ -189,6 +189,11 @@ export class MoveCard {
       size -= 1;
       title.setFontSize(size);
     }
+    if (title.width > room()) {
+      // Still tight (small phones): keep the number, drop the matchup words
+      // (the effect colour still says hunter / resisted).
+      effect.setText(data.effect.split("  ")[0] ?? data.effect);
+    }
     const subTop = -h / 2 + 29;
     const lines = Math.max(1, Math.floor((h / 2 - 3 - subTop) / 16));
     const sub = scene.add
