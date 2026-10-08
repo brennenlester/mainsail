@@ -58,6 +58,19 @@ describe("control legend", () => {
     expect(block).toMatch(/\.status-control-legend\s*\{[^}]*display:\s*none/);
   });
 
+  it("hides the touch overlay while battle, encounter or title scenes are active", () => {
+    for (const cls of ["battle-active", "encounter-active"]) {
+      expect(STYLE_CSS).toMatch(
+        new RegExp(`body\\.${cls}\\s+\\.touch-controls[^{]*\\{[^}]*display:\\s*none`),
+      );
+    }
+    const opening = readFileSync(
+      path.join(process.cwd(), "src/game/opening/opening.css"),
+      "utf8",
+    );
+    expect(opening).toMatch(/body\.title-active\s+#touch-controls[^{]*\{[^}]*display:\s*none/);
+  });
+
   it("shows on a wide hover desktop and hides with the touch overlay rule", () => {
     expect(
       shouldShowControlLegend({

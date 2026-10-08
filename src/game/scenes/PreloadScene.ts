@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { preloadGameAudio } from "../audio/gameAudio";
 import { getBootContext } from "../opening/bootRoute";
 import { preloadTitleArt } from "./TitleScene";
+import { type LoadErrorFile, warnOnLoadError } from "./loadError";
 import {
   createImagineAnims,
   preloadImagineAssets,
@@ -22,9 +23,9 @@ export class PreloadScene extends Phaser.Scene {
       preloadTitleArt(this);
     }
 
-    // ponytail: ignore missing optional Imagine files; procedural ensure* fills gaps
-    this.load.on("loaderror", () => {
-      /* intentional no-op */
+    // ponytail: missing optional Imagine files only warn (dev builds); procedural ensure* fills gaps
+    this.load.on("loaderror", (file: LoadErrorFile) => {
+      warnOnLoadError(file, import.meta.env.DEV);
     });
     preloadImagineAssets(this);
     this.load.image(

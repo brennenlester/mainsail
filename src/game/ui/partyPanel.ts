@@ -9,6 +9,7 @@ import {
   moveReserveToActive,
   swapActiveWithReserve,
 } from "../creatures/party";
+import { notifyPartyChanged } from "../creatures/partyEvents";
 import type { CreatureInstance } from "../creatures/types";
 import { refreshPartyStatusLine } from "./statusPanel";
 import { popOverlay, pushOverlay } from "./overlayStack";
@@ -270,6 +271,7 @@ function renderList(
 }
 
 function refreshPartyUi(): void {
+  notifyPartyChanged();
   const activeList = document.getElementById("party-active-list");
   const reserveList = document.getElementById("party-reserve-list");
   const activeCount = document.getElementById("party-active-count");

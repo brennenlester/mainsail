@@ -174,7 +174,10 @@ const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 142, y: 370 };
 const LOG_Y = 440;
 
 // Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
-const HUD_FONT = '"Source Sans 3", system-ui, sans-serif';
+/** Befriend breakdown tip: capped width, and on touch it lapses fast (#388). */
+const BEFRIEND_TIP_MAX_WIDTH = 440;
+const BEFRIEND_TIP_TOUCH_MS = 2500;
+const HUD_FONT ='"Source Sans 3", system-ui, sans-serif';
 const HP_BAR_WIDTH = 176;
 const HUD_PLATE_WIDTH = 236;
 
@@ -211,6 +214,7 @@ export class BattleScene extends Phaser.Scene {
   private wildOpens = false;
   private allowBefriend = false;
   private befriendTip: Phaser.GameObjects.GameObject[] = [];
+  private befriendTipTimer?: Phaser.Time.TimerEvent;
   private wild!: BattleCombatant;
   private player!: BattleCombatant;
   private partyInstanceIndex = -1;
@@ -290,6 +294,7 @@ export class BattleScene extends Phaser.Scene {
     this.befriendMisses = data.befriendMisses ?? 0;
     this.wildOpens = data.wildOpens ?? false;
     this.befriendTip = [];
+    this.befriendTipTimer = undefined;
     this.waitingForPlayer = true;
     this.partyInstanceIndex = -1;
     this.partyInstanceId = null;
@@ -810,6 +815,9 @@ export class BattleScene extends Phaser.Scene {
 
   /** Touch: first tap shows the breakdown + cost, the second commits. Mouse: one click. */
   private onBefriendPressed(btn: Phaser.GameObjects.Text, odds: BefriendOdds | null): void {
+    if (!this.waitingForPlayer) {
+      return;
+    }
     if (this.coarsePointer() && this.befriendTip.length === 0) {
       this.showBefriendTip(btn, odds, true);
       return;
@@ -845,14 +853,23 @@ export class BattleScene extends Phaser.Scene {
         fontSize: "20px",
         align: "center",
         padding: { x: 12, y: 8 },
-        wordWrap: { width: 600, useAdvancedWrap: true },
+        wordWrap: { width: BEFRIEND_TIP_MAX_WIDTH, useAdvancedWrap: true },
       })
       .setOrigin(0.5, 1)
       .setDepth(12);
     this.befriendTip.push(text);
+    if (confirm) {
+      // Touch tip must not sit over the move cards; a second tap after it
+      // lapses just shows it again.
+      this.befriendTipTimer = this.time.delayedCall(BEFRIEND_TIP_TOUCH_MS, () =>
+        this.hideBefriendTip(),
+      );
+    }
   }
 
   private hideBefriendTip(): void {
+    this.befriendTipTimer?.remove(false);
+    this.befriendTipTimer = undefined;
     for (const object of this.befriendTip) {
       object.destroy();
     }
