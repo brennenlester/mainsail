@@ -109,6 +109,13 @@ export function flickerSchedule(duration: number): number[] {
   return times;
 }
 
+/** Keys ignored right after the result panel appears, so a skip press can't also dismiss it. */
+export const RESULT_KEY_DEBOUNCE_MS = 300;
+
+export function acceptsResultKey(doneAt: number, now: number): boolean {
+  return now - doneAt >= RESULT_KEY_DEBOUNCE_MS;
+}
+
 /** Share nudge only on the first evolution ever, when sharing is possible. */
 export function shouldOfferShare(
   reveal: { kind: GrowthKind; firstEvolution: boolean },

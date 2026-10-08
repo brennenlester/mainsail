@@ -17,6 +17,7 @@ import {
   type GrowthReveal,
 } from "../evolution/growthReveal";
 import {
+  acceptsResultKey,
   evolutionTimeline,
   flickerSchedule,
   shouldOfferShare,
@@ -68,6 +69,8 @@ export class EvolutionScene extends Phaser.Scene {
   private particlesOn = true;
   private phase: Phase = "playing";
   private stingPlayed = false;
+  /** scene time the result panel became actionable (key debounce, #399). */
+  private doneAt = 0;
 
   private backdrop!: Phaser.GameObjects.Rectangle;
   private halo!: Phaser.GameObjects.Image;
@@ -97,6 +100,7 @@ export class EvolutionScene extends Phaser.Scene {
     this.returnTo = data.returnTo;
     this.phase = "playing";
     this.stingPlayed = false;
+    this.doneAt = 0;
     this.reducedMotion = prefersReducedMotion();
     this.particlesOn = effectsEnabled();
     this.beats = evolutionTimeline(this.reveal.kind, {
@@ -431,10 +435,15 @@ export class EvolutionScene extends Phaser.Scene {
   }
 
   private bindInput(): void {
-    const advance = (): void => {
+    const advance = (event: KeyboardEvent): void => {
+      // A held key auto-repeats: one press may skip, but only a fresh press
+      // (key-up in between) after the panel settles may leave it (#399).
+      if (event.repeat) {
+        return;
+      }
       if (this.phase === "playing") {
         this.skip();
-      } else if (this.phase === "done") {
+      } else if (this.phase === "done" && acceptsResultKey(this.doneAt, this.time.now)) {
         this.finish();
       }
     };
@@ -642,6 +651,7 @@ export class EvolutionScene extends Phaser.Scene {
       btn.setInteractive({ useHandCursor: true });
     }
     this.phase = "done";
+    this.doneAt = this.time.now;
   }
 
   // ---- Skip / exit ------------------------------------------------------------

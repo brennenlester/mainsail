@@ -344,6 +344,15 @@ function isSceneActive(scene: Phaser.Scene, key: string): boolean {
   }
 }
 
+/** Running or asleep: the shrine sleeps under EvolutionScene and resumes after (#399). */
+function isSceneOpen(scene: Phaser.Scene, key: string): boolean {
+  try {
+    return scene.scene.manager.isActive(key) || scene.scene.manager.isSleeping(key);
+  } catch {
+    return false;
+  }
+}
+
 function refreshContext(scene: Phaser.Scene | null): void {
   if (scene?.scene?.manager) {
     const active = isSceneActive(scene, "BattleScene") || isSceneActive(scene, "EncounterScene");
@@ -351,7 +360,9 @@ function refreshContext(scene: Phaser.Scene | null): void {
       battleWon = false;
     }
     ctx.battle = active && !battleWon;
-    ctx.shrineOpen = isSceneActive(scene, "ShrineScene");
+    // A sleeping shrine (evolution cutscene on top) keeps the shrine track:
+    // no swap to the zone theme and back mid-cutscene.
+    ctx.shrineOpen = isSceneOpen(scene, "ShrineScene");
   }
   ctx.night = isNightHour(new Date().getHours());
   if (ctx.victory && Date.now() >= victoryUntil) {
