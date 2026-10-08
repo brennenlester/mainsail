@@ -75,7 +75,8 @@ function openChallengeResult(
     title: cleared
       ? `You beat ${snapshot.name}'s party!`
       : `${snapshot.name}'s party held on`,
-    subtitle: `Ghost spars won: ${result.wins} of ${result.total}. Build your own party and send them a card back.`,
+    // The gauntlet stops at the first loss, so this is a win streak.
+    subtitle: `Win streak: ${result.wins} of ${result.total} ghosts beaten. Build your own party and send them a card back.`,
     imageAlt: `${snapshot.name}'s Companion Card`,
     buttons: [
       {
