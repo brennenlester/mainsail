@@ -125,10 +125,26 @@ function canCopyImage(): boolean {
   );
 }
 
+/** True when a Share button can open the sheet (game bound, host, not a preview). */
+export function isCompanionShareAvailable(): boolean {
+  return shareGame !== null && !shareDisabled && !isVisitorMode();
+}
+
+export type CompanionShareOptions = {
+  /** Party to put on the card; defaults to the active party (#393 finale recap). */
+  creatures?: readonly CreatureInstance[];
+  title?: string;
+  subtitle?: string;
+};
+
 /** Status-panel Share: render the card, then share / copy / download. */
-export async function openCompanionShare(): Promise<void> {
+export async function openCompanionShare(
+  options: CompanionShareOptions = {},
+): Promise<void> {
   const game = shareGame;
-  const creatures = currentShareCreatures();
+  const creatures = options.creatures?.length
+    ? options.creatures.slice()
+    : currentShareCreatures();
   if (!game || shareDisabled || isVisitorMode() || creatures.length === 0) {
     return;
   }
@@ -139,8 +155,10 @@ export async function openCompanionShare(): Promise<void> {
 
   const sheet = openShareSheet({
     id: "share-overlay",
-    title: "Your Companion Card",
-    subtitle: "Show off your party — friends can challenge it from the link.",
+    title: options.title ?? "Your Companion Card",
+    subtitle:
+      options.subtitle ??
+      "Show off your party — friends can challenge it from the link.",
     imageAlt: "Companion Card showing your party",
     onClose: () => undefined,
     game,
