@@ -1,8 +1,8 @@
 /**
  * Branded loading veil (#410): covers the stage while world assets finish
  * streaming in behind the title, while the world builds its first frame,
- * and while a scene fetches late-game art. Sits under the name form so
- * typing is never blocked by it.
+ * and while a scene fetches late-game art. Sits above the HUD and panels;
+ * callers hide it before showing the name form.
  */
 const VEIL_ID = "loading-veil";
 
@@ -20,7 +20,8 @@ function veilElement(): HTMLElement {
     <p class="loading-veil-caption" role="status" aria-live="polite"></p>
     <div class="loading-veil-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Loading">
       <div class="loading-veil-fill"></div>
-    </div>`;
+    </div>
+    <button type="button" class="loading-veil-action" hidden></button>`;
   document.body.append(veil);
   return veil;
 }
@@ -50,10 +51,30 @@ export function showLoadingVeil(caption: string, progress?: number): void {
   }
 }
 
+/**
+ * Offer a way out of a stalled load (e.g. Reload); cleared by the next
+ * hide. The caption should already say what went wrong.
+ */
+export function showLoadingVeilAction(label: string, onClick: () => void): void {
+  const button = veilElement().querySelector<HTMLButtonElement>(".loading-veil-action");
+  if (!button) {
+    return;
+  }
+  button.textContent = label;
+  button.onclick = onClick;
+  button.hidden = false;
+  button.focus();
+}
+
 export function hideLoadingVeil(): void {
   const veil = document.getElementById(VEIL_ID);
   if (veil) {
     veil.hidden = true;
+    const button = veil.querySelector<HTMLButtonElement>(".loading-veil-action");
+    if (button) {
+      button.hidden = true;
+      button.onclick = null;
+    }
   }
 }
 

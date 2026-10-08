@@ -23,7 +23,8 @@ import {
   resizeGameForDisplay,
 } from "../render/pixelRatio";
 import { initNameIntro } from "../ui/nameIntro";
-import { hideLoadingVeil, showLoadingVeil } from "../ui/loadingVeil";
+import { stepTypeAhead } from "../ui/typeAhead";
+import { hideLoadingVeil, showLoadingVeil, showLoadingVeilAction } from "../ui/loadingVeil";
 import { whenWorldAssetsReady } from "../render/bootAssets";
 import { getPlayerName } from "../world/playerName";
 import { clearHostSave, isHostSaveLocked } from "../world/worldSave";
@@ -40,6 +41,10 @@ export function preloadTitleArt(scene: Phaser.Scene): void {
     scene.load.image(key, `assets/title/${key}.png`);
   }
 }
+
+/** Waiting this long on world assets after New Game counts as a stall (#410). */
+const WORLD_STALL_MS = 20_000;
+const WORLD_STALL_CAPTION = "Still gathering moonlight… the connection looks slow.";
 
 const S = DESIGN_SIZE;
 /** Procedural textures are drawn at 2x so HiDPI zoom stays crisp. */
@@ -941,10 +946,24 @@ export class TitleScene extends Phaser.Scene {
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       document.body.classList.remove("title-active");
       // The atlas streams in behind the title (#410); a fast player waits
-      // here on the branded veil instead of a blank stage.
+      // here on the branded veil instead of a blank stage. A stalled fetch
+      // gets a visible way out instead of an endless veil.
+      let stalled = false;
+      const stall = window.setTimeout(() => {
+        stalled = true;
+        showLoadingVeil(WORLD_STALL_CAPTION);
+        showLoadingVeilAction("Reload", () => window.location.reload());
+      }, WORLD_STALL_MS);
       whenWorldAssetsReady(
-        () => this.enterWorld(newGame),
-        (progress) => showLoadingVeil("Gathering moonlight…", progress),
+        () => {
+          window.clearTimeout(stall);
+          this.enterWorld(newGame);
+        },
+        (progress) => {
+          if (!stalled) {
+            showLoadingVeil("Gathering moonlight…", progress);
+          }
+        },
       );
     });
   }
@@ -955,21 +974,24 @@ export class TitleScene extends Phaser.Scene {
    * frame land in the input. Keys typed during the fade are replayed.
    */
   private enterWorld(newGame: boolean): void {
-    showLoadingVeil("Waking the grove…");
     // Continue with a named save is a no-op; New Game asks for the name.
     if (initNameIntro(newGame ? startOpeningBeat : undefined)) {
+      // The form covers the first world frame itself; the veil would sit on top.
+      hideLoadingVeil();
       const input = document.getElementById("name-intro-input") as HTMLInputElement | null;
       if (input) {
         const max = input.maxLength > 0 ? input.maxLength : undefined;
         input.value = (this.typedAhead ?? "").slice(0, max);
         input.focus();
       }
+    } else {
+      showLoadingVeil("Waking the grove…");
+      const world = this.scene.get("IsometricScene");
+      world.events.once(Phaser.Scenes.Events.CREATE, () => {
+        this.game.events.once(Phaser.Core.Events.POST_RENDER, () => hideLoadingVeil());
+      });
     }
     this.typedAhead = null;
-    const world = this.scene.get("IsometricScene");
-    world.events.once(Phaser.Scenes.Events.CREATE, () => {
-      this.game.events.once(Phaser.Core.Events.POST_RENDER, () => hideLoadingVeil());
-    });
     window.requestAnimationFrame(() => {
       window.setTimeout(() => this.scene.start("IsometricScene"), 0);
     });
@@ -980,14 +1002,11 @@ export class TitleScene extends Phaser.Scene {
     if (this.typedAhead === null || event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
-    if (event.key === "Backspace") {
-      this.typedAhead = this.typedAhead.slice(0, -1);
-    } else if (event.key.length === 1 && !(event.key === " " && this.typedAhead === "")) {
-      this.typedAhead += event.key;
-    } else {
-      return;
+    const step = stepTypeAhead(this.typedAhead, event);
+    this.typedAhead = step.buffer;
+    if (step.consumed) {
+      event.preventDefault();
     }
-    event.preventDefault();
   }
 
   private wipeAndRestart(): void {

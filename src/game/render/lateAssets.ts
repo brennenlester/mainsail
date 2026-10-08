@@ -24,8 +24,16 @@ export const LATE_CREATURE_IDS: readonly string[] = [
   "eclipse-sovereign",
 ];
 
-const failed = new Set<string>();
+/** Fetches in flight (on any scene's loader) and fetches that failed. */
 const inflight = new Set<string>();
+const failed = new Set<string>();
+const settleListeners = new Set<() => void>();
+
+function notifySettled(): void {
+  for (const listener of [...settleListeners]) {
+    listener();
+  }
+}
 
 export function isLateImageKey(key: string): boolean {
   return Object.prototype.hasOwnProperty.call(LATE_IMAGES, key);
@@ -50,35 +58,51 @@ export function isLateImagePending(scene: Phaser.Scene, key: string): boolean {
   return isLateImageKey(key) && !failed.has(key) && !scene.textures.exists(key);
 }
 
+export type LateImageStatus = "ready" | "loading" | "failed" | "missing";
+
+export function lateImageStatus(scene: Phaser.Scene, key: string): LateImageStatus {
+  if (scene.textures.exists(key)) {
+    return "ready";
+  }
+  if (inflight.has(key)) {
+    return "loading";
+  }
+  return failed.has(key) ? "failed" : "missing";
+}
+
 /**
  * Queue missing late images on the scene loader; returns how many were
- * queued. A slow fetch shows the loading veil with `caption` (null: never,
- * e.g. while the boot loader already shows progress).
+ * queued. Keys already loaded or in flight anywhere are skipped (no
+ * duplicate-key loads). A slow fetch shows the loading veil with `caption`
+ * (null: never, e.g. a silent prefetch). `retry` re-queues failed keys.
  */
 export function queueLateImages(
   scene: Phaser.Scene,
   keys: Iterable<string>,
   caption: string | null = "Something stirs…",
+  retry = false,
 ): number {
-  let queued = 0;
+  const queued: string[] = [];
   for (const key of keys) {
     const url = LATE_IMAGES[key];
-    if (!url || failed.has(key) || scene.textures.exists(key)) {
+    if (!url || inflight.has(key) || scene.textures.exists(key) || (failed.has(key) && !retry)) {
       continue;
     }
+    failed.delete(key);
+    inflight.add(key);
     scene.load.image(key, url);
-    queued += 1;
+    queued.push(key);
   }
-  if (queued === 0) {
+  if (queued.length === 0) {
     return 0;
   }
+  const mine = new Set(queued);
   const onError = (file: { key: string }): void => {
-    if (isLateImageKey(file.key)) {
-      // ensure* procedural art fills in for this key from now on.
+    if (mine.has(file.key)) {
+      // ensure* procedural art fills in for this key until a retry lands.
       failed.add(file.key);
     }
   };
-  scene.load.on("loaderror", onError);
   let progress = 0;
   let shown = false;
   const onProgress = (value: number): void => {
@@ -87,7 +111,6 @@ export function queueLateImages(
       showLoadingVeil(caption, progress);
     }
   };
-  scene.load.on("progress", onProgress);
   // Only veil a slow fetch; a cached PNG lands before anyone would notice.
   const veil =
     caption === null
@@ -96,55 +119,65 @@ export function queueLateImages(
           shown = true;
           showLoadingVeil(caption, progress);
         }, 150);
-  scene.load.once("complete", () => {
+  const cleanup = (): void => {
     window.clearTimeout(veil);
     scene.load.off("loaderror", onError);
     scene.load.off("progress", onProgress);
+    scene.load.off("complete", cleanup);
+    scene.events.off("shutdown", abort);
     if (shown) {
       hideLoadingVeil();
     }
-  });
-  return queued;
+    // Textures join the cache when the batch completes. A key with neither a
+    // texture nor an error (scene shut down mid-fetch) is free to refetch.
+    for (const key of mine) {
+      inflight.delete(key);
+    }
+    mine.clear();
+    notifySettled();
+  };
+  // The scene shut down mid-fetch (its loader is reset): nothing will settle.
+  const abort = (): void => cleanup();
+  scene.load.on("loaderror", onError);
+  scene.load.on("progress", onProgress);
+  scene.load.once("complete", cleanup);
+  scene.events.once("shutdown", abort);
+  return queued.length;
 }
 
 /**
  * Fetch late images outside `preload()` (prefetch on approach, or before an
- * action that will show them). Resolves once every key has loaded or failed
- * (a failed key falls back to procedural art). Safe to call repeatedly.
+ * action that will show them). Resolves true once every key is renderable,
+ * false if any fetch failed (procedural art stands in). Safe to call
+ * repeatedly; `retry` re-fetches failed keys.
  */
 export function loadLateImages(
   scene: Phaser.Scene,
   keys: Iterable<string>,
-  caption: string | null = "Something stirs…",
-): Promise<void> {
-  const wanted = [...keys].filter((key) => isLateImagePending(scene, key));
-  const fresh = wanted.filter((key) => !inflight.has(key));
-  if (queueLateImages(scene, fresh, caption) > 0) {
-    for (const key of fresh) {
-      inflight.add(key);
-    }
-    if (!scene.load.isLoading()) {
-      scene.load.start();
-    }
+  caption: string | null = null,
+  retry = false,
+): Promise<boolean> {
+  const wanted = [...keys].filter((key) => isLateImageKey(key));
+  if (queueLateImages(scene, wanted, caption, retry) > 0 && !scene.load.isLoading()) {
+    scene.load.start();
   }
-  return Promise.all(
-    wanted.map(
-      (key) =>
-        new Promise<void>((resolve) => {
-          const settle = (): void => {
-            if (!isLateImagePending(scene, key)) {
-              inflight.delete(key);
-              scene.load.off("complete", settle);
-              scene.textures.off("addtexture", settle);
-              resolve();
-            }
-          };
-          // `complete` follows every batch, loaded or failed; `addtexture`
-          // covers a fetch already running on another scene's loader.
-          scene.load.on("complete", settle);
-          scene.textures.on("addtexture", settle);
-          settle();
-        }),
-    ),
-  ).then(() => undefined);
+  return new Promise((resolve) => {
+    const check = (): void => {
+      const states = wanted.map((key) => lateImageStatus(scene, key));
+      if (states.includes("loading")) {
+        return;
+      }
+      settleListeners.delete(check);
+      resolve(states.every((s) => s === "ready"));
+    };
+    settleListeners.add(check);
+    check();
+  });
+}
+
+/** Test hook: forget fetch state between cases. */
+export function resetLateImagesForTest(): void {
+  inflight.clear();
+  failed.clear();
+  settleListeners.clear();
 }

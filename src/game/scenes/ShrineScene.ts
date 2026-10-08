@@ -5,7 +5,8 @@ import { getItemIconSrc, getItemName } from "../inventory/materials";
 import { getItemCount } from "../inventory/playerInventory";
 import { applyShrineFusion, getEligibleCreaturesForItem } from "../shrine/fusion";
 import { launchEvolutionScene } from "../evolution/launchEvolution";
-import { lateCreatureKeys, loadLateImages } from "../render/lateAssets";
+import { lateCreatureKeys, lateImageStatus, loadLateImages } from "../render/lateAssets";
+import { hideLoadingVeil, showLoadingVeil } from "../ui/loadingVeil";
 import {
   applyEclipseFusion,
   applyGodFusion,
@@ -437,20 +438,41 @@ export class ShrineScene extends Phaser.Scene {
       resultId: string,
     ): void => {
       host.append(el("p", "shrine-lead", summary));
-      // Fetch the new sovereign's art while the card is read (#410), and
-      // never let it join the party before its art can draw.
-      const art = loadLateImages(this, lateCreatureKeys([resultId]), "The seal awakens…");
+      // Silently prefetch the new sovereign's art while the card is read
+      // (#410); it must be in before the sovereign joins the party.
+      const artKeys = lateCreatureKeys([resultId]);
+      void loadLateImages(this, artKeys, null);
+      const apply = (): void => {
+        const result = run();
+        this.setStatus(result.message);
+        if (result.ok) {
+          notifyWorldChanged();
+          refreshPartyStatusLine();
+          this.selectedItemId = null;
+        }
+        this.renderTabContent();
+      };
       const btn = createShrineButton(label, "primary", () => {
+        if (artKeys.every((key) => lateImageStatus(this, key) === "ready")) {
+          apply();
+          return;
+        }
+        // Still fetching (slow link) or failed earlier: veil above the panel,
+        // retrying a failed fetch. Nothing is consumed until the art is in.
         btn.disabled = true;
-        void art.then(() => {
-          const result = run();
-          this.setStatus(result.message);
-          if (result.ok) {
-            notifyWorldChanged();
-            refreshPartyStatusLine();
-            this.selectedItemId = null;
+        showLoadingVeil("The seal awakens…");
+        void loadLateImages(this, artKeys, null, true).then((ok) => {
+          hideLoadingVeil();
+          // Esc / tab switch while loading cancels: keep the texture, spend nothing.
+          if (!this.panel || !this.sys.isActive() || !btn.isConnected) {
+            return;
           }
-          this.renderTabContent();
+          btn.disabled = false;
+          if (!ok) {
+            this.setStatus("Couldn't reach the sovereign's art. Check your connection and press Fuse to retry.");
+            return;
+          }
+          apply();
         });
       });
       btn.classList.add("sh-wide");
