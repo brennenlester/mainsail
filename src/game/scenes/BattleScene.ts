@@ -41,7 +41,10 @@ import {
   getCooldown,
   getMatchup,
   isFainted,
+  previewFixedDamage,
   primeOpeningCooldowns,
+  resolveFixedAttack,
+  wildBattleTuning,
   type MoveResult,
 } from "../battle/battleLogic";
 import {
@@ -51,6 +54,7 @@ import {
   moveRole,
 } from "../battle/kits";
 import {
+  canApplyStatus,
   formatStatusChip,
   STATUS_DEFS,
   tickStatuses,
@@ -109,6 +113,8 @@ const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
   immune: "#6a6a6a",
 };
 
+const INTENT_MIN_LEFT = 268;
+
 const HUD_FONT = "Source Sans 3, system-ui, sans-serif";
 const HP_BAR_WIDTH = 176;
 const HUD_PLATE_WIDTH = 236;
@@ -155,6 +161,13 @@ export class BattleScene extends Phaser.Scene {
   /** First voluntary switch each battle costs no turn. */
   private freeSwitchAvailable = true;
   private rng: () => number = Math.random;
+  /** Story 2 spar: softer wild hits, no matchup-seeking intents. */
+  private tutorialSpar = false;
+  /** Per-battle statuses / cooldowns of benched party creatures, by instanceId. */
+  private benchState = new Map<
+    string,
+    Pick<BattleCombatant, "statuses" | "cooldowns">
+  >();
   private waitingForPlayer = true;
   private forcedSwitch = false;
   private switchMenuOpen = false;
@@ -215,6 +228,8 @@ export class BattleScene extends Phaser.Scene {
     this.intentObjects = [];
     this.freeSwitchAvailable = true;
     this.rng = Math.random;
+    this.tutorialSpar = isHunterMatchupTeachActive();
+    this.benchState = new Map();
 
     const wildDef = getCreatureDefinition(data.wildCreatureId);
     if (!wildDef.excludeFromCodex) {
@@ -233,6 +248,7 @@ export class BattleScene extends Phaser.Scene {
       defenseDisabled: isGodCreature(data.wildCreatureId),
       moves: getBattleKit(wildDef),
       folkloreType: wildDef.folkloreType,
+      damageScale: wildBattleTuning(this.tutorialSpar).damageScale,
     });
 
     const actives = getActiveCreatures();
@@ -488,7 +504,7 @@ export class BattleScene extends Phaser.Scene {
       moves.push(partyCreature.secondaryMove);
     }
     const trait = partyCreature.trait;
-    return primeOpeningCooldowns({
+    const combatant: BattleCombatant = {
       name: def.name,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
@@ -501,6 +517,25 @@ export class BattleScene extends Phaser.Scene {
         trait?.kind === "damage-buff"
           ? { moveId: trait.moveId, multiplier: trait.multiplier }
           : undefined,
+    };
+    // Returning from the bench keeps its statuses and cooldowns (no second wind-up).
+    const benched = this.benchState.get(partyCreature.instanceId);
+    if (benched) {
+      combatant.statuses = benched.statuses;
+      combatant.cooldowns = benched.cooldowns;
+      return combatant;
+    }
+    return primeOpeningCooldowns(combatant);
+  }
+
+  /** Remember the outgoing creature's battle state before a switch. */
+  private benchActivePlayer(): void {
+    if (!this.partyInstanceId) {
+      return;
+    }
+    this.benchState.set(this.partyInstanceId, {
+      statuses: this.player.statuses ?? [],
+      cooldowns: this.player.cooldowns ?? {},
     });
   }
 
@@ -645,8 +680,6 @@ export class BattleScene extends Phaser.Scene {
     }
     if (!ready) {
       details.push(`ready in ${cooldown}`);
-    } else if (move.cooldown) {
-      details.push(`cd ${move.cooldown}`);
     }
     const sub = this.add
       .text(x - width / 2 + 14, y + 11, details.join(" · "), {
@@ -902,6 +935,7 @@ export class BattleScene extends Phaser.Scene {
 
     const voluntarySwitch = !this.forcedSwitch;
     this.syncActivePartyHp();
+    this.benchActivePlayer();
     this.partyInstanceIndex = index;
     this.partyInstanceId = creature.instanceId;
     this.player = this.combatantFromPartyIndex(index);
@@ -974,16 +1008,23 @@ export class BattleScene extends Phaser.Scene {
     const intent = this.intent ?? this.pickIntent();
     let message: string;
     if (intent.fixedDamage !== undefined) {
-      // Sovereign pattern: fixed damage, still softened by a guard.
+      // Sovereign pattern: fixed damage, still bent by Dazed / Rooted / Guard.
       this.tideSovereignTurnIndex += 1;
       const guarded = this.player.guarding === true;
-      const damage = guarded
-        ? Math.max(1, Math.round(intent.fixedDamage * GUARD_DAMAGE_TAKEN))
-        : intent.fixedDamage;
-      applyDamage(this.player, damage);
-      this.showFloat("player", `−${damage}`, "#ffaa44");
-      this.flashCombatant("player", damage);
-      message = `${this.wild.name} used ${intent.move.name}${guarded ? " — guarded!" : "."}`;
+      const outcome = resolveFixedAttack(
+        this.wild,
+        intent.fixedDamage,
+        this.player,
+        this.rng,
+      );
+      if (outcome.kind === "miss") {
+        message = `${this.wild.name} used ${intent.move.name} — missed (Dazed)!`;
+      } else {
+        applyDamage(this.player, outcome.damage);
+        this.showFloat("player", `−${outcome.damage}`, "#ffaa44");
+        this.flashCombatant("player", outcome.damage);
+        message = `${this.wild.name} used ${intent.move.name}${guarded ? " — guarded!" : "."}`;
+      }
     } else {
       const result = executeMove(this.wild, intent.move, this.player, this.rng);
       message = this.describeMove(this.wild, this.player, result, "player");
@@ -1067,7 +1108,10 @@ export class BattleScene extends Phaser.Scene {
     if (status) {
       const label = STATUS_DEFS[status.id].label;
       if (status.kind === "applied") {
-        line += ` ${target.name} is ${label}!`;
+        line +=
+          status.id === "burn"
+            ? ` ${target.name} is burning!`
+            : ` ${target.name} is ${label}!`;
       } else if (status.kind === "refreshed") {
         line += ` ${label} renewed.`;
       } else if (status.kind === "doused") {
@@ -1110,7 +1154,9 @@ export class BattleScene extends Phaser.Scene {
         fixedDamage: pattern.damage,
       };
     }
-    const { move } = chooseEnemyIntent(this.wild, this.player, this.rng);
+    const { move } = chooseEnemyIntent(this.wild, this.player, this.rng, {
+      matchupAware: wildBattleTuning(this.tutorialSpar).matchupAware,
+    });
     return { move, role: moveRole(move) };
   }
 
@@ -1141,13 +1187,14 @@ export class BattleScene extends Phaser.Scene {
     } else {
       const matchup = getMatchup(move, this.player);
       const damage =
-        fixedDamage ??
-        (matchup === "immune"
-          ? 0
-          : calcDamage(this.wild, move, { ...this.player, guarding: false }));
-      const badge = formatMatchupBadge(matchup);
+        fixedDamage !== undefined
+          ? previewFixedDamage(this.wild, fixedDamage, this.player)
+          : matchup === "immune"
+            ? 0
+            : calcDamage(this.wild, move, this.player);
+      const badge = fixedDamage === undefined ? formatMatchupBadge(matchup) : "";
       detail = `−${damage}${badge ? ` ${badge}` : ""}`;
-      if (move.inflicts) {
+      if (move.inflicts && canApplyStatus(this.player, move.inflicts)) {
         detail += ` → ${STATUS_DEFS[move.inflicts].label}`;
       }
     }
@@ -1175,10 +1222,12 @@ export class BattleScene extends Phaser.Scene {
       .setDepth(8);
     const gap = 6;
     const contentWidth = badge.width + gap + text.width;
+    // Keep clear of the foe's HP plate (ends at x≈260) and the right edge.
+    const minCenter = INTENT_MIN_LEFT + contentWidth / 2 + 8;
     const centerX = Phaser.Math.Clamp(
       this.wildSprite.x,
-      contentWidth / 2 + 16,
-      DESIGN_SIZE - contentWidth / 2 - 16,
+      minCenter,
+      Math.max(minCenter, DESIGN_SIZE - contentWidth / 2 - 16),
     );
     const left = centerX - contentWidth / 2;
     badge.setX(left);

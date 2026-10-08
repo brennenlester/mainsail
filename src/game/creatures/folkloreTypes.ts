@@ -16,7 +16,7 @@ export type FolkloreType = (typeof FOLKLORE_TYPES)[number];
 
 export const HUNTER_MULTIPLIER = 1.5;
 /** A hunter shrugs off its prey: moves of the type a defender hunts are resisted. */
-export const RESIST_MULTIPLIER = 0.5;
+export const RESIST_MULTIPLIER = 0.85;
 
 /** One clear hunter per type. */
 export const HUNTER_CHART: Readonly<Record<FolkloreType, FolkloreType>> = {

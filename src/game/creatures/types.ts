@@ -78,6 +78,8 @@ export type BattleCombatant = {
   immunityTo?: FolkloreType;
   /** Signature damage-buff, if any. */
   damageBuff?: { moveId: string; multiplier: number };
+  /** Outgoing damage multiplier (wild softening). Missing = 1. */
+  damageScale?: number;
   /** Battle-only state (never saved). */
   statuses?: StatusInstance[];
   /** moveId -> own turns until ready. */

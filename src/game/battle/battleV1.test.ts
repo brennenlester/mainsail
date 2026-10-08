@@ -8,9 +8,14 @@ import {
   formatMatchupBadge,
   getCooldown,
   isFainted,
+  MIN_DAMAGE_FRACTION,
+  previewFixedDamage,
   primeOpeningCooldowns,
   readyMoves,
   resolveAttack,
+  resolveFixedAttack,
+  TUTORIAL_WILD_DAMAGE_SCALE,
+  wildBattleTuning,
 } from "./battleLogic";
 import {
   deriveKit,
@@ -127,20 +132,20 @@ describe("matchups", () => {
 
   it("formats badges for move buttons", () => {
     expect(formatMatchupBadge("hunter")).toBe("×1.5");
-    expect(formatMatchupBadge("resisted")).toBe("resists ×0.5");
+    expect(formatMatchupBadge("resisted")).toBe(`resists ×${RESIST_MULTIPLIER}`);
     expect(formatMatchupBadge("immune")).toBe("immune");
     expect(formatMatchupBadge("neutral")).toBe("");
   });
 
   it("summarizes the lead matchup for the encounter panel", () => {
     expect(formatEncounterMatchup("Cinder Toad", "ember", "woodland")).toBe(
-      "Cinder Toad (ember): hunts it ×1.5 · resists its woodland",
+      "Cinder Toad: you hunt it ×1.5 · you resist it",
     );
     expect(formatEncounterMatchup("Mossling", "woodland", "ember")).toBe(
-      "Mossling (woodland): it resists woodland · it hunts Mossling ×1.5",
+      "Mossling: resists you · hunts you ×1.5",
     );
     expect(formatEncounterMatchup("Mossling", "woodland", "storm")).toBe(
-      "Mossling (woodland): even matchup",
+      "Mossling: even matchup",
     );
   });
 });
@@ -203,6 +208,69 @@ describe("situational damage", () => {
 
   it("guard moves preview zero damage", () => {
     expect(calcDamage(attacker, guard, combatant({ folkloreType: "earth" }))).toBe(0);
+  });
+});
+
+describe("damage floor + wild tuning", () => {
+  it("defense blunts but never erases a hit", () => {
+    const weak = combatant({ folkloreType: "woodland", attack: 6 });
+    const wall = combatant({ folkloreType: "storm", defense: 20 });
+    const tangle = { ...strike, type: "woodland" as const, power: 6 };
+    expect(calcDamage(weak, tangle, wall)).toBe(
+      Math.ceil((6 + 6) * MIN_DAMAGE_FRACTION),
+    );
+  });
+
+  it("damageScale softens outgoing hits; the tutorial spar uses it", () => {
+    const tuning = wildBattleTuning(true);
+    expect(tuning).toEqual({
+      damageScale: TUTORIAL_WILD_DAMAGE_SCALE,
+      matchupAware: false,
+    });
+    expect(wildBattleTuning(false)).toEqual({ damageScale: 1, matchupAware: true });
+    const wild = combatant({ folkloreType: "earth", damageScale: tuning.damageScale });
+    const target = combatant({ folkloreType: "earth" });
+    expect(calcDamage(wild, strike, target)).toBe(
+      Math.round(14 * TUTORIAL_WILD_DAMAGE_SCALE),
+    );
+  });
+
+  it("matchup-blind intents ignore hunter edges (tutorial)", () => {
+    const enemy = combatant({ folkloreType: "ember", moves: [
+      { ...strike, type: "ember" },
+      { ...guard, type: "ember" },
+    ] });
+    const prey = combatant({ folkloreType: "woodland" });
+    const neutral = combatant({ folkloreType: "earth" });
+    const picks = (player: BattleCombatant, matchupAware: boolean) =>
+      Array.from({ length: 50 }, (_, i) =>
+        chooseEnemyIntent(enemy, player, seeded(i), { matchupAware }).move.id,
+      );
+    expect(picks(prey, false)).toEqual(picks(neutral, false));
+    expect(picks(prey, true)).not.toEqual(picks(neutral, true));
+  });
+});
+
+describe("sovereign fixed attacks", () => {
+  it("respect Rooted and Guard", () => {
+    const boss = combatant({ folkloreType: "water" });
+    const target = combatant({ folkloreType: "earth" });
+    expect(resolveFixedAttack(boss, 20, target, () => 0)).toEqual({ kind: "hit", damage: 20 });
+    boss.statuses = [{ id: "rooted", turns: 1 }];
+    target.guarding = true;
+    expect(previewFixedDamage(boss, 20, target)).toBe(
+      Math.round(20 * ROOTED_DAMAGE_DEALT * GUARD_DAMAGE_TAKEN),
+    );
+  });
+
+  it("can miss while Dazed", () => {
+    const boss = combatant({
+      folkloreType: "water",
+      statuses: [{ id: "dazed", turns: 1 }],
+    });
+    const target = combatant({ folkloreType: "earth" });
+    expect(resolveFixedAttack(boss, 20, target, () => 0).kind).toBe("miss");
+    expect(resolveFixedAttack(boss, 20, target, () => 0.99).kind).toBe("hit");
   });
 });
 

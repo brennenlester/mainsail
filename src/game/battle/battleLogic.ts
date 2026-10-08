@@ -87,7 +87,9 @@ function baseDamage(
     power = Math.round(power * attacker.damageBuff.multiplier);
   }
   const defense = defender.defenseDisabled ? 0 : defender.defense;
-  return Math.max(1, power + attacker.attack - defense);
+  // Defense can blunt a hit but never erase it: low-attack creatures still matter.
+  const floor = Math.ceil((power + attacker.attack) * MIN_DAMAGE_FRACTION);
+  return Math.max(1, floor, power + attacker.attack - defense);
 }
 
 /** Status / guard / finisher modifiers stacked on top of the matchup. */
@@ -96,7 +98,7 @@ function situationalMultiplier(
   move: MoveDefinition,
   defender: BattleCombatant,
 ): number {
-  let mult = 1;
+  let mult = attacker.damageScale ?? 1;
   if (hasStatus(defender, "soaked")) {
     mult *= move.type === "storm" ? SOAKED_STORM_DAMAGE_TAKEN : SOAKED_DAMAGE_TAKEN;
   }
@@ -135,6 +137,37 @@ export function resolveAttack(
   }
 
   return { kind: "hit", matchup, damage };
+}
+
+/**
+ * Sovereign pattern hits have fixed damage, but still respect the attacker's
+ * Dazed (miss chance) and Rooted, and the defender's Guard.
+ */
+export function resolveFixedAttack(
+  attacker: BattleCombatant,
+  fixedDamage: number,
+  defender: BattleCombatant,
+  rng: () => number = Math.random,
+): { kind: "miss" } | { kind: "hit"; damage: number } {
+  if (hasStatus(attacker, "dazed") && rng() * 100 < DAZED_ACCURACY_PENALTY) {
+    return { kind: "miss" };
+  }
+  return { kind: "hit", damage: previewFixedDamage(attacker, fixedDamage, defender) };
+}
+
+export function previewFixedDamage(
+  attacker: BattleCombatant,
+  fixedDamage: number,
+  defender: BattleCombatant,
+): number {
+  let mult = 1;
+  if (hasStatus(attacker, "rooted")) {
+    mult *= ROOTED_DAMAGE_DEALT;
+  }
+  if (defender.guarding) {
+    mult *= GUARD_DAMAGE_TAKEN;
+  }
+  return Math.max(1, Math.round(fixedDamage * mult));
 }
 
 export function applyDamage(target: BattleCombatant, amount: number): void {
@@ -259,14 +292,38 @@ export type Intent = {
  * Weighted by role and situation, scaled by matchup vs the current player
  * creature, and rolled with the injected rng so tests are deterministic.
  */
+/** Share of (power + attack) that always gets through defense. */
+export const MIN_DAMAGE_FRACTION = 0.6;
+
+/** Story 2 tutorial spar: wild hits are softened so a new player can win it. */
+export const TUTORIAL_WILD_DAMAGE_SCALE = 0.75;
+
+export type WildBattleTuning = { damageScale: number; matchupAware: boolean };
+
+/** Tutorial wilds hit softer and don't lean into hunter matchups. */
+export function wildBattleTuning(tutorial: boolean): WildBattleTuning {
+  return tutorial
+    ? { damageScale: TUTORIAL_WILD_DAMAGE_SCALE, matchupAware: false }
+    : { damageScale: 1, matchupAware: true };
+}
+
+export type IntentOptions = {
+  /** Lean into hunter matchups / away from resisted ones. Off for the tutorial spar. */
+  matchupAware?: boolean;
+};
+
 export function chooseEnemyIntent(
   enemy: BattleCombatant,
   player: BattleCombatant,
   rng: () => number = Math.random,
+  options: IntentOptions = {},
 ): Intent {
+  const matchupAware = options.matchupAware ?? true;
   const ready = readyMoves(enemy);
   const pool = ready.length > 0 ? ready : enemy.moves;
-  const weights = pool.map((move) => intentWeight(enemy, move, player));
+  const weights = pool.map((move) =>
+    intentWeight(enemy, move, player, matchupAware),
+  );
   const total = weights.reduce((sum, w) => sum + w, 0);
   if (total <= 0) {
     return { move: pool[0] };
@@ -285,6 +342,7 @@ function intentWeight(
   enemy: BattleCombatant,
   move: MoveDefinition,
   player: BattleCombatant,
+  matchupAware: boolean,
 ): number {
   const role = moveRole(move);
   const hpRatio = enemy.currentHp / enemy.maxHp;
@@ -308,7 +366,14 @@ function intentWeight(
       weight = 1.5;
   }
   if (move.power > 0) {
-    weight *= matchupMultiplier(getMatchup(move, player));
+    const matchup = getMatchup(move, player);
+    // Never telegraph a move that cannot land; otherwise only lean in when allowed.
+    if (matchup === "immune") {
+      return 0;
+    }
+    if (matchupAware) {
+      weight *= matchupMultiplier(matchup);
+    }
   }
   return weight;
 }
@@ -352,14 +417,14 @@ export function formatEncounterMatchup(
   const outgoing = resolveMatchup(leadType, wildType);
   const incoming = resolveMatchup(wildType, leadType);
   if (outgoing === "hunter") {
-    parts.push(`hunts it ×${matchupMultiplier("hunter")}`);
+    parts.push(`you hunt it ×${matchupMultiplier("hunter")}`);
   } else if (outgoing === "resisted") {
-    parts.push(`it resists ${leadType}`);
+    parts.push("resists you");
   }
   if (incoming === "hunter") {
-    parts.push(`it hunts ${leadName} ×${matchupMultiplier("hunter")}`);
+    parts.push(`hunts you ×${matchupMultiplier("hunter")}`);
   } else if (incoming === "resisted") {
-    parts.push(`resists its ${wildType}`);
+    parts.push("you resist it");
   }
-  return `${leadName} (${leadType}): ${parts.length > 0 ? parts.join(" · ") : "even matchup"}`;
+  return `${leadName}: ${parts.length > 0 ? parts.join(" · ") : "even matchup"}`;
 }
