@@ -20,6 +20,7 @@ import {
 } from "./worldSaveSchedule";
 import { STARTING_ZONE_ID } from "./zones";
 import type { ZoneId } from "./zoneTypes";
+import { persistablePosition } from "../companions/abilities";
 
 const STORAGE_KEY = "ivyward-save-v1";
 /** Pre-rename key; migrate on read so existing host saves are not lost. */
@@ -54,7 +55,8 @@ function readRawSave(): string | null {
 }
 
 export function updateHostPosition(zoneId: ZoneId, x: number, y: number): void {
-  hostPosition = { zoneId, x, y };
+  // Islet stands save as the ford shore (#367 rollback safety).
+  hostPosition = { zoneId, ...persistablePosition(zoneId, x, y) };
   scheduleHostSave();
 }
 
