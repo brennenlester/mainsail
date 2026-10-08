@@ -190,6 +190,11 @@ for (const y of [13, 14]) {
 }
 overworldTiles[14][7] = TileType.Floor; // village gate (boat dock moved to Harbor)
 overworldTiles[13][7] = TileType.Floor; // approach from land spawn (7,12)
+// Companion ford islets (#367) — reachable only with a water companion; keep in
+// sync with the ford sites in companions/abilities.ts.
+for (const [x, y] of [[2, 14], [3, 14], [11, 14], [12, 14]] as const) {
+  overworldTiles[y][x] = TileType.Floor;
+}
 
 const OVERWORLD: ZoneDefinition = {
   id: "overworld",

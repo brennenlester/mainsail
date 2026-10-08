@@ -61,6 +61,7 @@ describe("pickInteractPrompt", () => {
       npc: "Press E — Talk to Odd",
       dock: "Press E — Board boat",
       sailing: "Sailing",
+      companion: "Press E — Pip: burn the brush",
       gather: "Press E — Collect pebbles",
     } as const;
     expect(INTERACT_PROMPT_PRIORITY).toEqual([
@@ -71,6 +72,7 @@ describe("pickInteractPrompt", () => {
       "npc",
       "dock",
       "sailing",
+      "companion",
       "gather",
     ]);
     for (let i = 0; i < INTERACT_PROMPT_PRIORITY.length - 1; i += 1) {

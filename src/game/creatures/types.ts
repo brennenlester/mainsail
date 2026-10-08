@@ -1,5 +1,6 @@
 import type { FolkloreType } from "./folkloreTypes";
 import type { CreatureTrait } from "./traits";
+import type { PersonalityId } from "../companions/personality";
 
 /** Battle kit slot. Missing role = plain attack (legacy / wanderer / shrine moves). */
 export type MoveRole = "attack" | "guard" | "status" | "finisher";
@@ -62,6 +63,10 @@ export type CreatureInstance = {
   appliedEffects?: string[];
   /** Rolled signature trait (immunity or damage-buff). */
   trait?: CreatureTrait;
+  /** Personality rolled at befriend (#367). Backfilled on load for older saves. */
+  personality?: PersonalityId;
+  /** Bond points 0..BOND_MAX (#367). Missing = 0. */
+  bond?: number;
 };
 
 export type BattleCombatant = {
