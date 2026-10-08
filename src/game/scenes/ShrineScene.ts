@@ -132,6 +132,8 @@ export class ShrineScene extends Phaser.Scene {
   private tabSlot!: HTMLElement;
   private tabIds: ShrineTab[] = [];
   private closing = false;
+  /** Owner token of the "seal awakens" veil while fusion art loads (#418). */
+  private sealVeil: object | null = null;
 
   constructor() {
     super({ key: "ShrineScene" });
@@ -181,6 +183,7 @@ export class ShrineScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ESC", () => this.tryLeave());
 
     this.events.once("shutdown", () => {
+      this.dropSealVeil();
       hideShrineCraftingHud(true);
       this.panel?.destroy();
       this.panel = undefined;
@@ -461,8 +464,14 @@ export class ShrineScene extends Phaser.Scene {
         // retrying a failed fetch. Nothing is consumed until the art is in.
         btn.disabled = true;
         showLoadingVeil("The seal awakens…");
+        const veil = {};
+        this.sealVeil = veil;
         void fetchLateImages(this.textures, artKeys, true).then((ok) => {
-          hideLoadingVeil();
+          // Already dropped if the shrine closed mid-load: never hide a later veil.
+          if (this.sealVeil === veil) {
+            this.sealVeil = null;
+            hideLoadingVeil();
+          }
           // Esc / tab switch while loading cancels: keep the texture, spend nothing.
           if (!this.panel || !this.sys.isActive() || !btn.isConnected) {
             return;
@@ -639,11 +648,20 @@ export class ShrineScene extends Phaser.Scene {
     this.panel?.setStatus(message);
   }
 
+  /** The fusion art veil must not outlive the shrine (closed mid-load). */
+  private dropSealVeil(): void {
+    if (this.sealVeil) {
+      this.sealVeil = null;
+      hideLoadingVeil();
+    }
+  }
+
   private closeShrine(): void {
     if (this.closing) {
       return;
     }
     this.closing = true;
+    this.dropSealVeil();
     // Clear any legacy stack entry; shrine leave is Phaser-owned (#281).
     popOverlay("shrine");
     hideShrineCraftingHud(true);

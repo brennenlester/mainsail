@@ -43,6 +43,26 @@ export const ARCHIPELAGO_VISUAL_MARGIN_Y = 18;
 export function archipelagoHalfViewCols(aspect: number): number {
   return Math.ceil((aspect * (ARCHIPELAGO_CAMERA_FIT_HEIGHT * 48 + 160)) / 48 / 2);
 }
+/** Sailing zooms in on the boat by this much over the on-foot fit (#418). */
+export const SAIL_ZOOM_BOOST = 1.35;
+/** ...but a narrow (portrait) stage still shows at least this many columns. */
+export const SAIL_MIN_VIEW_COLS = 14;
+
+/**
+ * Archipelago camera zoom for a stage (render px). On foot it fits
+ * ARCHIPELAGO_CAMERA_FIT_HEIGHT rows; sailing zooms in modestly, capped by the
+ * stage width. Never below the on-foot fit, so the sprite stream window
+ * (sized for that fit by `archipelagoHalfViewCols`) always covers the view.
+ */
+export function archipelagoCameraZoom(stageW: number, stageH: number, sailing: boolean): number {
+  const base = stageH / (ARCHIPELAGO_CAMERA_FIT_HEIGHT * 48 + 160);
+  if (!sailing) {
+    return base;
+  }
+  const widthCap = stageW / (SAIL_MIN_VIEW_COLS * 48);
+  return Math.max(base, Math.min(base * SAIL_ZOOM_BOOST, widthCap));
+}
+
 /** West Harbor gate columns that stay drawn (x in [0, GATE)). */
 export const ARCHIPELAGO_GATE_COLUMNS = 3;
 

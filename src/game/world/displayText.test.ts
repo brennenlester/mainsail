@@ -49,14 +49,6 @@ describe("cleanDisplayText", () => {
     expect(cleanDisplayText("漢\u{E0100}")).toBe("漢\u{E0100}");
   });
 
-  it("keeps tag-sequence flags, drops orphan tags, keeps variation selectors", () => {
-    const wales = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}";
-    expect(cleanDisplayText(wales)).toBe(wales);
-    expect(cleanDisplayText("A\u{E0067}B")).toBe("AB");
-    expect(cleanDisplayText("\u{E0067}\u{E007F}")).toBe("");
-    expect(cleanDisplayText("\u6F22\u{E0100}")).toBe("\u6F22\u{E0100}");
-  });
-
   it("capCodePoints never splits a pair", () => {
     expect(Array.from(capCodePoints("🦊".repeat(30), 16))).toHaveLength(16);
   });

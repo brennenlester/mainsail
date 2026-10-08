@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { isTileWalkable } from "./collision";
 import {
+  archipelagoCameraZoom,
+  SAIL_MIN_VIEW_COLS,
+  SAIL_ZOOM_BOOST,
   ARCHIPELAGO,
   ARCHIPELAGO_ENTRY,
   ARCHIPELAGO_HEIGHT,
@@ -423,5 +426,34 @@ describe("island template caching (#194)", () => {
     expect(narrow).not.toBe(wide);
     expect(narrow.length).toBeLessThan(wide.length);
     expect(listIslandTemplates(30)).toBe(narrow);
+  });
+});
+
+describe("sailing camera zoom (#418)", () => {
+  const sizes = [
+    [1280, 800],
+    [390, 844],
+    [844, 390],
+    [3440, 1440],
+  ] as const;
+
+  it("zooms in modestly while sailing, never below the on-foot fit", () => {
+    for (const [w, h] of sizes) {
+      const foot = archipelagoCameraZoom(w, h, false);
+      const sail = archipelagoCameraZoom(w, h, true);
+      expect(sail, `${w}x${h}`).toBeGreaterThanOrEqual(foot);
+      expect(sail, `${w}x${h}`).toBeLessThanOrEqual(foot * SAIL_ZOOM_BOOST + 1e-9);
+    }
+    expect(archipelagoCameraZoom(1280, 800, true)).toBeCloseTo(archipelagoCameraZoom(1280, 800, false) * SAIL_ZOOM_BOOST);
+  });
+
+  it("keeps a narrow stage wide enough to steer", () => {
+    for (const [w, h] of sizes) {
+      const sail = archipelagoCameraZoom(w, h, true);
+      const foot = archipelagoCameraZoom(w, h, false);
+      const cols = w / sail / 48;
+      // Either the width cap holds, or the stage is so narrow the on-foot fit wins.
+      expect(cols >= SAIL_MIN_VIEW_COLS - 1e-9 || sail === foot, `${w}x${h}`).toBe(true);
+    }
   });
 });

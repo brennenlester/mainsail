@@ -5,7 +5,7 @@ import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
 import { ensureCreatureTextures } from "../creatures/sprites";
 import { effectsEnabled, prefersReducedMotion } from "../render/fx/fxSettings";
 import { ensureFxTextures, FX_TEX } from "../render/fx/fxTextures";
-import { rareVariantTint } from "../share/rareVariant";
+import { rareVariantGlow, rareVariantTint } from "../share/rareVariant";
 import { BEAM_TEX, ensureCutsceneTextures } from "../scenes/EvolutionScene";
 import type { StoryCue } from "./finaleScene";
 import { FINALE_HATCHLING } from "./storySpars";
@@ -173,7 +173,7 @@ export function playStoryCue(scene: Phaser.Scene, cue: StoryCue | undefined, sta
       clearStoryEgg(scene);
       scene.add
         .image(top.x, top.y - 20 * s, FX_TEX.halo)
-        .setTint(0xffc070)
+        .setTint(rareVariantGlow(FINALE_HATCHLING.creatureId))
         .setBlendMode(Phaser.BlendModes.ADD)
         .setScale(2 * s)
         .setAlpha(0.6)

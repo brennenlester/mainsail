@@ -124,6 +124,8 @@ export function addToast(
   g.strokeRoundedRect(-w / 2, -h / 2, w, h, 12);
   const originY = opts.originY ?? 0.5;
   const c = scene.add.container(x, y, [g, text]);
+  // Sized so callers can stack below it (displayHeight; #418: toast vs tip).
+  c.setSize(w, h);
   c.setScale(opts.ui);
   // Shift so (x, y) is the requested vertical anchor of the scaled pill.
   c.setY(y + (0.5 - originY) * h * opts.ui);

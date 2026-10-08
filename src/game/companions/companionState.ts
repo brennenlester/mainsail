@@ -130,10 +130,6 @@ export function coerceNickname(raw: string): string | undefined {
   return capCodePoints(cleanDisplayText(raw), NICKNAME_MAX_LENGTH) || undefined;
 }
 
-export function isValidNickname(value: unknown): value is string {
-  return typeof value === "string" && normalizeNickname(value) === value;
-}
-
 export function setNickname(creature: CreatureInstance, raw: string): boolean {
   const nickname = normalizeNickname(raw);
   if (!nickname) {

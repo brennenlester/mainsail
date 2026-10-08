@@ -1,3 +1,4 @@
+import { addBond, BOND_GAIN } from "../companions/bond";
 import { displayName } from "../creatures/displayName";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
@@ -81,6 +82,8 @@ export function applyShrineFusion(
   if (effect.effectType === "evolution" && effect.evolvesTo) {
     // Quest event fires here exactly once; the evolve sting now plays in EvolutionScene.
     recordQuestEvent({ type: "evolve_creature", evolvesTo: effect.evolvesTo });
+    // One-shot per evolution key: growing together builds bond (#418).
+    addBond(creature, BOND_GAIN.evolution, "growth");
     worldState.firstEvolutionCelebrated = true;
   }
   if (!before) {

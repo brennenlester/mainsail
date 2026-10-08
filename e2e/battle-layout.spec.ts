@@ -43,10 +43,21 @@ async function startSpar(page: Page): Promise<void> {
         page.evaluate(() => {
           const g = (window as unknown as { __game?: { scene: { getScene(k: string): unknown } } }).__game;
           const scene = g?.scene.getScene("BattleScene") as
-            | { waitingForPlayer?: boolean; moveCards?: unknown[]; sys: { isActive(): boolean } }
+            | {
+                waitingForPlayer?: boolean;
+                moveCards?: unknown[];
+                sys: { isActive(): boolean };
+                data: { get(k: string): unknown };
+              }
             | undefined;
-          // The scene object exists (with defaults) before launch: wait for a live turn.
-          return Boolean(scene?.sys.isActive() && scene.waitingForPlayer && scene.moveCards?.length);
+          // The scene object exists (with defaults) before launch: wait for a
+          // live turn with armed hotkeys (#418).
+          return Boolean(
+            scene?.sys.isActive() &&
+              scene.waitingForPlayer &&
+              scene.moveCards?.length &&
+              scene.data.get("hotkeysArmed") === true,
+          );
         }),
       { timeout: 20_000 },
     )
@@ -137,10 +148,11 @@ test("keyboard: S opens switch, Esc closes, 1 plays the first move; DOM inputs k
   expect(await scene("s.waitingForPlayer")).toBe(true);
   expect(await scene("s.switchMenuOpen")).toBe(false);
 
+  // Phaser hands keys over on its next frame: poll, never read back at once.
   await page.keyboard.press("s");
-  expect(await scene("s.switchMenuOpen")).toBe(true);
+  await expect.poll(() => scene("s.switchMenuOpen")).toBe(true);
   await page.keyboard.press("Escape");
-  expect(await scene("s.switchMenuOpen")).toBe(false);
+  await expect.poll(() => scene("s.switchMenuOpen")).toBe(false);
 
   await page.keyboard.press("1");
   await expect.poll(() => scene("s.waitingForPlayer")).toBe(false);
@@ -156,9 +168,52 @@ test("encounter card: F flees whatever verbs are offered (keys never shift)", as
   const active = () =>
     page.evaluate(() => (window as unknown as { __game: any }).__game.scene.isActive("EncounterScene"));
   await expect.poll(active, { timeout: 20_000 }).toBe(true);
-  await page.waitForTimeout(400);
+  await expect.poll(() => encounterArmed(page)).toBe(true);
   await page.keyboard.press("f");
   await expect.poll(active).toBe(false);
+});
+
+async function encounterArmed(page: Page): Promise<boolean> {
+  return page.evaluate(
+    () =>
+      (window as unknown as { __game: any }).__game.scene.getScene("EncounterScene").data.get("hotkeysArmed") === true,
+  );
+}
+
+test("walking keys held as a card opens never pick a verb (#418)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/?new=1");
+  await page.locator("#name-intro-input").fill("Walker");
+  await page.locator("#name-intro-submit").click();
+  await expect(page.locator("#name-intro")).toBeHidden();
+  const isActive = (key: string) =>
+    page.evaluate((k) => (window as unknown as { __game: any }).__game.scene.isActive(k), key);
+  await expect.poll(() => isActive("IsometricScene"), { timeout: 20_000 }).toBe(true);
+  await page.locator("#game canvas").focus();
+  // Walking right, then a card opens under the player's fingers.
+  await page.keyboard.down("d");
+  await page.evaluate(() => {
+    const iso = (window as unknown as { __game: any }).__game.scene.getScene("IsometricScene");
+    iso.scene.launch("EncounterScene", { creatureId: "mossling" });
+    iso.scene.pause();
+  });
+  await expect.poll(() => isActive("EncounterScene"), { timeout: 20_000 }).toBe(true);
+  // S (step down) right away, and again after the arm window, while D is held: no Spar.
+  await page.keyboard.press("s");
+  await page.waitForTimeout(500);
+  await page.keyboard.press("s");
+  await page.waitForTimeout(300);
+  expect(await isActive("EncounterScene")).toBe(true);
+  expect(await isActive("BattleScene")).toBe(false);
+  expect(await encounterArmed(page)).toBe(false);
+  await page.screenshot({ path: "test-results/hotkeys-held.png" });
+  // Let go: the card arms (ready pulse) and its keys work again.
+  await page.keyboard.up("d");
+  await expect.poll(() => encounterArmed(page)).toBe(true);
+  await page.screenshot({ path: "test-results/hotkeys-armed.png" });
+  await page.keyboard.press("f");
+  await expect.poll(() => isActive("EncounterScene")).toBe(false);
+  expect(await isActive("BattleScene")).toBe(false);
 });
 
 async function battleReady(page: Page): Promise<void> {
@@ -167,7 +222,7 @@ async function battleReady(page: Page): Promise<void> {
       () =>
         page.evaluate(() => {
           const s = (window as unknown as { __game: any }).__game.scene.getScene("BattleScene");
-          return Boolean(s?.sys.isActive() && s.waitingForPlayer && s.moveCards?.length);
+          return Boolean(s?.sys.isActive() && s.waitingForPlayer && s.moveCards?.length && s.data.get("hotkeysArmed"));
         }),
       { timeout: 20_000 },
     )
@@ -255,4 +310,39 @@ test("boss fight at 320x568 keeps the Matriarch on screen and readable", async (
   expect(box.y).toBeGreaterThanOrEqual(box.arenaTop - 4);
   // Standing in the arena, above the command sheet.
   expect(box.y + box.h).toBeLessThanOrEqual(box.sheetTop + 2);
+});
+
+test("rotating a phone mid-battle re-runs the layout instead of boxing it (#418)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startSpar(page);
+  const mode = () =>
+    page.evaluate(() => (window as unknown as { __game: any }).__game.scene.getScene("BattleScene").layout.mode);
+  const portrait = await mode();
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect.poll(mode, { timeout: 10_000 }).not.toBe(portrait);
+  // The view fills the rotated stage: no navy bars beyond a pixel or two.
+  const fill = await page.evaluate(() => {
+    const g = (window as unknown as { __game: any }).__game;
+    const s = g.scene.getScene("BattleScene");
+    const cam = s.cameras.main;
+    const v = s.layout.view;
+    return { w: (v.w * cam.zoom) / g.scale.width, h: (v.h * cam.zoom) / g.scale.height };
+  });
+  expect(fill.w).toBeGreaterThan(0.98);
+  expect(fill.h).toBeGreaterThan(0.98);
+  const boxes = await moveCardBoxes(page);
+  expect(boxes).toHaveLength(4);
+  for (const box of boxes) {
+    expect(box.x + box.w).toBeLessThanOrEqual(845);
+    expect(box.y + box.h).toBeLessThanOrEqual(391);
+  }
+  await page.screenshot({ path: "test-results/battle-rotated.png" });
+  // The battle carries on: tapping the rebuilt card plays the move.
+  const first = boxes[0]!;
+  await page.mouse.click(first.x + first.w / 2, first.y + first.h / 2);
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __game: any }).__game.scene.getScene("BattleScene").waitingForPlayer),
+    )
+    .toBe(false);
 });

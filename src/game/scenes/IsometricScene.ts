@@ -97,10 +97,12 @@ import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters"
 import { overworldEncounterPacer } from "../encounters/encounterPacing";
 import { visitShrineAltar, wakeStrandedParty } from "../world/shrineHeal";
 import { isDomKeyboardTarget } from "../ui/canvasFocus";
+import { prefersReducedMotion } from "../render/fx/fxSettings";
 import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
   getActiveQuestId,
+  isStoryBeatSuppressingWild,
   questProgress,
   recordQuestEvent,
 } from "../story/questProgress";
@@ -207,10 +209,10 @@ import {
 } from "../world/dockBoat";
 import {
   allowsSailZoneTransition,
-  ARCHIPELAGO_CAMERA_FIT_HEIGHT,
   ARCHIPELAGO_GATE_COLUMNS,
   ARCHIPELAGO_MAX_WIDTH,
   archipelagoVisualWindow,
+  archipelagoCameraZoom,
   archipelagoHalfViewCols,
   inIslandBakeRegion,
   biomeAtIslandTile,
@@ -733,7 +735,7 @@ export class IsometricScene extends Phaser.Scene {
     ) {
       return;
     }
-    if (isVisitorMode() || isSafeZone(this.currentZoneId)) {
+    if (isVisitorMode() || isSafeZone(this.currentZoneId) || isStoryBeatSuppressingWild(this.currentZoneId)) {
       return;
     }
     if (safeTile) {
@@ -1052,6 +1054,19 @@ export class IsometricScene extends Phaser.Scene {
       this.syncPlayerToGrid();
       return;
     }
+  }
+
+  /** Embark / disembark in the Archipelago: glide to the sailing / on-foot zoom (#418). */
+  private easeArchipelagoZoom(): void {
+    if (this.currentZoneId !== "archipelago") {
+      return;
+    }
+    const target = Phaser.Math.Clamp(
+      archipelagoCameraZoom(this.scale.width, this.scale.height, isSailing()),
+      0.01,
+      MAX_ZONE_ZOOM_CSS * RENDER_DPR,
+    );
+    this.cameras.main.zoomTo(target, prefersReducedMotion() ? 0 : 420, "Sine.easeInOut", true);
   }
 
   /** Camera half width in columns for the current stage aspect (#412). */
@@ -1400,20 +1415,19 @@ export class IsometricScene extends Phaser.Scene {
       this.scale.refresh();
 
       const cam = this.cameras.main;
-      // Archipelago map is larger than the view: fit a local vertical tile count
-      // so startFollow pans N/S/E/W at a playable scale (not a full-map overview).
-      const archipelagoFitBoundsHeight =
-        ARCHIPELAGO_CAMERA_FIT_HEIGHT * TILE_HEIGHT + 160;
       // Fit the tiles plus a thin canopy margin (bounds carry 80px per side).
       const fitW = bounds.width - ZONE_FIT_TRIM;
       const fitH = bounds.height - ZONE_FIT_TRIM;
+      // Archipelago map is larger than the view: fit a local vertical tile count
+      // so startFollow pans N/S/E/W at a playable scale (not a full-map overview).
       const zoom =
         zone.id === "archipelago"
-          ? this.scale.height / archipelagoFitBoundsHeight
+          ? archipelagoCameraZoom(this.scale.width, this.scale.height, isSailing())
           : Math.min(this.scale.width / fitW, this.scale.height / fitH);
       // Allow zoom to scale with HiDPI buffer; capped so interiors on big
       // monitors do not blow sprites up past their authored detail.
       const clamped = Phaser.Math.Clamp(zoom, 0.01, MAX_ZONE_ZOOM_CSS * RENDER_DPR);
+      cam.zoomEffect.reset();
       cam.setZoom(clamped);
       // The stage is rectangular: where it is larger than the zone, extend the
       // camera bounds over the painted canopy instead of showing a void.
@@ -2199,6 +2213,7 @@ export class IsometricScene extends Phaser.Scene {
         this.syncPlayerToGrid();
         this.drawPlacedBoat(getZone(this.currentZoneId));
         this.maybeNoteIslandLand();
+        this.easeArchipelagoZoom();
       }
       this.showGatherToast(result.message, result.ok);
       updateStatusPanel(getZone(this.currentZoneId));
@@ -2218,6 +2233,7 @@ export class IsometricScene extends Phaser.Scene {
       this.dockBoat?.destroy();
       this.dockBoat = undefined;
       this.syncPlayerToGrid();
+      this.easeArchipelagoZoom();
     }
     this.showGatherToast(result.message, result.ok);
     updateStatusPanel(getZone(this.currentZoneId));

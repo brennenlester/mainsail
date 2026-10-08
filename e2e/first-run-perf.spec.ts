@@ -160,3 +160,44 @@ test("two consumers share one in-flight sovereign fetch; the encounter waits for
   expect(urls.filter((u) => /creature-horizon-sovereign\.png/.test(u))).toHaveLength(1);
   expect(await missing(page)).toEqual([]);
 });
+
+test("closing the shrine mid-load drops 'The seal awakens…' veil (#418)", async ({ page }) => {
+  // The sovereign art never arrives while the player waits.
+  await page.route(/creature-horizon-sovereign\.png/, () => new Promise(() => undefined));
+  await page.goto("/?new=1");
+  await page.locator("#name-intro-input").fill("Tess");
+  await page.locator("#name-intro-submit").click();
+  await expect(page.locator("#name-intro")).toBeHidden();
+  await expect.poll(() => activeScenes(page), { timeout: 20_000 }).toContain("IsometricScene");
+  await page.evaluate(async () => {
+    const party = await import("/src/game/creatures/party.ts");
+    party.addToParty("tide-sovereign", 10);
+    party.addToParty("cairn-sovereign", 10);
+    const inv = await import("/src/game/inventory/playerInventory.ts");
+    inv.addItem(inv.SOVEREIGN_SEAL_ID, 1);
+    const g = (window as unknown as { __game: { scene: { getScene(k: string): any } } }).__game;
+    const iso = g.scene.getScene("IsometricScene");
+    iso.scene.pause();
+    iso.scene.launch("ShrineScene", { mode: "altar", tab: "fusion" });
+  });
+  await expect.poll(() => activeScenes(page), { timeout: 15_000 }).toContain("ShrineScene");
+  await page.evaluate(() => {
+    const shrine = (window as unknown as { __game: { scene: { getScene(k: string): any } } }).__game.scene.getScene(
+      "ShrineScene",
+    );
+    shrine.selectedItemId = "sovereign-seal";
+    shrine.renderTabContent();
+  });
+  await page.getByRole("button", { name: "Fuse into Horizon Sovereign" }).click();
+  await expect(page.locator("#loading-veil")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => activeScenes(page)).not.toContain("ShrineScene");
+  await expect(page.locator("#loading-veil")).toBeHidden();
+  // Nothing was spent while the art was away.
+  expect(
+    await page.evaluate(async () => {
+      const inv = await import("/src/game/inventory/playerInventory.ts");
+      return inv.getItemCount(inv.SOVEREIGN_SEAL_ID);
+    }),
+  ).toBe(1);
+});

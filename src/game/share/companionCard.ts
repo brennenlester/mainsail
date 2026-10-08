@@ -1,5 +1,5 @@
 import { getCreatureDefinition } from "../creatures/catalog";
-import { rareHueShift } from "./rareVariant";
+import { rareHueShift, rareVariantGlowCss } from "./rareVariant";
 import {
   formatShareDay,
   SHARE_BOND_MAX,
@@ -99,6 +99,9 @@ function rareSprite(crop: SpriteCrop, creatureId: string): CanvasImageSource {
     return crop.image;
   }
   const shift = rareHueShift(creatureId);
+  if (shift === 0) {
+    return crop.image;
+  }
   const filter = `hue-rotate(${shift}deg) saturate(1.25)`;
   ctx.filter = filter;
   if (ctx.filter === filter) {
@@ -277,7 +280,7 @@ function drawCreatureArt(
 ): void {
   // Moonlit glow pool behind the companion.
   const glow = ctx.createRadialGradient(cx, baseY - box * 0.45, 0, cx, baseY - box * 0.45, box * 0.7);
-  glow.addColorStop(0, creature.rare ? "rgba(212, 176, 255, 0.35)" : "rgba(240, 200, 120, 0.22)");
+  glow.addColorStop(0, creature.rare ? rareVariantGlowCss(creature.id, 0.35) : "rgba(240, 200, 120, 0.22)");
   glow.addColorStop(1, "rgba(240, 200, 120, 0)");
   ctx.fillStyle = glow;
   ctx.fillRect(cx - box, baseY - box * 1.2, box * 2, box * 1.4);

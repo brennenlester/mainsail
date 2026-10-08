@@ -17,7 +17,7 @@ import type { CreatureInstance } from "../creatures/types";
 import { refreshPartyStatusLine } from "./statusPanel";
 import { popOverlay, pushOverlay } from "./overlayStack";
 import { isVisitorMode } from "../world/worldSession";
-import { isRareVariant } from "../share/rareVariant";
+import { isRareVariant, rareVariantGlowCss } from "../share/rareVariant";
 import {
   BOND_MAX,
   bondTier,
@@ -292,6 +292,11 @@ function buildCreatureCard(
   portrait.setAttribute("aria-hidden", "true");
   // Internal definition id only; names below go through textContent.
   portrait.innerHTML = creatureArtSlot(creature.definitionId, { size: 56 });
+  if (isRareVariant(creature)) {
+    // Same glow as the finale / share cards (#418); the art keeps its palette.
+    portrait.classList.add("party-portrait--rare");
+    portrait.style.setProperty("--rare-glow", rareVariantGlowCss(creature.definitionId, 0.7));
+  }
 
   const main = el("span", "party-card-main");
   // textContent everywhere: nicknames are player input.

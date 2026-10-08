@@ -80,6 +80,7 @@ for (const vp of [
   { width: 3440, height: 1440 },
   { width: 844, height: 390 },
   { width: 1280, height: 800 },
+  { width: 390, height: 844 },
 ]) {
   test(`Archipelago window covers the camera at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize(vp);

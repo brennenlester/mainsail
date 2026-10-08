@@ -363,6 +363,14 @@
   overflow: hidden;
 }
 
+.party-portrait--rare {
+  background: radial-gradient(circle at 50% 62%, var(--rare-glow) 0%, #2f4a68 60%, var(--mp-deep) 100%);
+}
+
+.party-portrait--rare .codex-art {
+  filter: drop-shadow(0 0 4px var(--rare-glow));
+}
+
 .party-portrait .codex-art {
   display: block;
   background: none;

@@ -17,7 +17,8 @@ export const PERSONALITY_IDS = [
 export type PersonalityId = (typeof PERSONALITY_IDS)[number];
 
 /** Where a bond tick came from — personalities amplify one source each. */
-export type BondSource = "battle" | "gift" | "ability";
+/** `growth` (evolution) is never a personality affinity. */
+export type BondSource = "battle" | "gift" | "ability" | "growth";
 
 export type PersonalityDefinition = {
   id: PersonalityId;
