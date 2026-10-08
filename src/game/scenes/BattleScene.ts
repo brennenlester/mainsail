@@ -316,6 +316,7 @@ export class BattleScene extends Phaser.Scene {
           partySize: getActiveCreatures().filter((c) => c.currentHp > 0).length,
           rematch: data.story.rematch,
           ward: data.story.ward,
+          wardNextIn: data.story.wardNextIn,
           maxLevel: MAX_LEVEL,
         })
       : null;
