@@ -12,7 +12,9 @@ import { sparStats, type SparPolicy } from "./sparSim";
 const OUT = process.env.SPAR_REPORT;
 const SEEDS = Number(process.env.SPAR_SEEDS ?? 100);
 const LEVELS = (process.env.SPAR_LEVELS ?? "1,10,25,40").split(",").map(Number);
-const POLICIES: SparPolicy[] = ["random", "max-damage", "skilled"];
+/** The scripted policies this report sums ("befriend" is not a damage policy). */
+type ReportPolicy = Exclude<SparPolicy, "befriend">;
+const POLICIES: ReportPolicy[] = ["random", "max-damage", "skilled"];
 
 const EVOLVED = new Set(["bramblewarden", "hearthflame"]);
 const SPECIES = CREATURES.filter((c) => !c.excludeFromCodex && !EVOLVED.has(c.id)).map(
@@ -50,7 +52,7 @@ describe.skipIf(!OUT)("spar balance report", () => {
       lines.push(`tutorial ${p} v ${w}: random/max/skilled ${row.join(" ")}`);
     }
     for (const level of LEVELS) {
-      const sums: Record<string,{ win: number; turns: number; fin: number; st: number }> = {
+      const sums: Record<ReportPolicy, { win: number; turns: number; fin: number; st: number }> = {
         random: { win: 0, turns: 0, fin: 0, st: 0 },
         "max-damage": { win: 0, turns: 0, fin: 0, st: 0 },
         skilled: { win: 0, turns: 0, fin: 0, st: 0 },

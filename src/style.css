@@ -540,6 +540,12 @@ body.encounter-active #quest-hud {
   pointer-events: none;
 }
 
+/* Battle/encounter cards are tap-driven; the stick would sit over the move cards (#388). */
+body.battle-active .touch-controls,
+body.encounter-active .touch-controls {
+  display: none !important;
+}
+
 /* Phone landscape: game | status side-by-side so the square board stays playable.
    Kept after base status/touch rules so compact overrides win on equal specificity. */
 @media (orientation: landscape) and (max-height: 520px) {

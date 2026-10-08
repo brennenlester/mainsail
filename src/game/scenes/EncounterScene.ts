@@ -191,7 +191,8 @@ export class EncounterScene extends Phaser.Scene {
     this.refreshIdentity();
 
     const verbs: { verb: EncounterVerb; label: string; tone: ButtonTone; enabled: boolean }[] = [];
-    if (shouldOfferHarborBefriend(profile, this.creatureId)) {
+    // An owned species has nothing to befriend; the odds panel says so instead (#388).
+    if (shouldOfferHarborBefriend(profile, this.creatureId) && !hasCreature(this.creatureId)) {
       verbs.push({
         verb: "befriend",
         label: isStory1BefriendGuaranteed(this.creatureId) ? ASSURED_BEFRIEND_LABEL : "Befriend",
@@ -505,6 +506,9 @@ export class EncounterScene extends Phaser.Scene {
   private oddsCopy(befriendShown: boolean): { headline: string; caption: string; breakdown: string } {
     const name = getCreatureDefinition(this.creatureId).name;
     if (!befriendShown) {
+      if (hasCreature(this.creatureId)) {
+        return { headline: "Friend", caption: "IN YOUR PARTY", breakdown: `${name} already travels with you.` };
+      }
       return { headline: "—", caption: "BEFRIEND", breakdown: "Already met here — spar or flee." };
     }
     if (isStory1BefriendGuaranteed(this.creatureId)) {

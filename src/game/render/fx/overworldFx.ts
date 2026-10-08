@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { getActiveCreatures } from "../../creatures/party";
+import { getActiveCreatures, getReserveCreatures } from "../../creatures/party";
 import { screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "../../isometric";
 import { selectOverworldFollowers } from "../../shrine/presence";
 import { pickBark } from "../../companions/personality";
@@ -78,7 +78,8 @@ let partySnapshot: PartySnapshot | undefined;
 
 function snapshotParty(): PartySnapshot {
   const snap: PartySnapshot = new Map();
-  for (const c of getActiveCreatures()) {
+  // Reserve too, so promoting a benched creature is not a "new friend".
+  for (const c of [...getActiveCreatures(), ...getReserveCreatures()]) {
     snap.set(c.instanceId, { level: c.level, definitionId: c.definitionId });
   }
   return snap;

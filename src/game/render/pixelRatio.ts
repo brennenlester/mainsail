@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { topHudInsetCss } from "./hudInset";
 
 /** Cap DPR so fill-rate stays reasonable on 3× phones. */
 export const RENDER_DPR = Math.min(
@@ -136,7 +137,7 @@ export function placeWorldHudText(
     );
     return;
   }
-  const topInset = Math.max(inset, avoid.topCss + 8 + (inset - 56 > 0 ? inset - 56 : 0));
+  const topInset = topHudInsetCss(inset, avoid.topCss, text.height * text.originY);
   const insetWorld = ((anchor === "top" ? topInset : inset) * RENDER_DPR) / cam.zoom;
   text.setPosition(
     cam.midPoint.x,

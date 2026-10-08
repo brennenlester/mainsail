@@ -360,8 +360,19 @@ function startVictorySting(scene: Phaser.Scene): boolean {
   return true;
 }
 
+/** Music gain multiplier for cutscene stings (#393); 1 = no duck. */
+let musicDuck = 1;
+
 function setVoiceVolume(voice: Voice): void {
-  voice.sound.setVolume?.(voice.level * MUSIC_TRACKS[voice.id].gain);
+  voice.sound.setVolume?.(voice.level * MUSIC_TRACKS[voice.id].gain * musicDuck);
+}
+
+/** Duck (0..1) or restore (1) the music under a sting; applies immediately. */
+export function setMusicDuck(level: number): void {
+  musicDuck = Math.max(0, Math.min(1, level));
+  for (const v of voices) {
+    setVoiceVolume(v);
+  }
 }
 
 function startVoice(scene: Phaser.Scene, id: MusicTrackId): void {
