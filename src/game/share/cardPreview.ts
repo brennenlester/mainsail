@@ -55,7 +55,7 @@ export function openCardPreview(game: Phaser.Game, snapshot: ShareSnapshot): voi
   whenTexturesReady(game, () => {
     void renderCardBlob(game, snapshot)
       .then((blob) => {
-        sheet.image.src = URL.createObjectURL(blob);
+        sheet.showCard(blob);
         sheet.status.textContent = "";
       })
       .catch(() => {
@@ -95,7 +95,7 @@ function openChallengeResult(
   });
   void renderCardBlob(game, snapshot)
     .then((blob) => {
-      sheet.image.src = URL.createObjectURL(blob);
+      sheet.showCard(blob);
     })
     .catch(() => {
       sheet.image.hidden = true;

@@ -121,6 +121,8 @@ function parseCreature(entry: unknown): ShareCreature | null {
     typeof flags !== "number" ||
     !Number.isInteger(flags) ||
     flags < 0 ||
+    // Range check first: bitwise ops truncate to 32 bits (2^32 & ~7 === 0).
+    flags > KNOWN_FLAGS ||
     (flags & ~KNOWN_FLAGS) !== 0
   ) {
     return null;

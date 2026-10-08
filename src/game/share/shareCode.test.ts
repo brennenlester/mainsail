@@ -138,6 +138,8 @@ describe("share code validation (untrusted input)", () => {
     expectInvalid(raw({ v: 1, n: "x", d: DAY, p: [["mossling", 1, 8]] }));
     expectInvalid(raw({ v: 1, n: "x", d: DAY, p: [["mossling", 1, -1]] }));
     expectInvalid(raw({ v: 1, n: "x", d: DAY, p: [["mossling", 1, 1.5]] }));
+    expectInvalid(raw({ v: 1, n: "x", d: DAY, p: [["mossling", 1, 4294967296]] }));
+    expectInvalid(raw({ v: 1, n: "x", d: DAY, p: [["mossling", 1, 4294967303]] }));
     expectInvalid(raw({ v: 1, n: "x", d: DAY, p: { 0: ["mossling", 1, 0] } }));
   });
 

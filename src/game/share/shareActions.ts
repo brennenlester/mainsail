@@ -193,7 +193,7 @@ export async function openCompanionShare(): Promise<void> {
   try {
     blob = await renderCardBlob(game, snapshot);
     file = new File([blob], CARD_FILE_NAME, { type: "image/png" });
-    sheet.image.src = URL.createObjectURL(blob);
+    sheet.showCard(blob);
     sheet.status.textContent = "";
     shareBtn.hidden = !canShareFiles(file);
     copyImageBtn.hidden = !canCopyImage();

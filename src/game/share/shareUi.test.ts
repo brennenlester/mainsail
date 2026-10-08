@@ -135,6 +135,15 @@ describe("card preview DOM", () => {
     expect(isTouchControlsEnabled()).toBe(true);
   });
 
+  it("drops a card that finishes rendering after the sheet closed", async () => {
+    const { openShareSheet } = await import("./shareSheet");
+    const sheet = openShareSheet({ id: "late", title: "t", imageAlt: "", buttons: [] });
+    sheet.close();
+    sheet.showCard(new Blob(["x"], { type: "image/png" }));
+    expect(sheet.isOpen()).toBe(false);
+    expect(sheet.image.getAttribute("src")).toBeNull();
+  });
+
   it("shows a blocking notice for broken cards", () => {
     showInvalidCardScreen();
     expect(document.getElementById("card-preview-title")?.textContent).toBe(

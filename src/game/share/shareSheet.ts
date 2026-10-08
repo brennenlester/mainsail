@@ -25,6 +25,9 @@ export type ShareSheet = {
   linkInput: HTMLInputElement;
   buttons: HTMLButtonElement[];
   close: () => void;
+  isOpen: () => boolean;
+  /** Show a rendered card; dropped (no object URL) if the sheet already closed. */
+  showCard: (blob: Blob) => void;
 };
 
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -144,7 +147,12 @@ export function openShareSheet(options: {
     });
   }
   buttons.find((b) => !b.hidden)?.focus();
-  return { root, image, status, linkInput, buttons, close };
+  const showCard = (blob: Blob): void => {
+    if (!closed) {
+      image.src = URL.createObjectURL(blob);
+    }
+  };
+  return { root, image, status, linkInput, buttons, close, isOpen: () => !closed, showCard };
 }
 
 export function showManualLink(sheet: ShareSheet, url: string): void {
