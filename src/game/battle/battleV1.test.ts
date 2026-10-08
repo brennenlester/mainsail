@@ -7,21 +7,25 @@ import {
   formatEncounterMatchup,
   formatMatchupBadge,
   getCooldown,
+  BATTLE_DAMAGE_SCALE,
+  DEFENSE_CURVE_K,
   isFainted,
-  MIN_DAMAGE_FRACTION,
   previewFixedDamage,
   primeOpeningCooldowns,
   readyMoves,
   resolveAttack,
   resolveFixedAttack,
   TUTORIAL_WILD_DAMAGE_SCALE,
+  WILD_DAMAGE_SCALE,
   wildBattleTuning,
 } from "./battleLogic";
 import {
   deriveKit,
+  FINISHER_DAMAGE_MULT,
   FINISHER_STATUS_BONUS,
   getBattleKit,
   GUARD_DAMAGE_TAKEN,
+  GUARD_FINISHER_DAMAGE_TAKEN,
   isFullKit,
   KIT_ROLES,
   moveRole,
@@ -38,9 +42,11 @@ import {
   tickStatuses,
 } from "./statusEffects";
 import {
+  HUNTER_MULTIPLIER,
   RESIST_MULTIPLIER,
   resolveMatchup,
 } from "../creatures/folkloreTypes";
+import { statMultForLevel } from "../progression/leveling";
 import { CREATURES, getCreatureDefinition } from "../creatures/catalog";
 import { SIGNATURE_TRAIT_KITS } from "../creatures/traits";
 import type { BattleCombatant, MoveDefinition } from "../creatures/types";
@@ -98,6 +104,15 @@ const finisher: MoveDefinition = {
   cooldown: 3,
 };
 
+/** Unrounded Lv 1 hit before matchup / situational multipliers. */
+function raw(power: number, attack: number, defense: number): number {
+  return (
+    (power + attack) *
+    (DEFENSE_CURVE_K / (DEFENSE_CURVE_K + defense)) *
+    BATTLE_DAMAGE_SCALE
+  );
+}
+
 /** Mulberry32 — tiny seeded rng for deterministic simulations. */
 function seeded(seed: number): () => number {
   let a = seed >>> 0;
@@ -126,12 +141,12 @@ describe("matchups", () => {
     expect(outcome).toEqual({
       kind: "hit",
       matchup: "resisted",
-      damage: Math.round((10 + 8 - 4) * RESIST_MULTIPLIER),
+      damage: Math.round(raw(10, 8, 4) * RESIST_MULTIPLIER),
     });
   });
 
   it("formats badges for move buttons", () => {
-    expect(formatMatchupBadge("hunter")).toBe("×1.5");
+    expect(formatMatchupBadge("hunter")).toBe(`×${HUNTER_MULTIPLIER}`);
     expect(formatMatchupBadge("resisted")).toBe(`resists ×${RESIST_MULTIPLIER}`);
     expect(formatMatchupBadge("immune")).toBe("immune");
     expect(formatMatchupBadge("neutral")).toBe("");
@@ -139,10 +154,10 @@ describe("matchups", () => {
 
   it("summarizes the lead matchup for the encounter panel", () => {
     expect(formatEncounterMatchup("Cinder Toad", "ember", "woodland")).toBe(
-      "Cinder Toad: you hunt it ×1.5 · you resist it",
+      `Cinder Toad: you hunt it ×${HUNTER_MULTIPLIER} · you resist it`,
     );
     expect(formatEncounterMatchup("Mossling", "woodland", "ember")).toBe(
-      "Mossling: resists you · hunts you ×1.5",
+      `Mossling: resists you · hunts you ×${HUNTER_MULTIPLIER}`,
     );
     expect(formatEncounterMatchup("Mossling", "woodland", "storm")).toBe(
       "Mossling: even matchup",
@@ -152,13 +167,17 @@ describe("matchups", () => {
 
 describe("situational damage", () => {
   const attacker = combatant({ folkloreType: "earth", attack: 8 });
-  const base = 10 + 8 - 4;
+  const base = raw(10, 8, 4);
 
-  it("guard cuts the next hit", () => {
+  it("guard braces against a plain hit and parries a finisher", () => {
     const defender = combatant({ folkloreType: "earth", guarding: true });
     expect(calcDamage(attacker, strike, defender)).toBe(
       Math.round(base * GUARD_DAMAGE_TAKEN),
     );
+    expect(calcDamage(attacker, finisher, defender)).toBe(
+      Math.round(raw(14, 8, 4) * FINISHER_DAMAGE_MULT * GUARD_FINISHER_DAMAGE_TAKEN),
+    );
+    expect(GUARD_FINISHER_DAMAGE_TAKEN).toBeLessThan(GUARD_DAMAGE_TAKEN);
   });
 
   it("soaked takes more, storm conducts even more", () => {
@@ -190,10 +209,10 @@ describe("situational damage", () => {
       folkloreType: "earth",
       statuses: [{ id: "burn", turns: 2 }],
     });
-    const raw = 14 + 8 - 4;
-    expect(calcDamage(attacker, finisher, clean)).toBe(raw);
+    const hit = raw(14, 8, 4) * FINISHER_DAMAGE_MULT;
+    expect(calcDamage(attacker, finisher, clean)).toBe(Math.round(hit));
     expect(calcDamage(attacker, finisher, burned)).toBe(
-      Math.round(raw * FINISHER_STATUS_BONUS),
+      Math.round(hit * FINISHER_STATUS_BONUS),
     );
   });
 
@@ -211,14 +230,32 @@ describe("situational damage", () => {
   });
 });
 
-describe("damage floor + wild tuning", () => {
-  it("defense blunts but never erases a hit", () => {
+describe("defense curve, level scaling + wild tuning", () => {
+  it("defense blunts but never erases a hit, and every point matters", () => {
     const weak = combatant({ folkloreType: "woodland", attack: 6 });
-    const wall = combatant({ folkloreType: "storm", defense: 20 });
     const tangle = { ...strike, type: "woodland" as const, power: 6 };
-    expect(calcDamage(weak, tangle, wall)).toBe(
-      Math.ceil((6 + 6) * MIN_DAMAGE_FRACTION),
-    );
+    const wall = combatant({ folkloreType: "storm", defense: 20 });
+    expect(calcDamage(weak, tangle, wall)).toBe(Math.round(raw(6, 6, 20)));
+    expect(calcDamage(weak, tangle, wall)).toBeGreaterThan(0);
+    const soft = combatant({ folkloreType: "storm", defense: 2 });
+    const firm = combatant({ folkloreType: "storm", defense: 8 });
+    expect(calcDamage(weak, tangle, soft)).toBeGreaterThan(calcDamage(weak, tangle, firm));
+  });
+
+  it("move power and defense scale with level, so equal-level hits track HP", () => {
+    const at = (level: number) => {
+      const mult = statMultForLevel(level);
+      const user = combatant({ folkloreType: "earth", level, attack: 8 * mult });
+      const foe = combatant({ folkloreType: "earth", level, defense: 4 });
+      return calcDamage(user, { ...strike, power: 20 }, foe) / mult;
+    };
+    // Same share of a (level-scaled) HP bar at Lv 1 and Lv 40.
+    expect(at(40)).toBeCloseTo(at(1), 0);
+    // A higher-level defender shrugs off more of the same hit.
+    const user = combatant({ folkloreType: "earth", attack: 8 });
+    const lv1 = combatant({ folkloreType: "earth", defense: 6 });
+    const lv20 = combatant({ folkloreType: "earth", defense: 6, level: 20 });
+    expect(calcDamage(user, strike, lv20)).toBeLessThan(calcDamage(user, strike, lv1));
   });
 
   it("damageScale softens outgoing hits; the tutorial spar uses it", () => {
@@ -227,11 +264,14 @@ describe("damage floor + wild tuning", () => {
       damageScale: TUTORIAL_WILD_DAMAGE_SCALE,
       matchupAware: false,
     });
-    expect(wildBattleTuning(false)).toEqual({ damageScale: 1, matchupAware: true });
+    expect(wildBattleTuning(false)).toEqual({
+      damageScale: WILD_DAMAGE_SCALE,
+      matchupAware: true,
+    });
     const wild = combatant({ folkloreType: "earth", damageScale: tuning.damageScale });
     const target = combatant({ folkloreType: "earth" });
     expect(calcDamage(wild, strike, target)).toBe(
-      Math.round(14 * TUTORIAL_WILD_DAMAGE_SCALE),
+      Math.round(raw(10, 8, 4) * TUTORIAL_WILD_DAMAGE_SCALE),
     );
   });
 
@@ -255,12 +295,34 @@ describe("sovereign fixed attacks", () => {
   it("respect Rooted and Guard", () => {
     const boss = combatant({ folkloreType: "water" });
     const target = combatant({ folkloreType: "earth" });
-    expect(resolveFixedAttack(boss, 20, target, () => 0)).toEqual({ kind: "hit", damage: 20 });
+    expect(resolveFixedAttack(boss, 20, target, () => 0)).toEqual({
+      kind: "hit",
+      damage: 20,
+      parryHealed: 0,
+    });
     boss.statuses = [{ id: "rooted", turns: 1 }];
     target.guarding = true;
+    // Every sovereign beat is telegraphed, so a guard always parries it.
     expect(previewFixedDamage(boss, 20, target)).toBe(
-      Math.round(20 * ROOTED_DAMAGE_DEALT * GUARD_DAMAGE_TAKEN),
+      Math.round(20 * ROOTED_DAMAGE_DEALT * GUARD_FINISHER_DAMAGE_TAKEN),
     );
+  });
+
+  it("a parried sovereign beat heals the guard user", () => {
+    const boss = combatant({ folkloreType: "water" });
+    const target = combatant({
+      folkloreType: "earth",
+      currentHp: 20,
+      guarding: true,
+      moves: [strike, guard],
+    });
+    const outcome = resolveFixedAttack(boss, 20, target, () => 0);
+    expect(outcome).toEqual({
+      kind: "hit",
+      damage: Math.round(20 * GUARD_FINISHER_DAMAGE_TAKEN),
+      parryHealed: 10,
+    });
+    expect(target.currentHp).toBe(30);
   });
 
   it("can miss while Dazed", () => {
@@ -282,6 +344,10 @@ describe("status effects", () => {
     const storm = combatant({ folkloreType: "storm" });
     expect(applyStatus(storm, "rooted").kind).toBe("immune");
     expect(hasStatus(storm, "rooted")).toBe(false);
+    // Wisps are fire: they shrug off Burn but can be Rooted.
+    const wisp = combatant({ folkloreType: "will-o-wisp" });
+    expect(applyStatus(wisp, "burn").kind).toBe("immune");
+    expect(applyStatus(wisp, "rooted").kind).toBe("applied");
   });
 
   it("soaking douses burn and blocks new burns", () => {
@@ -330,20 +396,36 @@ describe("status effects", () => {
 });
 
 describe("executeMove + cooldowns", () => {
-  it("guard heals, raises a guard, and goes on cooldown", () => {
+  it("guard raises a guard and goes on cooldown; it heals only on a parry", () => {
     const user = combatant({
       folkloreType: "earth",
       currentHp: 20,
       moves: [strike, guard],
     });
-    const foe = combatant({ folkloreType: "earth" });
+    const foe = combatant({ folkloreType: "earth", moves: [strike, finisher] });
     const result = executeMove(user, guard, foe, () => 0);
     expect(result.guarded).toBe(true);
-    expect(result.healed).toBe(10);
-    expect(user.currentHp).toBe(30);
+    expect(result.healed).toBe(0);
+    expect(user.currentHp).toBe(20);
     expect(user.guarding).toBe(true);
     expect(getCooldown(user, "guard")).toBe(2);
     expect(readyMoves(user).map((m) => m.id)).toEqual(["strike"]);
+
+    // A plain hit into the guard: braced, no heal.
+    const braced = executeMove(foe, strike, user, () => 0);
+    expect(braced.parryHealed).toBeUndefined();
+
+    // A finisher into a fresh guard: parried, and the guard heals (25% max HP).
+    user.guarding = true;
+    const before = user.currentHp;
+    const parried = executeMove(foe, finisher, user, () => 0);
+    const hit = parried.attack?.kind === "hit" ? parried.attack.damage : 0;
+    expect(hit).toBe(
+      Math.round(raw(14, 8, 4) * FINISHER_DAMAGE_MULT * GUARD_FINISHER_DAMAGE_TAKEN),
+    );
+    expect(parried.parryHealed).toBe(10);
+    expect(user.currentHp).toBe(before - hit + 10);
+    expect(user.guarding).toBe(false);
   });
 
   it("cooldowns count down on the user's own turns", () => {
@@ -376,7 +458,7 @@ describe("executeMove + cooldowns", () => {
     expect(result.attack).toEqual({
       kind: "hit",
       matchup: "neutral",
-      damage: Math.round(14 * GUARD_DAMAGE_TAKEN),
+      damage: Math.round(raw(10, 8, 4) * GUARD_DAMAGE_TAKEN),
     });
     expect(foe.guarding).toBe(false);
 
@@ -552,7 +634,7 @@ describe("simulated spar", () => {
       expect(a).toEqual(b);
       expect(a.winner).not.toBe("none");
       expect(a.turns).toBeGreaterThanOrEqual(2);
-      expect(a.turns).toBeLessThanOrEqual(12);
+      expect(a.turns).toBeLessThanOrEqual(16);
     }
   });
 

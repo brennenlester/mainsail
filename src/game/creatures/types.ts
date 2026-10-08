@@ -1,5 +1,6 @@
 import type { FolkloreType } from "./folkloreTypes";
 import type { CreatureTrait } from "./traits";
+import type { PersonalityId } from "../companions/personality";
 
 /** Battle kit slot. Missing role = plain attack (legacy / wanderer / shrine moves). */
 export type MoveRole = "attack" | "guard" | "status" | "finisher";
@@ -62,10 +63,16 @@ export type CreatureInstance = {
   appliedEffects?: string[];
   /** Rolled signature trait (immunity or damage-buff). */
   trait?: CreatureTrait;
+  /** Personality rolled at befriend (#367). Backfilled on load for older saves. */
+  personality?: PersonalityId;
+  /** Bond points 0..BOND_MAX (#367). Missing = 0. */
+  bond?: number;
 };
 
 export type BattleCombatant = {
   name: string;
+  /** Creature level; scales move power and defense in battle. Missing = 1. */
+  level?: number;
   maxHp: number;
   currentHp: number;
   attack: number;
@@ -78,6 +85,8 @@ export type BattleCombatant = {
   immunityTo?: FolkloreType;
   /** Signature damage-buff, if any. */
   damageBuff?: { moveId: string; multiplier: number };
+  /** Battle-only bulk: incoming hits are divided by this (outleveled wilds). Missing = 1. */
+  bulk?: number;
   /** Outgoing damage multiplier (wild softening). Missing = 1. */
   damageScale?: number;
   /** Battle-only state (never saved). */

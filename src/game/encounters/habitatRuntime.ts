@@ -2,7 +2,6 @@ import { getCreatureDefinition } from "../creatures/catalog";
 import { getActiveCreatures, hasCreature } from "../creatures/party";
 import {
   HUNTER_CHART,
-  HUNTER_MULTIPLIER,
   type FolkloreType,
 } from "../creatures/folkloreTypes";
 import { questProgress } from "../story/questProgress";
@@ -218,6 +217,12 @@ export function shouldOfferHarborBefriend(
 }
 
 /**
+ * Befriend-odds edge from a hunter matchup. Kept at 1.5 when battle damage
+ * moved to ×1.3 (#378) so befriending is unchanged.
+ */
+export const HUNTER_BEFRIEND_MULTIPLIER = 1.5;
+
+/**
  * Shrine folklore-matchup befriend odds from active party types vs wild.
  * God creatures never use this (flat GOD_BEFRIEND_CHANCE).
  */
@@ -233,10 +238,10 @@ export function folkloreMatchupBefriendChance(
     (type) => HUNTER_CHART[wildType] === type,
   );
   if (hasHunter) {
-    return Math.min(0.95, NORMAL_BEFRIEND_CHANCE * HUNTER_MULTIPLIER);
+    return Math.min(0.95, NORMAL_BEFRIEND_CHANCE * HUNTER_BEFRIEND_MULTIPLIER);
   }
   if (isHunted) {
-    return NORMAL_BEFRIEND_CHANCE / HUNTER_MULTIPLIER;
+    return NORMAL_BEFRIEND_CHANCE / HUNTER_BEFRIEND_MULTIPLIER;
   }
   return NORMAL_BEFRIEND_CHANCE;
 }

@@ -46,6 +46,18 @@ describe("invite encode/decode", () => {
     window.history.replaceState({}, "", "/");
   });
 
+  it("invites from a ford islet land the visitor on the shore (#367)", () => {
+    setOverworldUnlocked(true);
+    const url = new URL(buildInviteUrl("overworld", 3, 14));
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    const result = parseInviteParam();
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") {
+      return;
+    }
+    expect(result.snapshot.position).toEqual({ zoneId: "overworld", x: 2, y: 12 });
+  });
+
   it("round-trips a host snapshot through join URL", () => {
     const url = buildInviteUrl("grove", 5, 5);
     expect(url).toContain("join=");

@@ -101,6 +101,8 @@ PALETTE = {
     "village_grass": "#93b35e",
     "village_grass_dark": "#779a4c",
     "village_grass_light": "#b0c874",
+    "ember_dark": "#d0582e",  # Ember Wisp title render (#363)
+    "ember_glow": "#ffd77a",
 }
 
 OUTLINE_HEX = PALETTE["navy"]

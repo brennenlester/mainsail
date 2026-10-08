@@ -116,6 +116,8 @@ import {
   WALK_HINT_TEXT,
   shouldShowWalkHint,
 } from "../ui/walkHint";
+import { scriptedOpeningCreature } from "../opening/openingScript";
+import { hideOpeningCaption } from "../opening/openingCaption";
 import {
   computeBoardDisplaySize,
   playfieldLayoutMode,
@@ -215,6 +217,7 @@ import {
 } from "../ui/craftingHud";
 import { OverworldFx } from "../render/fx/overworldFx";
 import { HUD_PILL_TEXT_STYLE, attachHudPill } from "../ui/hudPill";
+import { OverworldCompanions } from "../companions/overworldCompanions";
 import { floorTintAt } from "../render/fx/floorTint";
 import { floorVariantKey } from "../render/floorVariants";
 
@@ -294,6 +297,8 @@ export class IsometricScene extends Phaser.Scene {
     createPartyOverworldFollowerState();
   /** Particles, lighting, follower life, title card (#362). */
   private fx?: OverworldFx;
+  /** Companion ability sites, tier-up celebrations, nickname prompt (#367). */
+  private companions?: OverworldCompanions;
   /** Westmost column still holding archipelago stream sprites (exclusive cull). */
   /** Live stream-tagged sprites; culls iterate this, never the full display list (#194). */
   private streamSprites = new Set<Phaser.GameObjects.Image>();
@@ -363,6 +368,7 @@ export class IsometricScene extends Phaser.Scene {
     ensureGroveMusic(this);
     this.input.on("pointerdown", () => unlockAudioFromGesture(this));
     this.fx = new OverworldFx(this);
+    this.companions = this.createCompanions();
 
     this.loadZone(this.currentZoneId);
 
@@ -465,6 +471,7 @@ export class IsometricScene extends Phaser.Scene {
 
     this.updateQuestToast();
     this.updateAchievementToast();
+    this.companions?.update();
 
     if (
       Phaser.Input.Keyboard.JustDown(this.interactKey) ||
@@ -476,7 +483,8 @@ export class IsometricScene extends Phaser.Scene {
         !this.tryDoorInteract() &&
         !this.tryMinigameInteract() &&
         !this.tryNpcInteract() &&
-        !this.tryDockInteract()
+        !this.tryDockInteract() &&
+        !this.companions?.tryInteract(this.time.now)
       ) {
         this.tryGatherInteract();
       }
@@ -611,9 +619,18 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
 
+    const travelled = this.travelSinceEncounter;
     this.travelSinceEncounter = 0;
     const profile = getHabitatProfile(this.currentZoneId);
-    const guaranteed = shouldGuaranteeWildTrigger(profile, this.currentZoneId);
+    // Opening beats (#363) script the first meet / first spar foe (one-shot,
+    // re-offered only after a walking cooldown).
+    const scripted = scriptedOpeningCreature(
+      this.currentZoneId,
+      isVisitorMode(),
+      travelled,
+    );
+    const guaranteed =
+      scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
     if (!guaranteed && !rollWildTriggerChance(profile)) {
       return;
     }
@@ -622,7 +639,7 @@ export class IsometricScene extends Phaser.Scene {
       this.currentZoneId === "archipelago"
         ? islandIndexAtTile(this.playerGridX, this.playerGridY)
         : null;
-    const creatureId = resolveWildEncounterCreature({
+    const creatureId = scripted ?? resolveWildEncounterCreature({
       zoneId: this.currentZoneId,
       tileX: Math.round(this.playerGridX),
       tileY: Math.round(this.playerGridY),
@@ -634,6 +651,7 @@ export class IsometricScene extends Phaser.Scene {
     }
 
     this.inEncounter = true;
+    hideOpeningCaption();
     setTouchControlsEnabled(false);
     this.cameras.main.fadeOut(140, 255, 255, 255);
     this.time.delayedCall(145, () => {
@@ -1153,6 +1171,7 @@ export class IsometricScene extends Phaser.Scene {
     }
     this.drawNpcs(zone);
     this.drawPlacedBoat(zone);
+    this.companions?.enterZone();
     recordQuestEvent({ type: "enter_zone", zoneId });
 
     this.player = this.add
@@ -1768,6 +1787,7 @@ export class IsometricScene extends Phaser.Scene {
       npc: npc ? `Press E — Talk to ${npc.name}` : undefined,
       dock,
       sailing: !dock && isSailing() ? "Sailing" : undefined,
+      companion: this.companions?.promptLabel(Boolean(gather)),
       gather: gather ? this.formatGatherPrompt(gather) : undefined,
     });
     const label = picked?.label;
@@ -2064,6 +2084,42 @@ export class IsometricScene extends Phaser.Scene {
     return true;
   }
 
+  private groundAt(x: number, y: number): { x: number; y: number } {
+    const screen = this.toScreen(x, y);
+    return { x: screen.x, y: screen.y + TILE_HEIGHT / 2 - 2 };
+  }
+
+  private createCompanions(): OverworldCompanions {
+    return new OverworldCompanions({
+      scene: this,
+      fx: () => this.fx,
+      zoneId: () => this.currentZoneId,
+      playerTile: () => ({
+        x: Math.round(this.playerGridX),
+        y: Math.round(this.playerGridY),
+      }),
+      groundAt: (x, y) => this.groundAt(x, y),
+      depthAt: (x, y) => depthForGridCell(x, y, PROP_LAYER),
+      followerSprites: () => this.partyFollowers.sprites,
+      toast: (message, ok) => this.showGatherToast(message, ok),
+      movePlayerTo: (x, y) => {
+        this.playerGridX = x;
+        this.playerGridY = y;
+        this.syncPlayerToGrid();
+        updateHostPosition(this.currentZoneId, x, y);
+      },
+      spawnProp: (x, y, kind) =>
+        this.spawnPropSprite(x, y, kind, true, this.currentZoneId),
+      isBusy: () =>
+        this.inDialogue || this.inMinigame || this.inShrine || this.inEncounter,
+      setKeyboardCaptured: (captured) =>
+        applyNameIntroKeyboardGate(
+          this.input.keyboard,
+          captured && hasPlayerName(),
+        ),
+    });
+  }
+
   private tryGatherInteract(): void {
     if (isVisitorMode()) {
       return;
@@ -2147,11 +2203,14 @@ export class IsometricScene extends Phaser.Scene {
     if (isSailing()) {
       destroyPartyOverworldFollowers(this.partyFollowers);
     } else {
+      const spot = this.isMoving ? undefined : this.companions?.curiousSpot();
       syncPartyOverworldFollowers(this, this.partyFollowers, {
         x: screen.x,
         y: this.playerBaseY + bob,
         facing: this.playerFacing,
         depth: this.playerDepth,
+        moving: this.isMoving,
+        curiousTarget: spot ? this.groundAt(spot.x, spot.y) : undefined,
       });
       this.fx?.animateFollowers(
         this.partyFollowers.sprites,

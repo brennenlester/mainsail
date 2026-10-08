@@ -19,7 +19,7 @@ On a fresh save (or after Reset / `?new=1`), enter a display name (1–16 charac
 | Input | Action |
 | --- | --- |
 | **Arrow keys** or **WASD** | Move (hold to keep walking) |
-| **E** | Interact — open Moon Shrine, enter a cottage door, talk to a villager, play a cottage minigame on the house prop, or moor / board / disembark a boat |
+| **E** | Interact — open Moon Shrine, enter a cottage door, talk to a villager, play a cottage minigame on the house prop, moor / board / disembark a boat, or use a companion ability |
 | **I** | Shortcut: copy a friend invite link (host only) |
 | **Copy invite link** (status panel) | Copy a friend invite link (host only; works on touch) |
 | **Party** (status panel) | Manage the active party (max 7) and scroll/swap reserve creatures |
@@ -79,10 +79,26 @@ Stand next to the house's signature prop and press **E** for a minigame (same re
 
 Ward the Crossing needs at least one living **active** companion. Overworld HP does not change. Hearth Lots uses play money; inventory only changes on that first-win tonic.
 
+### Companions
+
+Every creature you befriend has a **personality** (Bold, Shy, Greedy, Sleepy, Curious, Loyal, Playful, or Gentle), rolled once when it joins. A skippable prompt lets you give new friends a **nickname** (rename any time from **Party**). Personality shows up in the overworld: followers bark short lines when you stop, bold ones walk ahead, shy and sleepy ones lag behind, loyal ones stay close, and curious ones drift toward anything interesting nearby.
+
+**Bond** grows from battling together (the fighter gains most), gifting a companion its **favorite material** (Party → select → Gift; the Codex lists each species' favorite once you have met it), and using overworld abilities. Five tiers — Wary, Friendly, Close, Devoted, Kindred — each add a brighter aura under the follower (cosmetic for now; a small battle bonus is planned but not yet active); a tier-up gets a heart-and-sparkle celebration. Loyal companions gain extra bond from battles, Shy and Greedy ones from gifts, Curious and Playful ones from abilities.
+
+**Overworld abilities** use **E** with the right companion in the active party (fainted companions can't help):
+
+| Ability | Who | Where |
+| --- | --- | --- |
+| Burn brush → stash | Ember or hearth types (e.g. Ember Wisp) | Dry brush in Folklore Fields (NW corner) and Emberfen Hollow (SE corner) |
+| Ford the shallows → islet stash | Water types (e.g. Brook Nymph) | Rippling water at the Folklore Fields south shore (west and east islets); press E on the islet to ford back |
+| Sense hidden node | Woodland or fen types (e.g. Mossling) | Faint glimmers in Whisper Grove and Mistwood Reach; the revealed node stays as a regular gather spot |
+
+All ability rewards are optional and one-time; the main quest never needs them.
+
 ### Encounters and crafting
 
 - Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**.
-- Creatures and moves have folklore **types**. Spars use accuracy, hunter matchups (~1.5×), and rare immunity traits on signature creatures.
+- Creatures and moves have folklore **types**. Spars use accuracy, hunter matchups (×1.3, prey resists ×0.8), and rare immunity traits on signature creatures.
 - Winning spars grants creature materials, Folklore Dust (with occasional bonus drops), and party XP: the fighter takes half the pool and benched actives split the rest (levels scale combat HP/ATK; wild level tracks your active party average plus a small rarity bonus, so winning never snowballs the next fight). Trees, stones, ferns, and pebble piles yield 2-3 materials per harvest with a 15s cooldown per node.
 - At **Moon Shrine**, craft on a **4×4** grid: drag materials into shape, then tap the result. **Brook Tonic** and **Moonwake Draught** yield 3 per craft. Open **Recipes** (status panel, Inventory, or the shrine Craft tab) for the patterns. Craft a **Portable Moonshrine** at the altar (one only); **Inventory** then includes the craft grid and **Use** on tonic / draught / crystal, and **Use** on the relic opens Craft + Use anywhere. Fusion stays at the real shrine. Earn exclusive **Tide Crown** and **Boulder Crown** by defeating **Tide Sovereign** and **Stone Sovereign** (one each), then add them to the **Sovereign Seal** pattern to form the seal. A **Sovereign Seal** fuses **Tide Sovereign** and **Stone Sovereign** into **Horizon Sovereign** (at most two of each parent and two Horizons); two Horizons then fuse into a unique **Eclipse Sovereign**. Apply shrine effects to party creatures (attack buffs can add a typed dual move, including a 5th move slot). From Folklore Fields, take the north gate into **Moonwake Harbor**. Press **E** near the west Harbor dock while holding a Boat to moor it (persists in your save; visitors cannot place). After mooring, press **E** again to board and sail the Harbor water. **East Landing** is an optional dock stop — press **E** there to disembark or reboard; sailing past it keeps you in sail mode. Keep sailing east off the Harbor water edge to enter the open **Archipelago** sea: a **100×100** open ocean with a 2D grid of multi-biome 9×9 islands (lush trees/ferns, barren stones, and mixed) and open water to sail between them. Press **E** at any island dock to disembark or reboard (boat stays available at Archipelago docks once moored from Harbor). You can also **E** at the west Harbor dock to disembark onto the pier. Mid-sail and on-island stands restore from save (archipelago regenerates water chunks and island stamps around you). Older saves that still had a Folklore Fields boat stand migrate into Harbor automatically. **On foot** on islands you can meet archipelago-exclusive creatures (Isle Fernling on lush, Salt Scuttle on barren, Shoal Wisp on mixed); sailing skips wild encounters.
 - Open **Codex** to see which creatures live where. Encountering a creature once lists it under **every** habitat that can spawn it. Habitats with no known dwellers stay blank until you meet something from that pool.
@@ -157,6 +173,7 @@ These are for local development only; they are not part of normal play:
 - `src/game/story/` — quest definitions and progress
 - `src/game/world/` — zones, collision, invites, saves
 - `src/game/creatures/` — catalog and party
+- `src/game/companions/` — personality, bond, favorite materials, overworld abilities
 - `src/game/inventory/` / `src/game/crafting/` / `src/game/shrine/` — materials and Moon Shrine
 - `AGENTS.md` — agent workflow conventions
 

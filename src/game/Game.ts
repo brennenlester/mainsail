@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { PreloadScene } from "./scenes/PreloadScene";
+import { TitleScene } from "./scenes/TitleScene";
 import { IsometricScene } from "./scenes/IsometricScene";
 import { EncounterScene } from "./scenes/EncounterScene";
 import { BattleScene } from "./scenes/BattleScene";
@@ -18,6 +19,7 @@ export function createGame(parent: string): Phaser.Game {
     backgroundColor: "#1a1a2e",
     scene: [
       PreloadScene,
+      TitleScene,
       IsometricScene,
       EncounterScene,
       BattleScene,

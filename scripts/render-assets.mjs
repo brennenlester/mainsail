@@ -39,7 +39,7 @@ const result = spawnSync(
     "--background",
     "--factory-startup",
     "--python",
-    path.join(ROOT, "scripts", "blender", "render_assets.py"),
+    path.join(ROOT, "scripts", "blender", process.env.RENDER_ENTRY ?? "render_assets.py"),
     "--",
     ...process.argv.slice(2),
   ],
@@ -61,7 +61,9 @@ const outIdx = process.argv.indexOf("--out");
 const outDir = outIdx > 0 ? path.resolve(process.argv[outIdx + 1]) : path.join(ROOT, "art", "rendered");
 const sharp = (await import("sharp")).default;
 let quantized = 0;
-for (const entry of fs.readdirSync(outDir, { recursive: true })) {
+// Only the atlas source frames; other entries (render:title) write elsewhere.
+const entries = process.env.RENDER_ENTRY || !fs.existsSync(outDir) ? [] : fs.readdirSync(outDir, { recursive: true });
+for (const entry of entries) {
   const file = path.join(outDir, String(entry));
   if (!file.endsWith(".png") || fs.statSync(file).mtimeMs < started) continue;
   const buf = await sharp(file)
