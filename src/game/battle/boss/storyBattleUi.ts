@@ -60,6 +60,9 @@ export type StoryFrame = {
   intentY: number;
   /** Ground line the boss embers rise from. */
   emberY: number;
+  /** Arena column: banners and Wren's card stay inside it (landscape keeps the moves clear). */
+  arenaX: number;
+  arenaW: number;
 };
 
 const CLASSIC_FRAME: StoryFrame = {
@@ -70,6 +73,8 @@ const CLASSIC_FRAME: StoryFrame = {
   viewW: 640,
   intentY: STORY_INTENT_Y,
   emberY: 470,
+  arenaX: 0,
+  arenaW: 640,
 };
 
 /** HpHud-compatible plate, wider, with phase pips. */
@@ -390,7 +395,7 @@ export class StoryBattleUi {
     const s = this.scene;
     const { x: bx, y: by } = this.frame.banner;
     const band = s.add
-      .rectangle(bx, by, this.frame.viewW + 80, 104, 0x140810, 0.9)
+      .rectangle(bx, by, this.frame.arenaW + (this.frame.arenaW >= this.frame.viewW ? 80 : 0), 104, 0x140810, 0.9)
       .setDepth(DEPTH_BANNER)
       .setScale(1, 0);
     const head = s.add
@@ -412,17 +417,19 @@ export class StoryBattleUi {
         fontSize: "15px",
         color: "#fff0d8",
         align: "center",
-        wordWrap: { width: 600 },
+        wordWrap: { width: Math.min(600, this.frame.arenaW - 24), useAdvancedWrap: true },
       })
       .setOrigin(0.5)
       .setDepth(DEPTH_BANNER + 1)
       .setAlpha(0);
+    head.setScale(Math.min(1, (this.frame.arenaW - 24) / Math.max(1, head.width)));
+    const headScale = head.scaleX;
     const parts = [band, head, sub];
     s.tweens.add({ targets: band, scaleY: 1, duration: 160, ease: "Quad.easeOut" });
     s.tweens.add({ targets: [head, sub], alpha: 1, duration: 220, delay: 120 });
     if (!this.motion.reduced) {
-      head.setScale(1.8);
-      s.tweens.add({ targets: head, scale: 1, duration: 300, delay: 120, ease: "Back.easeOut" });
+      head.setScale(1.8 * headScale);
+      s.tweens.add({ targets: head, scale: headScale, duration: 300, delay: 120, ease: "Back.easeOut" });
     }
     s.tweens.add({
       targets: parts,
@@ -477,17 +484,23 @@ export class StoryBattleUi {
     } else {
       // Swell into a gold silhouette, swap the art at the peak under a
       // second flash, then the new form settles out of the light.
+      // Swell up to 1.22x, capped so the art never pokes past the stage edge.
+      const right = this.frame.viewX + this.frame.viewW - 2;
+      const swellFor = (): number =>
+        Math.max(1, Math.min(1.22, (right - sprite.x) / Math.max(1, sprite.displayWidth / 2)));
+      const swell = swellFor();
       sprite.setTintFill(0xffd27a);
       s.tweens.add({
         targets: sprite,
-        scaleX: sprite.scaleX * 1.22,
-        scaleY: sprite.scaleY * 1.22,
+        scaleX: sprite.scaleX * swell,
+        scaleY: sprite.scaleY * swell,
         duration: 420,
         ease: "Sine.easeIn",
       });
       s.time.delayedCall(460, () => {
         const scale = swap();
-        sprite.setScale(scale.x * 1.22, scale.y * 1.22).setTintFill(0xfff0c0);
+        const peak = swellFor();
+        sprite.setScale(scale.x * peak, scale.y * peak).setTintFill(0xfff0c0);
         s.cameras.main.flash(220, 255, 220, 160);
         s.tweens.add({ targets: sprite, scaleX: scale.x, scaleY: scale.y, duration: 420, ease: "Back.easeOut" });
         s.time.delayedCall(440, () => settle(scale));
@@ -615,35 +628,43 @@ export class StoryBattleUi {
   playAssist(action: AssistAction): void {
     const s = this.scene;
     const npc = getNpcById(RIVAL_NPC_ID);
-    const y = this.frame.banner.y + 80;
-    const x0 = this.frame.viewX;
-    const card = s.add.rectangle(x0 - 170, y, 300, 64, 0x2a1418, 0.94).setStrokeStyle(2, 0xd8603c, 1).setDepth(DEPTH_BANNER - 2).setOrigin(0, 0.5);
-    const parts: Phaser.GameObjects.GameObject[] = [card];
+    const ui = this.frame.ui;
+    // Base-px card, scaled with the chrome and kept inside the arena column.
+    const w = Math.min(300, (this.frame.arenaW - 24) / ui);
+    const home = this.frame.arenaX + 12;
+    const box = s.add
+      .container(home - (w + 20) * ui, this.frame.banner.y + 80)
+      .setScale(ui)
+      .setDepth(DEPTH_BANNER - 2);
+    const card = s.add.graphics();
+    card.fillStyle(0x2a1418, 0.94);
+    card.fillRoundedRect(0, -32, w, 64, 12);
+    card.lineStyle(2, 0xd8603c, 1);
+    card.strokeRoundedRect(0, -32, w, 64, 12);
+    box.add(card);
     if (npc) {
-      const portrait = s.add.sprite(x0 - 150, y + 30, npc.spriteKey).setOrigin(0.5, 1).setDepth(DEPTH_BANNER - 1);
+      const portrait = s.add.sprite(34, 30, npc.spriteKey).setOrigin(0.5, 1);
       applyNpcSprite(s, portrait, npc, { width: NPC_DISPLAY.width * 1.1, height: NPC_DISPLAY.height * 1.1 }, "talk");
-      parts.push(portrait);
+      box.add(portrait);
     }
-    const head = s.add
-      .text(x0 - 110, y - 18, "WREN ASSISTS", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
-      .setDepth(DEPTH_BANNER - 1);
-    const body = s.add
-      .text(x0 - 110, y, action.kind === "daze" ? "Lantern Fox: Dazzle" : action.kind === "soak" ? "Brook Nymph: Drench" : action.kind === "cleanse" ? "Rootwalker: Cleanse" : "Rootwalker: Bloom", {
-        color: "#fff0d8",
-        fontFamily: HUD_FONT,
-        fontSize: "15px",
-        fontStyle: "bold",
-      })
-      .setDepth(DEPTH_BANNER - 1);
-    parts.push(head, body);
-    const slide = 180;
-    s.tweens.add({ targets: parts, x: `+=${slide}`, duration: this.motion.fast ? 0 : 260, ease: "Back.easeOut" });
+    box.add(
+      s.add.text(70, -18, "WREN ASSISTS", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" }),
+    );
+    box.add(
+      s.add.text(
+        70,
+        0,
+        action.kind === "daze" ? "Lantern Fox: Dazzle" : action.kind === "soak" ? "Brook Nymph: Drench" : action.kind === "cleanse" ? "Rootwalker: Cleanse" : "Rootwalker: Bloom",
+        { color: "#fff0d8", fontFamily: HUD_FONT, fontSize: "15px", fontStyle: "bold" },
+      ),
+    );
+    s.tweens.add({ targets: box, x: home, duration: this.motion.fast ? 0 : 260, ease: "Back.easeOut" });
     s.tweens.add({
-      targets: parts,
+      targets: box,
       alpha: 0,
       delay: this.motion.fast ? 700 : 1700,
       duration: 260,
-      onComplete: () => parts.forEach((p) => p.destroy()),
+      onComplete: () => box.destroy(),
     });
     if (action.kind === "daze" || action.kind === "soak") {
       this.fx.statusApplied("wild", action.kind === "daze" ? "dazed" : "soaked");

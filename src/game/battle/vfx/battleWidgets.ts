@@ -57,6 +57,27 @@ export function addKeycap(
   return cap;
 }
 
+/**
+ * Fit a one-line label into `maxW` (local px): step the font down to `minPx`,
+ * then cut the end behind an ellipsis. Long nicknames never run into chips.
+ */
+export function fitText(text: Phaser.GameObjects.Text, maxW: number, minPx: number): void {
+  const full = text.text;
+  let size = Number.parseFloat(String(text.style.fontSize)) || minPx;
+  while (text.width > maxW && size > minPx) {
+    size -= 1;
+    text.setFontSize(size);
+  }
+  if (text.width <= maxW) {
+    return;
+  }
+  let chars = full.length;
+  while (chars > 1 && text.width > maxW) {
+    chars -= 1;
+    text.setText(`${full.slice(0, chars).trimEnd()}…`);
+  }
+}
+
 /** True on a fine pointer (mouse): show key hints. Touch screens skip them. */
 export function showKeyHints(): boolean {
   return typeof window === "undefined" ? true : (window.matchMedia?.("(pointer: fine)").matches ?? true);
@@ -194,6 +215,8 @@ export class MoveCard {
       // (the effect colour still says hunter / resisted).
       effect.setText(data.effect.split("  ")[0] ?? data.effect);
     }
+    // Last resort: ellipsize the name so it never touches the effect.
+    fitText(title, room(), 13);
     const subTop = -h / 2 + 29;
     const lines = Math.max(1, Math.floor((h / 2 - 3 - subTop) / 16));
     const sub = scene.add

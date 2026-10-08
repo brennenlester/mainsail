@@ -49,6 +49,7 @@ import {
 import {
   addKeycap,
   addToast,
+  fitText,
   drawCardPanel,
   MoveCard,
   showKeyHints,
@@ -526,7 +527,12 @@ export class BattleScene extends Phaser.Scene {
             : this.wildSprite.clearTint()
           : this.syncPlayerPresenceTint(),
     );
-    this.fx.setFraming({ zoom: () => this.frameZoom(), banner: L.banner, width: L.view.w });
+    this.fx.setFraming({
+      zoom: () => this.frameZoom(),
+      banner: L.banner,
+      // Landscape: the VS band (width + 80) stays inside the arena, off the move column.
+      width: L.mode === "side" ? L.arenaRegion.w - 80 : L.view.w,
+    });
     if (this.story) {
       this.storyUi = new StoryBattleUi(this, this.story, this.fx);
       this.storyUi.setFrame({
@@ -537,6 +543,8 @@ export class BattleScene extends Phaser.Scene {
         viewW: L.view.w,
         intentY: L.intent.y,
         emberY: L.dais.y + 120 * L.s,
+        arenaX: L.mode === "side" ? L.arenaRegion.x : L.view.x,
+        arenaW: L.mode === "side" ? L.arenaRegion.w : L.view.w,
       });
       this.storyUi.decorateFoe(this.wildSprite);
       setBattleTheme(this.story.def.theme, this);
@@ -1414,6 +1422,19 @@ export class BattleScene extends Phaser.Scene {
       row.add(art);
 
       const nameX = rowX + 82;
+      const chips = ([
+        [`Lv ${creature.level}`, 0x2a4462, CARD.creamCss],
+        [def.folkloreType.toUpperCase(), TYPE_CHIP_COLORS[def.folkloreType], CARD.inkCss],
+      ] as const).map(([label, fill, color]) => {
+        const chip = addChip(this, 0, -rowH / 2 + 22, label, fill, color, 12);
+        if (fainted) {
+          chip.setAlpha(0.5);
+        }
+        return chip;
+      });
+      const chipsW = chips.reduce((sum, chip) => sum + chip.width + 6, 0);
+      // Right end keeps room for the keycap / IN BATTLE / FAINTED tag.
+      const nameRoom = rowX + rowW - 14 - 92 - chipsW - 8 - nameX;
       const name = this.add
         .text(nameX, -rowH / 2 + 10, displayNameMarked(creature), {
           fontFamily: HUD_FONT,
@@ -1422,17 +1443,11 @@ export class BattleScene extends Phaser.Scene {
           color: fainted ? CARD.mutedCss : CARD.creamCss,
         })
         .setOrigin(0, 0);
+      fitText(name, nameRoom, 14);
       row.add(name);
       let chipX = nameX + name.width + 8;
-      for (const [label, fill, color] of [
-        [`Lv ${creature.level}`, 0x2a4462, CARD.creamCss],
-        [def.folkloreType.toUpperCase(), TYPE_CHIP_COLORS[def.folkloreType], CARD.inkCss],
-      ] as const) {
-        const chip = addChip(this, 0, -rowH / 2 + 22, label, fill, color, 12);
+      for (const chip of chips) {
         chip.setX(chipX + chip.width / 2);
-        if (fainted) {
-          chip.setAlpha(0.5);
-        }
         row.add(chip);
         chipX += chip.width + 6;
       }
@@ -2179,13 +2194,9 @@ export class BattleScene extends Phaser.Scene {
       `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${shownType}`,
     );
     if (hud.nameWidth) {
-      // Narrow phone plates: shrink a long name line rather than overrun the plate.
-      let size = 15;
-      hud.name.setFontSize(size);
-      while (hud.name.width > hud.nameWidth && size > 11) {
-        size -= 1;
-        hud.name.setFontSize(size);
-      }
+      // Narrow phone plates: shrink, then ellipsize a long name line.
+      hud.name.setFontSize(15);
+      fitText(hud.name, hud.nameWidth, 11);
     }
     // The boss bar shows the current form's slice of her pool (#401).
     const shown = (hud === this.wildHud && this.storyUi?.barHp()) || { current: who.currentHp, max: who.maxHp };

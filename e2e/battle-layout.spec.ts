@@ -28,6 +28,10 @@ async function startSpar(page: Page): Promise<void> {
     const party = await import("/src/game/creatures/party.ts");
     party.addToParty("mossling", 6);
     party.addToParty("ember-wisp", 5);
+    // 16-character nicknames: chrome must fit / ellipsize them.
+    for (const creature of party.getActiveCreatures()) {
+      creature.nickname = "Sir Mossington I";
+    }
     const save = await import("/src/game/world/worldSaveSchedule.ts");
     save.notifyWorldChanged();
     save.flushPendingHostSave();
@@ -116,18 +120,22 @@ test("keyboard: S opens switch, Esc closes, 1 plays the first move; DOM inputs k
       return new Function("s", `return ${e}`)(s);
     }, expr);
 
-  // Typing in a DOM field never drives the battle.
-  await page.evaluate(() => {
-    const input = document.createElement("input");
-    input.id = "qa-typing";
-    document.body.appendChild(input);
-    input.focus();
-  });
-  await page.keyboard.press("1");
-  await page.keyboard.press("s");
+  // Typing in a DOM field never drives the battle — even when the field
+  // closes on that very key (Phaser reads keys a frame late, after focus moved).
+  const typeIntoClosingField = async (key: string): Promise<void> => {
+    await page.evaluate(() => {
+      const input = document.createElement("input");
+      document.body.appendChild(input);
+      input.focus();
+      input.addEventListener("keydown", () => input.remove());
+    });
+    await page.keyboard.press(key);
+    await page.waitForTimeout(250);
+  };
+  await typeIntoClosingField("1");
+  await typeIntoClosingField("s");
   expect(await scene("s.waitingForPlayer")).toBe(true);
   expect(await scene("s.switchMenuOpen")).toBe(false);
-  await page.evaluate(() => document.getElementById("qa-typing")?.remove());
 
   await page.keyboard.press("s");
   expect(await scene("s.switchMenuOpen")).toBe(true);
@@ -225,12 +233,17 @@ test("boss fight at 320x568 keeps the Matriarch on screen and readable", async (
       h: b.height * k,
       arena: s.layout.arenaRegion.h * s.layout.unit,
       sheetTop: canvas.top + (s.layout.sheet.y - cam.worldView.y) * k,
+      arenaTop: canvas.top + (s.layout.arenaRegion.y - cam.worldView.y) * k,
     };
   });
   expect(box.arena).toBeGreaterThanOrEqual(170);
-  expect(box.h).toBeGreaterThanOrEqual(90);
+  // Displayed boss art: big enough to read, and (with the boss scale in the
+  // arena fit) not pushed past the right edge.
+  expect(box.h).toBeGreaterThanOrEqual(100);
   expect(box.x).toBeGreaterThanOrEqual(-2);
   expect(box.x + box.w).toBeLessThanOrEqual(322);
+  // Head below the plates / intent row (the boss scale is in the arena fit).
+  expect(box.y).toBeGreaterThanOrEqual(box.arenaTop - 4);
   // Standing in the arena, above the command sheet.
   expect(box.y + box.h).toBeLessThanOrEqual(box.sheetTop + 2);
 });

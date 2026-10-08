@@ -3,7 +3,7 @@ import { playUiClickSfx } from "../../audio/gameAudio";
 import { CARD, CARD_FONT, CardButton } from "../../ui/encounterCard";
 import { isDomKeyboardTarget } from "../../ui/canvasFocus";
 import type { BattleFxMode } from "./battleTiming";
-import { drawCardPanel, showKeyHints } from "./battleWidgets";
+import { drawCardPanel, fitText, showKeyHints } from "./battleWidgets";
 import { xpBarSegments, type VictorySummary } from "./victorySummary";
 
 /**
@@ -98,11 +98,13 @@ export function showBattleResultPanel(
   let y = top + 92;
   rows.forEach((row, i) => {
     const leveled = row.toLevel > row.fromLevel;
-    add(
+    const name = add(
       scene.add
         .text(left, y, row.name, { fontFamily: FONT, fontStyle: "bold", fontSize: "17px", color: CARD.creamCss })
         .setOrigin(0, 0.5),
     );
+    // Long nicknames stop short of the "Lv" column.
+    fitText(name, 142, 13);
     const lvText = add(
       scene.add
         .text(left + 150, y, `Lv ${row.fromLevel}`, { fontFamily: FONT, fontStyle: "bold", fontSize: "15px", color: CARD.mutedCss })
