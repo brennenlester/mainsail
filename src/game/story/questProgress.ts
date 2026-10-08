@@ -213,14 +213,12 @@ export function getActiveQuestId(): QuestId | null {
 const SHRINE_STORY_BEATS: readonly QuestId[] = ["shrine-craft", "first-evolution", "shrine-finale"];
 
 /**
- * Story beats keep the stage clear (#418): no wild encounters anywhere on the
- * walk back for the finale, nor in the Moon Shrine while a shrine beat is active.
+ * Story beats keep the stage clear (#418): no wild encounters in the Moon
+ * Shrine while a shrine beat (first craft, first evolution, the finale) is
+ * active. Every other zone keeps its encounters.
  */
 export function isStoryBeatSuppressingWild(zoneId: ZoneId): boolean {
   const active = getActiveQuestId();
-  if (active === "shrine-finale") {
-    return true;
-  }
   return zoneId === "shrine" && active !== null && SHRINE_STORY_BEATS.includes(active);
 }
 

@@ -9,7 +9,9 @@ import {
   RARE_VARIANT_CHANCE,
   rareHueShift,
   rareVariantGlow,
+  rareVariantAccentCss,
   rareVariantGlowCss,
+  rareLookSpecies,
   rareVariantTint,
   rollRareVariant,
 } from "./rareVariant";
@@ -60,6 +62,14 @@ describe("rare variant", () => {
     expect(rareVariantTint("cinder-toad")).toBe(0xffffff);
     expect(rareVariantGlow("cinder-toad")).toBe(0xff8a3a);
     expect(rareVariantGlowCss("cinder-toad", 0.5)).toBe("rgba(255, 138, 58, 0.5)");
+    expect(rareVariantAccentCss("cinder-toad")).toBe("#ff8a3a");
+    expect(rareVariantAccentCss("mossling")).toBe("#d4b0ff");
+  });
+
+  it("an evolved rare keeps its species' look", () => {
+    expect(rareLookSpecies("bramblewarden")).toBe("mossling");
+    expect(rareHueShift("bramblewarden")).toBe(rareHueShift("mossling"));
+    expect(rareVariantTint("hearthflame")).toBe(rareVariantTint("ember-wisp"));
   });
 });
 

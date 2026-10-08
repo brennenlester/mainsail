@@ -8,7 +8,7 @@ import {
 import { hasCraftedWeapon } from "../battle/wandererWeapons";
 import type { CreatureInstance } from "../creatures/types";
 import { hasPresenceGrowth } from "../shrine/presence";
-import { isRareVariant } from "../share/rareVariant";
+import { isRareVariant, rareVariantAccentCss } from "../share/rareVariant";
 
 export const HP_PIP_SEGMENTS = 5;
 
@@ -70,6 +70,11 @@ function appendPipRow(parent: HTMLElement, creature: CreatureInstance): void {
   if (isRareVariant(creature)) {
     const star = document.createElement("span");
     star.className = "party-hp-rare";
+    // Cinderling's star burns ember; other rares keep the lavender class colour.
+    const accent = rareVariantAccentCss(creature.speciesId ?? creature.definitionId);
+    if (accent !== "#d4b0ff") {
+      star.style.color = accent;
+    }
     star.title = "Rare variant";
     star.textContent = " ✦";
     name.append(star);

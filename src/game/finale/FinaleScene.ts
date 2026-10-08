@@ -201,7 +201,7 @@ export class FinaleScene extends Phaser.Scene {
   }
 
   private cell(x: number, y: number, c: FinaleCompanion): Phaser.GameObjects.Container {
-    const rareGlow = c.rare ? rareVariantGlow(c.definitionId) : null;
+    const rareGlow = c.rare ? rareVariantGlow(c.speciesId) : null;
     const bg = this.add.rectangle(0, 0, CELL_W, CELL_H, NAVY, 0.92).setStrokeStyle(2, rareGlow ?? GOLD, 0.7);
     const glow = this.add
       .image(0, -28, FX_TEX.halo)
@@ -214,7 +214,7 @@ export class FinaleScene extends Phaser.Scene {
     const sprite = this.add.image(0, -28, key, frame);
     const fit = Math.min(88 / Math.max(1, sprite.width), 88 / Math.max(1, sprite.height));
     sprite.setScale(fit);
-    if (c.rare) sprite.setTint(rareVariantTint(c.definitionId));
+    if (c.rare) sprite.setTint(rareVariantTint(c.speciesId));
     const name = this.add
       .text(0, 26, c.name, { fontFamily: SANS, fontSize: "15px", fontStyle: "bold", color: "#fff8ec" })
       .setOrigin(0.5);

@@ -1062,7 +1062,7 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
     const target = Phaser.Math.Clamp(
-      archipelagoCameraZoom(this.scale.width, this.scale.height, isSailing()),
+      archipelagoCameraZoom(this.scale.width, this.scale.height, isSailing(), this.scale.height / RENDER_DPR),
       0.01,
       MAX_ZONE_ZOOM_CSS * RENDER_DPR,
     );
@@ -1422,7 +1422,7 @@ export class IsometricScene extends Phaser.Scene {
       // so startFollow pans N/S/E/W at a playable scale (not a full-map overview).
       const zoom =
         zone.id === "archipelago"
-          ? archipelagoCameraZoom(this.scale.width, this.scale.height, isSailing())
+          ? archipelagoCameraZoom(this.scale.width, this.scale.height, isSailing(), this.scale.height / RENDER_DPR)
           : Math.min(this.scale.width / fitW, this.scale.height / fitH);
       // Allow zoom to scale with HiDPI buffer; capped so interiors on big
       // monitors do not blow sprites up past their authored detail.

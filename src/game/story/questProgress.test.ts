@@ -488,11 +488,15 @@ describe("second-act Want exclusivity (AC3)", () => {
 describe("story beats keep wild encounters away (#418)", () => {
   beforeEach(() => resetWorld());
 
-  it("no wild rolls anywhere while the shrine finale is pending", () => {
+  it("finale pending: the shrine is quiet, every other zone keeps its encounters", () => {
     restoreQuestProgress(progressAt("shrine-finale"));
-    for (const zone of ["shrine", "overworld", "emberfen", "mistwood"] as const) {
-      expect(isStoryBeatSuppressingWild(zone)).toBe(true);
+    expect(isStoryBeatSuppressingWild("shrine")).toBe(true);
+    for (const zone of ["overworld", "emberfen", "mistwood", "grove", "archipelago"] as const) {
+      expect(isStoryBeatSuppressingWild(zone)).toBe(false);
     }
+    // Cleared once the finale is done.
+    restoreQuestProgress(allQuestsComplete());
+    expect(isStoryBeatSuppressingWild("shrine")).toBe(false);
   });
 
   it("the Moon Shrine is quiet during its altar beats only", () => {

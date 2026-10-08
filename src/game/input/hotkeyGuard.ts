@@ -21,13 +21,35 @@ const MOVEMENT_CODES: ReadonlySet<string> = new Set([
 
 const held = new Set<string>();
 
+/**
+ * macOS never delivers keyup for keys pressed while Cmd is down (Cmd+A,
+ * Cmd+arrow): skip those keys, and forget everything on any Meta key event,
+ * so no key stays "held" forever.
+ */
+export function trackKey(e: Pick<KeyboardEvent, "code" | "key" | "metaKey">, down: boolean): void {
+  if (e.key === "Meta" || e.code === "MetaLeft" || e.code === "MetaRight") {
+    held.clear();
+    return;
+  }
+  if (!down) {
+    held.delete(e.code);
+  } else if (!e.metaKey) {
+    held.add(e.code);
+  }
+}
+
+/** Test hook: the codes currently tracked as held. */
+export function heldKeys(): ReadonlySet<string> {
+  return held;
+}
+
 /** Window-level key tracker (capture phase, so Phaser's own handling cannot hide keys). */
 function installTracker(): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.addEventListener("keydown", (e) => held.add(e.code), true);
-  window.addEventListener("keyup", (e) => held.delete(e.code), true);
+  window.addEventListener("keydown", (e) => trackKey(e, true), true);
+  window.addEventListener("keyup", (e) => trackKey(e, false), true);
   // Keyups are lost while the tab is unfocused.
   window.addEventListener("blur", () => held.clear());
 }

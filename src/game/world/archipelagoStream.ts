@@ -47,6 +47,10 @@ export function archipelagoHalfViewCols(aspect: number): number {
 export const SAIL_ZOOM_BOOST = 1.35;
 /** ...but a narrow (portrait) stage still shows at least this many columns. */
 export const SAIL_MIN_VIEW_COLS = 14;
+/** Short (landscape phone) stages: sailing fits at most this many rows tall... */
+export const SAIL_SHORT_FIT_ROWS = 16;
+/** ...where "short" is a stage at most this many CSS px tall. */
+export const SAIL_SHORT_STAGE_CSS = 520;
 
 /**
  * Archipelago camera zoom for a stage (render px). On foot it fits
@@ -54,13 +58,25 @@ export const SAIL_MIN_VIEW_COLS = 14;
  * stage width. Never below the on-foot fit, so the sprite stream window
  * (sized for that fit by `archipelagoHalfViewCols`) always covers the view.
  */
-export function archipelagoCameraZoom(stageW: number, stageH: number, sailing: boolean): number {
+export function archipelagoCameraZoom(
+  stageW: number,
+  stageH: number,
+  sailing: boolean,
+  /** Stage height in CSS px (render px / DPR); defaults to `stageH`. */
+  cssH: number = stageH,
+): number {
   const base = stageH / (ARCHIPELAGO_CAMERA_FIT_HEIGHT * 48 + 160);
   if (!sailing) {
     return base;
   }
   const widthCap = stageW / (SAIL_MIN_VIEW_COLS * 48);
-  return Math.max(base, Math.min(base * SAIL_ZOOM_BOOST, widthCap));
+  const boosted = Math.max(base, Math.min(base * SAIL_ZOOM_BOOST, widthCap));
+  if (cssH > SAIL_SHORT_STAGE_CSS) {
+    return boosted;
+  }
+  // Landscape phones: the 28-row fit leaves a tiny boat; fit fewer rows (width permitting).
+  const shortFloor = stageH / (SAIL_SHORT_FIT_ROWS * 48 + 160);
+  return Math.max(boosted, Math.min(widthCap, shortFloor));
 }
 
 /** West Harbor gate columns that stay drawn (x in [0, GATE)). */

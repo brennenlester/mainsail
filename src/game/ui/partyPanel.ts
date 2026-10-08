@@ -17,7 +17,8 @@ import type { CreatureInstance } from "../creatures/types";
 import { refreshPartyStatusLine } from "./statusPanel";
 import { popOverlay, pushOverlay } from "./overlayStack";
 import { isVisitorMode } from "../world/worldSession";
-import { isRareVariant, rareVariantGlowCss } from "../share/rareVariant";
+import { isRareVariant, rareVariantAccentCss, rareVariantGlowCss } from "../share/rareVariant";
+import { speciesOf } from "../companions/companionState";
 import {
   BOND_MAX,
   bondTier,
@@ -295,7 +296,7 @@ function buildCreatureCard(
   if (isRareVariant(creature)) {
     // Same glow as the finale / share cards (#418); the art keeps its palette.
     portrait.classList.add("party-portrait--rare");
-    portrait.style.setProperty("--rare-glow", rareVariantGlowCss(creature.definitionId, 0.7));
+    portrait.style.setProperty("--rare-glow", rareVariantGlowCss(speciesOf(creature), 0.7));
   }
 
   const main = el("span", "party-card-main");
@@ -303,6 +304,7 @@ function buildCreatureCard(
   const nameRow = el("span", "party-card-name", name);
   if (isRareVariant(creature)) {
     const rare = el("span", "party-rare", " ✦");
+    rare.style.color = rareVariantAccentCss(speciesOf(creature));
     rare.title = "Rare variant";
     nameRow.appendChild(rare);
   }

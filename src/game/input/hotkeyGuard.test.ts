@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOTKEY_ARM_MS, HotkeyGuard, hotkeyAllowed } from "./hotkeyGuard";
+import { HOTKEY_ARM_MS, HotkeyGuard, heldKeys, hotkeyAllowed, trackKey } from "./hotkeyGuard";
 
 describe("hotkeyAllowed (#418)", () => {
   const base = { openedAt: 1000, held: [] as string[] };
@@ -26,6 +26,19 @@ describe("hotkeyAllowed (#418)", () => {
     for (const code of ["Digit1", "Digit2", "Digit3", "KeyB", "KeyF", "KeyS"]) {
       expect(hotkeyAllowed({ ...base, now, code, held: [code] })).toBe(true);
     }
+  });
+
+  it("Cmd chords never leave a key stuck as held (macOS drops their keyup)", () => {
+    trackKey({ code: "MetaLeft", key: "Meta", metaKey: true }, true);
+    trackKey({ code: "ArrowDown", key: "ArrowDown", metaKey: true }, true);
+    expect(heldKeys().has("ArrowDown")).toBe(false);
+    trackKey({ code: "KeyD", key: "d", metaKey: false }, true);
+    expect(heldKeys().has("KeyD")).toBe(true);
+    // Any Meta event resets the list (a keyup may never come).
+    trackKey({ code: "MetaLeft", key: "Meta", metaKey: false }, false);
+    expect(heldKeys().size).toBe(0);
+    const guard = new HotkeyGuard(0);
+    expect(guard.allows({ code: "KeyS" }, HOTKEY_ARM_MS)).toBe(true);
   });
 
   it("HotkeyGuard arms after the window", () => {
