@@ -31,6 +31,18 @@ const OUT_DIR = path.join(ASSETS, "atlas");
 const PAGE = 2048;
 /** Edge pixels repeated around each frame so bilinear/mip sampling never pulls neighbors. */
 const EXTRUDE = 2;
+/**
+ * Ground tiles and shore pieces sit edge to edge and are drawn far below 1:1
+ * (an Archipelago tile is ~24 px from 192 px, mip level 3), where a 2 px
+ * extrusion lets mip texels mix in the transparent gutter and every tile
+ * seam shows as a hairline grid (#412). They get a wider extrusion.
+ */
+const TILE_EXTRUDE = 12;
+const TILE_KEY = /^(floor-|tile-|shore-|wall-cottage-top)/;
+
+function extrudeFor(key) {
+  return TILE_KEY.test(key) ? TILE_EXTRUDE : EXTRUDE;
+}
 const PADDING = 2;
 const CLASS_DIRS = ["player", "creatures", "world"];
 // Villagers are only packed from Blender renders (legacy NPC PNGs stay standalone).
@@ -99,13 +111,14 @@ async function loadFrame(file) {
     w: 1,
     h: 1,
   };
+  const extrude = extrudeFor(file.key);
   const trimmed = await sharp(data, { raw: info })
     .extract({ left: bounds.x, top: bounds.y, width: bounds.w, height: bounds.h })
     .extend({
-      top: EXTRUDE,
-      bottom: EXTRUDE,
-      left: EXTRUDE,
-      right: EXTRUDE,
+      top: extrude,
+      bottom: extrude,
+      left: extrude,
+      right: extrude,
       extendWith: "copy",
     })
     .png()
@@ -119,8 +132,9 @@ async function loadFrame(file) {
     trim: bounds,
     buffer: trimmed,
     // Slot size on the page including extrusion + padding.
-    slotW: bounds.w + EXTRUDE * 2 + PADDING,
-    slotH: bounds.h + EXTRUDE * 2 + PADDING,
+    extrude,
+    slotW: bounds.w + extrude * 2 + PADDING,
+    slotH: bounds.h + extrude * 2 + PADDING,
   };
 }
 
@@ -247,7 +261,7 @@ async function main() {
   for (const it of items) {
     const owner = byHash.get(it.hash);
     if (owner !== it) {
-      Object.assign(it, { page: owner.page, x: owner.x, y: owner.y });
+      Object.assign(it, { page: owner.page, x: owner.x, y: owner.y, extrude: owner.extrude });
       pages[owner.page].items.push(it);
       it.alias = true;
     }
@@ -287,7 +301,7 @@ async function main() {
           rotated: false,
           trimmed:
             it.trim.w !== it.sourceW || it.trim.h !== it.sourceH,
-          frame: { x: it.x + EXTRUDE, y: it.y + EXTRUDE, w: it.trim.w, h: it.trim.h },
+          frame: { x: it.x + it.extrude, y: it.y + it.extrude, w: it.trim.w, h: it.trim.h },
           spriteSourceSize: { x: it.trim.x, y: it.trim.y, w: it.trim.w, h: it.trim.h },
           sourceSize: { w: it.sourceW, h: it.sourceH },
         })),

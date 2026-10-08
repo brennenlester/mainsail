@@ -1,4 +1,4 @@
-import type { ZoneId } from "../world/zoneTypes";
+import { TileType, type ZoneDefinition, type ZoneId } from "../world/zoneTypes";
 
 /** Rendered ground variants per zone (`floor-<zone>-v0..3`, #361). */
 export const FLOOR_VARIANT_COUNT = 4;
@@ -98,4 +98,114 @@ export function floorVariantKey(zoneId: ZoneId, x: number, y: number): string {
   const h = tileHash(x, y);
   const v = h < 0.55 ? 0 : h < 0.75 ? 1 : h < 0.88 ? 2 : 3;
   return `${prefix}-v${v}`;
+}
+
+// ---------------------------------------------------------------------------
+// #412: one ocean for every water tile + shore pieces in the sea zones.
+// ---------------------------------------------------------------------------
+
+/** Zones drawn with shore pieces and the pier-over-water overlay. */
+export const SEA_ZONES: ReadonlySet<ZoneId> = new Set(["harbor", "archipelago", "overworld"]);
+
+/**
+ * Hashed ocean variant (same weights as floors). Deep and shallow sets share
+ * their border detail, so any variant sits seamlessly next to any other.
+ */
+export function waterVariantKey(x: number, y: number, shallow: boolean): string {
+  const h = tileHash(x, y);
+  const v = h < 0.55 ? 0 : h < 0.75 ? 1 : h < 0.88 ? 2 : 3;
+  return `tile-sea-${shallow ? "shallow" : "deep"}-v${v}`;
+}
+
+type Grid = Pick<ZoneDefinition, "id" | "tiles" | "width" | "height">;
+export type SeaCell = "water" | "pier" | "land";
+
+/** Water, pier (dock planks over water) or land; off the map is open water. */
+export function seaCellAt(zone: Grid, x: number, y: number): SeaCell {
+  if (x < 0 || y < 0 || x >= zone.width || y >= zone.height) return "water";
+  const tile = zone.tiles[y]![x]!;
+  // Islet tiles are water with a round sandbar painted in: no foam around them.
+  if (tile === TileType.Water || isIslet(zone, x, y)) return "water";
+  if (tile === TileType.Dock || FLOOR_TILE_KEYS[zone.id]?.[`${x},${y}`]?.startsWith("tile-dock")) {
+    return "pier";
+  }
+  return "land";
+}
+
+function isIslet(zone: Grid, x: number, y: number): boolean {
+  return FLOOR_TILE_KEYS[zone.id]?.[`${x},${y}`]?.endsWith("-islet") ?? false;
+}
+
+/** True when any of the 8 neighbours is not open water (shallow variants). */
+export function nearShore(zone: Grid, x: number, y: number): boolean {
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if ((dx || dy) && seaCellAt(zone, x + dx, y + dy) !== "water") return true;
+    }
+  }
+  return false;
+}
+
+/** One overlay sprite: an atlas key turned `turns` quarter turns clockwise. */
+export type SeaLayer = { key: string; turns: 0 | 1 | 2 | 3 };
+
+/** N, E, S, W in grid steps (screen-up is -y). */
+const SIDES: ReadonlyArray<readonly [number, number]> = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+];
+
+/**
+ * Shore pieces are rendered for the NE quadrant of a tile (`shore-<family>-
+ * edge-n|edge-e|end-n|end-e|inner|outer`) and turned about the tile centre for the
+ * others: quadrant k (NE, SE, SW, NW) is the NE piece turned k times, so its
+ * local N/E sides are SIDES[k] / SIDES[k+1]. `other` marks neighbours of the
+ * region the bands face (land for water tiles, water for land tiles).
+ */
+export function shoreQuadrants(
+  family: "sand" | "land" | "foam",
+  other: (dx: number, dy: number) => boolean,
+): SeaLayer[] {
+  const out: SeaLayer[] = [];
+  for (let k = 0; k < 4; k += 1) {
+    const [ax, ay] = SIDES[k]!;
+    const [bx, by] = SIDES[(k + 1) % 4]!;
+    const a = other(ax, ay);
+    const b = other(bx, by);
+    const d = other(ax + bx, ay + by);
+    // `end-*`: the other region stops at this quadrant's corner (convex end).
+    const piece =
+      a && b ? "inner" : a ? (d ? "edge-n" : "end-n") : b ? (d ? "edge-e" : "end-e") : d ? "outer" : null;
+    if (piece) out.push({ key: `shore-${family}-${piece}`, turns: k as SeaLayer["turns"] });
+  }
+  return out;
+}
+
+/**
+ * Sea-zone layers for one tile. Water and pier tiles get an ocean base
+ * (replacing the dock / checker texture), shore pieces facing the land, and
+ * the pier planks on top; Archipelago island tiles keep their floor and get
+ * a sand rim facing the water. Null outside SEA_ZONES or with nothing to add.
+ */
+export function seaTileLayers(
+  zone: Grid,
+  x: number,
+  y: number,
+): { base?: string; overlays: SeaLayer[] } | null {
+  if (!SEA_ZONES.has(zone.id)) return null;
+  if (isIslet(zone, x, y)) return null; // keeps its own islet tile
+  const cell = seaCellAt(zone, x, y);
+  const at = (dx: number, dy: number) => seaCellAt(zone, x + dx, y + dy);
+  const beach = zone.id === "archipelago";
+  if (cell === "land") {
+    // Harbor quay edges keep their kerb tile; only islands get a sand rim.
+    if (!beach) return null;
+    const overlays = shoreQuadrants("land", (dx, dy) => at(dx, dy) !== "land");
+    return overlays.length ? { overlays } : null;
+  }
+  const overlays = shoreQuadrants(beach ? "sand" : "foam", (dx, dy) => at(dx, dy) === "land");
+  if (cell === "pier") overlays.push({ key: "tile-pier", turns: 0 });
+  return { base: waterVariantKey(x, y, nearShore(zone, x, y)), overlays };
 }

@@ -261,8 +261,8 @@ describe("archipelago chunk ensure", () => {
   });
 
   it("reports a visual cull frontier behind the player without walling water", () => {
-    const cull = archipelagoVisualCullBefore(80);
-    expect(cull).toBe(80 - ARCHIPELAGO_LOOKBEHIND);
+    const cull = archipelagoVisualCullBefore(50);
+    expect(cull).toBe(50 - ARCHIPELAGO_LOOKBEHIND);
     expect(cull).toBeGreaterThan(3);
     expect(ARCHIPELAGO.tiles[ARCHIPELAGO_ENTRY.y][cull - 1]).toBe(TileType.Water);
     expect(archipelagoVisualCullBefore(10)).toBe(3);
@@ -368,9 +368,9 @@ describe("archipelago sailing snapshot", () => {
 
 describe("archipelago visual XY window", () => {
   it("keeps a local XY window and always includes west gate columns in membership", () => {
-    const win = archipelagoVisualWindow(80, 50);
-    expect(win.xMin).toBe(80 - ARCHIPELAGO_LOOKBEHIND);
-    expect(win.xMax).toBe(Math.min(ARCHIPELAGO_MAX_WIDTH, 80 + ARCHIPELAGO_VISUAL_AHEAD + 1));
+    const win = archipelagoVisualWindow(50, 50);
+    expect(win.xMin).toBe(50 - ARCHIPELAGO_LOOKBEHIND);
+    expect(win.xMax).toBe(50 + ARCHIPELAGO_VISUAL_AHEAD + 1);
     expect(win.yMin).toBe(50 - ARCHIPELAGO_VISUAL_MARGIN_Y);
     expect(win.yMax).toBe(50 + ARCHIPELAGO_VISUAL_MARGIN_Y + 1);
     expect(isInArchipelagoVisualWindow(1, 0, win)).toBe(true);
@@ -379,6 +379,19 @@ describe("archipelago visual XY window", () => {
     expect(isInArchipelagoVisualWindow(win.xMin - 1, win.yMin, win)).toBe(false);
     expect(isInArchipelagoVisualWindow(win.xMax, win.yMin, win)).toBe(false);
     expect(isInArchipelagoVisualWindow(win.xMin, win.yMax, win)).toBe(false);
+  });
+
+  it("keeps the full span at map edges where the camera clamps (#412)", () => {
+    const span = ARCHIPELAGO_LOOKBEHIND + ARCHIPELAGO_VISUAL_AHEAD + 1;
+    const west = archipelagoVisualWindow(ARCHIPELAGO_ENTRY.x, 1);
+    expect(west.xMin).toBe(ARCHIPELAGO_GATE_COLUMNS);
+    expect(west.xMax).toBe(ARCHIPELAGO_GATE_COLUMNS + span);
+    expect(west.yMin).toBe(0);
+    expect(west.yMax).toBe(ARCHIPELAGO_VISUAL_MARGIN_Y * 2 + 1);
+    const east = archipelagoVisualWindow(ARCHIPELAGO_MAX_WIDTH - 1, ARCHIPELAGO_HEIGHT - 1);
+    expect(east.xMax).toBe(ARCHIPELAGO_MAX_WIDTH);
+    expect(east.xMin).toBe(ARCHIPELAGO_MAX_WIDTH - span);
+    expect(east.yMin).toBe(ARCHIPELAGO_HEIGHT - (ARCHIPELAGO_VISUAL_MARGIN_Y * 2 + 1));
   });
 
   it("does not shrink collision tiles when computing the visual window", () => {

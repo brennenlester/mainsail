@@ -135,6 +135,31 @@ describe("packed atlas manifest", () => {
     }
   });
 
+  it("ships the #412 ocean kit and aliases the legacy water keys", () => {
+    for (const depth of ["deep", "shallow"]) {
+      for (let v = 0; v < 4; v += 1) {
+        expect(frames.has(`tile-sea-${depth}-v${v}`), `${depth} v${v}`).toBe(true);
+      }
+    }
+    for (const family of ["sand", "land", "foam"]) {
+      for (const piece of ["edge-n", "edge-e", "end-n", "end-e", "inner", "outer"]) {
+        expect(frames.has(`shore-${family}-${piece}`), `${family} ${piece}`).toBe(true);
+      }
+    }
+    expect(frames.has("tile-pier")).toBe(true);
+    // The Harbor sea backdrop is the deep ocean tile now.
+    expect(frames.has("backdrop-harbor")).toBe(false);
+    type Rect = Frame & { frame: { x: number; y: number } };
+    const rect = (key: string) =>
+      atlas.textures.flatMap((p) => (p.frames as Rect[]).map((f) => ({ ...f, page: p.image }))).find((f) => f.filename === key);
+    expect(JSON.stringify(rect("tile-water-light"))).toBe(
+      JSON.stringify({ ...rect("tile-sea-deep-v0"), filename: "tile-water-light" }),
+    );
+    // Tile frames carry a wide extruded gutter so mips do not draw a grid.
+    expect(rect("tile-sea-deep-v1")!.frame.x).toBeGreaterThanOrEqual(12);
+    expect(rect("tile-sea-deep-v1")!.frame.y).toBeGreaterThanOrEqual(12);
+  });
+
   it("ships the Blender player walk (6 per facing) and Mossling sets", () => {
     for (const facing of ["south", "north", "east", "west"]) {
       for (let i = 0; i <= 6; i += 1) {

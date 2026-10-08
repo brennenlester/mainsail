@@ -24,11 +24,12 @@ import bpy  # noqa: E402
 import biomes  # noqa: E402
 import creatures  # noqa: E402
 import models  # noqa: E402
+import ocean  # noqa: E402
 import stage  # noqa: E402
 import village  # noqa: E402
 from specs import SPECS  # noqa: E402
 
-BUILDERS = {**models.BUILDERS, **village.BUILDERS, **biomes.BUILDERS, "creature": creatures.Creature}
+BUILDERS = {**models.BUILDERS, **village.BUILDERS, **biomes.BUILDERS, **ocean.BUILDERS, "creature": creatures.Creature}
 
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 

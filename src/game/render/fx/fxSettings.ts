@@ -19,12 +19,16 @@ export function effectsEnabled(): boolean {
   }
 }
 
+/** Window event fired when the Effects toggle changes (detail: enabled). */
+export const EFFECTS_CHANGED_EVENT = "ivy-effects-changed";
+
 export function setEffectsEnabled(enabled: boolean): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
   } catch {
     // Storage blocked: the toggle still applies for this session.
   }
+  window.dispatchEvent(new CustomEvent(EFFECTS_CHANGED_EVENT, { detail: enabled }));
 }
 
 /** `?time=0.8` pins the day/night phase (QA / screenshots). */

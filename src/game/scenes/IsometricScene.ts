@@ -211,6 +211,8 @@ import {
   ARCHIPELAGO_GATE_COLUMNS,
   ARCHIPELAGO_MAX_WIDTH,
   archipelagoVisualWindow,
+  archipelagoHalfViewCols,
+  inIslandBakeRegion,
   biomeAtIslandTile,
   isArchipelagoIslandPosition,
   ensureArchipelagoChunksAround,
@@ -236,7 +238,15 @@ import { OverworldFx } from "../render/fx/overworldFx";
 import { HUD_PILL_TEXT_STYLE, attachHudPill } from "../ui/hudPill";
 import { OverworldCompanions } from "../companions/overworldCompanions";
 import { floorTintAt } from "../render/fx/floorTint";
-import { floorVariantKey } from "../render/floorVariants";
+import { HORIZON_HEIGHT, drawHorizon, drawSeaBackdrop, teardownHorizon } from "../render/seaBackdrop";
+import { IslandBakes } from "../render/islandBake";
+import {
+  floorVariantKey,
+  nearShore,
+  seaTileLayers,
+  waterVariantKey,
+  type SeaLayer,
+} from "../render/floorVariants";
 
 const FLOOR_LAYER = 0;
 const PROP_LAYER = 0.45;
@@ -366,6 +376,8 @@ export class IsometricScene extends Phaser.Scene {
   /** Westmost column still holding archipelago stream sprites (exclusive cull). */
   /** Live stream-tagged sprites; culls iterate this, never the full display list (#194). */
   private streamSprites = new Set<Phaser.GameObjects.Image>();
+  /** One RenderTexture per Archipelago island in the visual window (#412). */
+  private islandBakes = new IslandBakes(this, () => this.worldOrigin);
 
   private registerStreamSprite(
     img: Phaser.GameObjects.Image,
@@ -1042,6 +1054,11 @@ export class IsometricScene extends Phaser.Scene {
     }
   }
 
+  /** Camera half width in columns for the current stage aspect (#412). */
+  private archipelagoHalfView(): number {
+    return archipelagoHalfViewCols(this.scale.width / Math.max(1, this.scale.height));
+  }
+
   /** Refresh archipelago floor/prop sprites inside the XY camera window. */
   private syncArchipelagoStream(): void {
     const result = ensureArchipelagoChunksAround(this.playerGridX);
@@ -1051,6 +1068,7 @@ export class IsometricScene extends Phaser.Scene {
       this.playerGridY,
       zone.width,
       zone.height,
+      this.archipelagoHalfView(),
     );
     const prev = this.archipelagoVisualWin;
     const grew = result.grew;
@@ -1091,6 +1109,7 @@ export class IsometricScene extends Phaser.Scene {
     this.drawZoneTileColumns(zone, win.xMin, win.xMax, win.yMin, win.yMax);
     this.drawWallsInColumns(zone, win.xMin, win.xMax, win.yMin, win.yMax);
     this.drawArchipelagoPropsInWindow(win);
+    this.islandBakes.sync(zone, win);
   }
 
   private drawArchipelagoLiveRect(
@@ -1167,6 +1186,11 @@ export class IsometricScene extends Phaser.Scene {
         next.yMax,
       );
     }
+
+    if (result.grew) {
+      this.islandBakes.clear();
+    }
+    this.islandBakes.sync(zone, next);
 
     // Docked boat may have been culled if its pad left the window.
     this.drawPlacedBoat(zone);
@@ -1252,6 +1276,11 @@ export class IsometricScene extends Phaser.Scene {
     this.playerDepth = playerDepthAboveGrid(zone.width, zone.height);
     markZoneDiscovered(zoneId);
 
+    // removeAll(true) skips destroy callbacks: drop what the zone owns by hand
+    // (stream sprite registry, baked islands, the horizon's cloud tween).
+    teardownHorizon();
+    this.islandBakes.clear();
+    this.streamSprites.clear();
     this.children.removeAll(true);
     destroyPartyOverworldFollowers(this.partyFollowers);
     this.partyFollowers = createPartyOverworldFollowerState();
@@ -1269,6 +1298,7 @@ export class IsometricScene extends Phaser.Scene {
         this.playerGridY,
         zone.width,
         zone.height,
+        this.archipelagoHalfView(),
       );
     }
 
@@ -1399,11 +1429,13 @@ export class IsometricScene extends Phaser.Scene {
           Math.max(0, (this.scale.height / clamped - bounds.height) / 2 + 2),
         );
       }
+      // The Archipelago camera may look north over the horizon (#412).
+      const north = zone.id === "archipelago" ? HORIZON_HEIGHT : 0;
       cam.setBounds(
         bounds.minX - padX,
-        bounds.minY - padY,
+        bounds.minY - padY - north,
         bounds.width + padX * 2,
-        bounds.height + padY * 2,
+        bounds.height + padY * 2 + north,
       );
     this.layoutWorldHudTexts();
     } finally {
@@ -1494,6 +1526,10 @@ export class IsometricScene extends Phaser.Scene {
         if (tileType === TileType.Wall) {
           continue;
         }
+        // Island + shore ring cells are drawn by the island's baked image.
+        if (zone.id === "archipelago" && inIslandBakeRegion(x, y)) {
+          continue;
+        }
 
         const screen = this.toScreen(x, y);
         const light = (x + y) % 2 === 0;
@@ -1505,8 +1541,15 @@ export class IsometricScene extends Phaser.Scene {
         if (variant) {
           textureKey = variantKey;
         }
-        if (tileType === TileType.Water) {
-          textureKey = getWaterTextureKey(light);
+        // #412: hashed ocean variants (no checker); sea zones also lay shore
+        // pieces and draw docks as planks over water.
+        const sea = seaTileLayers(zone, x, y);
+        const seaBase = sea?.base && hasWorldTexture(this, sea.base) ? sea.base : undefined;
+        if (seaBase) {
+          textureKey = seaBase;
+        } else if (tileType === TileType.Water) {
+          const oceanKey = waterVariantKey(x, y, nearShore(zone, x, y));
+          textureKey = hasWorldTexture(this, oceanKey) ? oceanKey : getWaterTextureKey(light);
         } else if (tileType === TileType.Dock) {
           textureKey = getDockTextureKey(light);
         }
@@ -1516,14 +1559,15 @@ export class IsometricScene extends Phaser.Scene {
           .setOrigin(0.5, 0.5);
         fitDisplay(tile, FLOOR_DISPLAY);
         this.registerStreamSprite(tile, x, y);
-        if (tileType === TileType.Floor || tileType === TileType.Water) {
+        this.drawSeaOverlays(sea?.overlays, screen, x, y);
+        if (tileType === TileType.Floor && !seaBase) {
           // Break up the debug-grid checker (#362); biome/gate tints override.
           tile.setTint(
             floorTintAt(
               x,
               y,
               light && !variant,
-              tileType === TileType.Water ? 0.5 : variant ? 0.6 : 1,
+              variant ? 0.6 : 1,
             ),
           );
         }
@@ -1531,12 +1575,9 @@ export class IsometricScene extends Phaser.Scene {
         if (tileType === TileType.Floor && zone.id === "archipelago") {
           const biome = biomeAtIslandTile(x, y);
           if (biome) {
-            const tint = ISLAND_BIOME_FLOOR_TINT[biome];
-            if (biome === "cairn") {
-              tile.setTintFill(tint);
-            } else {
-              tile.setTint(tint);
-            }
+            // Multiply tint keeps the rendered isle texture (#412; cairn
+            // was a flat tint fill).
+            tile.setTint(ISLAND_BIOME_FLOOR_TINT[biome]);
           }
         }
 
@@ -1556,6 +1597,32 @@ export class IsometricScene extends Phaser.Scene {
         tile.setDepth(depthForGridCell(x, y, FLOOR_LAYER));
       }
     }
+  }
+
+  /** Shore pieces / pier planks over one tile (#412), above every floor tile. */
+  private drawSeaOverlays(
+    layers: readonly SeaLayer[] | undefined,
+    screen: { x: number; y: number },
+    x: number,
+    y: number,
+  ): void {
+    layers?.forEach((layer, i) => {
+      if (!hasWorldTexture(this, layer.key)) {
+        return;
+      }
+      const pier = layer.key === "tile-pier";
+      // Shore pieces are NE quadrants pivoting on the tile centre.
+      const img = this.add
+        .image(screen.x, screen.y, ...imagineTexture(this, layer.key))
+        .setOrigin(pier ? 0.5 : 0, pier ? 0.5 : 1)
+        .setRotation((layer.turns * Math.PI) / 2)
+        .setDepth(depthForGridCell(x, y, FLOOR_LAYER + 0.01 + i * 0.001));
+      img.setDisplaySize(
+        pier ? FLOOR_DISPLAY.width : FLOOR_DISPLAY.width / 2,
+        pier ? FLOOR_DISPLAY.height : FLOOR_DISPLAY.height / 2,
+      );
+      this.registerStreamSprite(img, x, y);
+    });
   }
 
   private drawBackdrop(zone: ZoneDefinition): void {
@@ -1583,6 +1650,20 @@ export class IsometricScene extends Phaser.Scene {
     if (zone.interior || !colors) {
       g.fillStyle(INTERIOR_BACKDROP_COLOR, 1);
       g.fillRect(bounds.minX - 800, bounds.minY - 500, bounds.width + 1600, bounds.height + 1000);
+      return;
+    }
+
+    // #412: open sea around Harbor and the Archipelago (horizon to the north).
+    if (
+      (zone.id === "harbor" || zone.id === "archipelago") &&
+      drawSeaBackdrop(this, bounds, this.worldOrigin)
+    ) {
+      g.destroy();
+      if (zone.id === "archipelago") {
+        drawHorizon(this, this.worldOrigin.y, bounds.minX, bounds.maxX);
+      } else {
+        this.drawEdgeVignette(bounds, 900);
+      }
       return;
     }
 
@@ -1629,6 +1710,13 @@ export class IsometricScene extends Phaser.Scene {
       .setTileScale(0.4 / shrink)
       .setTint(0xb4c0c4)
       .setDepth(-1000);
+    this.drawEdgeVignette(bounds, pad);
+  }
+
+  private drawEdgeVignette(
+    bounds: ReturnType<IsometricScene["getZoneWorldBounds"]>,
+    pad: number,
+  ): void {
     // Soft navy vignette: deepens with distance from the tile edge (bounds
     // carry an 80px margin around the tiles).
     const edge = {
@@ -1641,11 +1729,11 @@ export class IsometricScene extends Phaser.Scene {
     };
     const v = this.add.graphics().setDepth(-999);
     // The camera only shows ~80px past the tiles, so the falloff is tight.
-    const ring = 18;
-    const rings = 7;
+    const ring = 6; // thin rings: a smooth falloff instead of 7 visible bands (#412)
+    const rings = 21;
     for (let i = 0; i < rings; i += 1) {
       const grow = ring / 2 + i * ring;
-      v.lineStyle(ring, 0x1f2a44, 0.14 + i * 0.05);
+      v.lineStyle(ring, 0x1f2a44, 0.14 + (i * 0.35) / rings);
       v.strokeRect(
         edge.minX - grow,
         edge.minY - grow,
@@ -1654,7 +1742,7 @@ export class IsometricScene extends Phaser.Scene {
       );
     }
     const outer = rings * ring;
-    v.fillStyle(0x1f2a44, 0.14 + rings * 0.05);
+    v.fillStyle(0x1f2a44, 0.49);
     v.fillRect(edge.minX - pad, edge.minY - pad, edge.width + pad * 2, pad - outer);
     v.fillRect(edge.minX - pad, edge.maxY + outer, edge.width + pad * 2, pad - outer);
     v.fillRect(edge.minX - pad, edge.minY - outer, pad - outer, edge.height + outer * 2);

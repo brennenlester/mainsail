@@ -440,16 +440,13 @@ def _boundary(key: str, model: str) -> dict:
 
 SPECS += [
     *[s for z in BIOME_FLOORS for s in _biome_floor_set(z)],
-    # Water + dock (global keys: Fields bay, Harbor, Archipelago).
-    _biome_floor("tile-water-light", {"seed": 201, "surface": "water"}),
-    _biome_floor("tile-water-dark", {"seed": 202, "surface": "water"}),
+    # Dock (Fields bay). Water moved to the #412 ocean kit below.
     _biome_floor("tile-dock-light", {"seed": 203, "surface": "pier"}),
     _biome_floor("tile-dock-dark", {"seed": 204, "surface": "pier"}),
     # Canopy backdrops around each playfield.
     _canopy_tile("backdrop-overworld", {"seed": 37, "colors": ("leaf", "#7aa04e", "leaf_light"), "ground": "#5f8a44", "accents": "petal_gold"}),
     _backdrop("backdrop-mistwood", "mist-backdrop"),
     _backdrop("backdrop-emberfen", "fen-backdrop"),
-    _backdrop("backdrop-harbor", "sea-backdrop"),
     # Boundaries.
     _boundary("boundary-overworld", "drystone"),
     _boundary("boundary-mistwood", "pinewall"),
@@ -549,4 +546,31 @@ SPECS += [
 SPECS += [
     {**_floor("wall-cottage-face", {}), "model": "wall-face", "size": (192, 112), "anchor": 56, "outline": 0.0},
     _biome_floor("wall-cottage-top", {"style": "wallcap", "edge_seed": "wallcap", "seed": 300}),
+]
+
+
+# #412: one ocean for the Fields bay, Harbor and Archipelago (ocean.py).
+# `tile-sea-{deep,shallow}-v0..3` are seamless with each other (shared
+# border items); the game picks shallow next to land and a variant by tile
+# hash. `shore-<family>-<case>` are transparent NE-quadrant pieces (96 px) the
+# game rotates per quadrant: "sand" (island beach, water side), "land" (sand
+# rim inside the island tile), "foam" (quay / sea wall). `tile-pier` is the
+# transparent pier drawn over water on dock tiles. The legacy
+# `tile-water-light|dark` keys alias deep v0/v1 (identical pixels, one slot).
+def _ocean(key: str, args: dict, aliases: tuple[str, ...] = ()) -> dict:
+    spec = {**_floor(key, args), "model": "ocean", "outline": 0.0}
+    spec["statics"] = [*spec["statics"], *[(a, "idle", 0.0) for a in aliases]]
+    return spec
+
+
+def _shore(family: str, case: str) -> dict:
+    key = f"shore-{family}-{case}"
+    return {**_floor(key, {"family": family, "case": case}), "model": "shore-quad", "size": (96, 96), "anchor": 48}
+
+
+SPECS += [
+    *[_ocean(f"tile-sea-deep-v{i}", {"depth": "deep", "seed": i + 1}, {0: ("tile-water-light",), 1: ("tile-water-dark",)}.get(i, ())) for i in range(4)],
+    *[_ocean(f"tile-sea-shallow-v{i}", {"depth": "shallow", "seed": i + 1}) for i in range(4)],
+    *[_shore(f, c) for f in ("sand", "land", "foam") for c in ("edge-n", "edge-e", "end-n", "end-e", "inner", "outer")],
+    {**_floor("tile-pier", {}), "model": "pier-top"},
 ]
