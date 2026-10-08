@@ -5,15 +5,15 @@ export const PLAYER_DISPLAY = { width: 48, height: 64 } as const;
 export const CREATURE_DISPLAY = { width: 48, height: 52 } as const;
 
 export const PROP_DISPLAY: Record<string, { width: number; height: number }> = {
-  "prop-tree": { width: 48, height: 50 },
+  "prop-tree": { width: 56, height: 72 },
   "prop-tree-mistwood": { width: 48, height: 50 },
   "prop-tree-emberfen": { width: 48, height: 50 },
   "prop-fern": { width: 40, height: 32 },
-  "prop-shrine-altar": { width: 48, height: 40 },
+  "prop-shrine-altar": { width: 56, height: 64 },
   "prop-standing-stone": { width: 42, height: 38 },
   "prop-pebble-pile": { width: 44, height: 32 },
   "prop-hearth": { width: 48, height: 40 },
-  "prop-cottage": { width: 56, height: 52 },
+  "prop-cottage": { width: 64, height: 64 },
   "prop-gate": { width: 48, height: 42 },
   "prop-gate-locked": { width: 48, height: 42 },
   "prop-loom": { width: 46, height: 44 },
@@ -24,8 +24,12 @@ export const PROP_DISPLAY: Record<string, { width: number; height: number }> = {
 /** Logical on-screen size for villager NPCs. */
 export const NPC_DISPLAY = { width: 48, height: 72 } as const;
 
-/** Logical on-screen sizes for floor / border tiles (Imagine textures are 4×). */
-export const FLOOR_DISPLAY = { width: 48, height: 48 } as const;
+/**
+ * Logical on-screen sizes for floor / border tiles (Imagine textures are 4×).
+ * Floors draw 1px larger than the 48px grid so seamless tiles overlap instead
+ * of showing hairline seams at fractional camera zoom (#360).
+ */
+export const FLOOR_DISPLAY = { width: 49, height: 49 } as const;
 export const BOUNDARY_DISPLAY = { width: 48, height: 56 } as const;
 
 /** Max box for trimmed encounter art inside the panel (above title). */

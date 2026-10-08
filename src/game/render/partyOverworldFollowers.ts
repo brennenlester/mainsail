@@ -18,11 +18,12 @@ import {
   selectOverworldFollowers,
 } from "../shrine/presence";
 import { CREATURE_DISPLAY, fitDisplay } from "./displaySizes";
+import { creatureAnimKey } from "./imagineAssets";
 
 export type Facing = "south" | "north" | "east" | "west";
 
 export type PartyOverworldFollowerState = {
-  sprites: Phaser.GameObjects.Image[];
+  sprites: Phaser.GameObjects.Sprite[];
   moonDots: Phaser.GameObjects.Arc[];
   /** Bond-tier aura under each follower (#367). */
   auras: Phaser.GameObjects.Image[];
@@ -109,15 +110,23 @@ function syncFollowerVisual(
     "idle",
   );
   if (!sprite) {
-    sprite = scene.add.image(px, py, textureKey, textureFrame);
+    sprite = scene.add.sprite(px, py, textureKey, textureFrame);
     sprite.setOrigin(0.5, 1);
-    fitDisplay(sprite, CREATURE_DISPLAY);
     state.sprites[index] = sprite;
   } else {
     sprite.setPosition(px, py);
-    sprite.setTexture(textureKey, textureFrame);
-    fitDisplay(sprite, CREATURE_DISPLAY);
   }
+  // Rendered idle loop (#360) when the creature has one; else static art.
+  const idleAnim = creatureAnimKey(def.spriteKey, "idle");
+  if (scene.anims.exists(idleAnim)) {
+    if (sprite.anims.currentAnim?.key !== idleAnim) {
+      sprite.play({ key: idleAnim, startFrame: index % 3 });
+    }
+  } else {
+    sprite.anims.stop();
+    sprite.setTexture(textureKey, textureFrame);
+  }
+  fitDisplay(sprite, CREATURE_DISPLAY);
 
   if (hasPresenceGrowth(creature)) {
     sprite.setTint(presenceTintForCreature(creature));

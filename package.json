@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
-    "pack:atlas": "node scripts/pack-imagine-atlas.mjs"
+    "pack:atlas": "node scripts/pack-imagine-atlas.mjs",
+    "render:assets": "node scripts/render-assets.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"
