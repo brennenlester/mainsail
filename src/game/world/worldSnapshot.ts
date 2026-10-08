@@ -35,8 +35,9 @@ import {
 import type { QuestId, QuestStatus } from "../story/questTypes";
 import {
   getStorySparLosses,
-  isStorySparId,
+  getStorySparLossStreaks,
   setStorySparLosses,
+  setStorySparLossStreaks,
 } from "../battle/storySpar";
 import { reopenParentSovereignEncounters } from "../shrine/godFusion";
 import { migrateLegacyPresenceCharmBuffs } from "../shrine/presence";
@@ -185,8 +186,12 @@ export type WorldSnapshot = {
   harborBefriendUsed?: string[];
   /** Grove starters Bryn already gifted (#349). Optional for older saves. */
   brynGroveStartersGifted?: string[];
+  /** Altar's one-time Story 4 top-up given (#390). Optional; non-true reads as false. */
+  storyRelicBundleGiven?: boolean;
   /** Story spar beats lost at least once — only the first loss heals (#369). */
   storySparLosses?: string[];
+  /** Real losses in a row per story spar (#385 Hearth Ward). */
+  storySparLossStreaks?: Record<string, number>;
   /** Sovereign Plate wild-encounter suppress toggle (#289). Optional for older saves. */
   sovereignPlateActive?: boolean;
   /** Per-species spar win counts for wild level scaling (#287). Optional for older saves. */
@@ -820,8 +825,14 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
     }
   }
   if (s.storySparLosses !== undefined) {
+    // Unknown ids are filtered on apply (setStorySparLosses), not fatal (#382 review).
     if (!Array.isArray(s.storySparLosses)) return false;
-    if (!s.storySparLosses.every((id) => isStorySparId(id))) return false;
+  }
+  if (s.storySparLossStreaks !== undefined) {
+    // Unknown ids / bad counts are filtered on apply, not fatal.
+    if (typeof s.storySparLossStreaks !== "object" || s.storySparLossStreaks === null || Array.isArray(s.storySparLossStreaks)) {
+      return false;
+    }
   }
   if (s.brynGroveStartersGifted !== undefined) {
     if (!Array.isArray(s.brynGroveStartersGifted)) return false;
@@ -1070,7 +1081,9 @@ export function exportWorldSnapshot(
     story1BefriendGuaranteeConsumed: worldState.story1BefriendGuaranteeConsumed,
     harborBefriendUsed: [...worldState.harborBefriendUsed],
     brynGroveStartersGifted: [...worldState.brynGroveStartersGifted],
+    storyRelicBundleGiven: worldState.storyRelicBundleGiven,
     storySparLosses: getStorySparLosses(),
+    storySparLossStreaks: getStorySparLossStreaks(),
     sovereignPlateActive: worldState.sovereignPlateActive,
     sparWinsBySpecies: { ...sparWinsBySpecies },
     firstIslandLanded: worldState.firstIslandLanded,
@@ -1199,7 +1212,10 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   );
   setHarborBefriendUsed(snapshot.harborBefriendUsed ?? []);
   setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
+  // Filtered, never rejected: a malformed flag just means "not given yet".
+  worldState.storyRelicBundleGiven = snapshot.storyRelicBundleGiven === true;
   setStorySparLosses(snapshot.storySparLosses ?? []);
+  setStorySparLossStreaks(snapshot.storySparLossStreaks ?? {});
   setClaimedSites(
     Array.isArray(snapshot.companionSitesClaimed)
       ? snapshot.companionSitesClaimed.filter(isCompanionSiteId)

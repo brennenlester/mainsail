@@ -13,6 +13,7 @@ Usage:
   python3 scripts/generate-audio.py            # everything
   python3 scripts/generate-audio.py music      # music only
   python3 scripts/generate-audio.py sfx        # sfx only
+  python3 scripts/generate-audio.py music boss rival   # just these (keeps other files untouched)
 
 Outputs (public/assets/audio/):
   music-<id>.ogg / .m4a   mono 22050 Hz, seamless loops (victory is a one-shot)
@@ -582,6 +583,79 @@ def music_victory():
     return m.render(make_ir(2.0, 2.4), wet=0.6)
 
 
+def music_boss():
+    """D Phrygian, 126 bpm, 16 bars (30 s). Cinder Matriarch (#385): war toms,
+    low brass pad, a chromatic ostinato, choir-ish strings and a bell motif."""
+    bpm, bars, bpb = 126, 16, 4
+    spb = 60 / bpm
+    m = Mix(bars * bpb * spb, loop=True)
+    D, Eb, C, Bb = n("D2"), n("Eb2"), n("C2"), n("Bb1")
+    prog = [D, D, Eb, D, D, D, C, Eb, Bb, C, D, Eb, D, D, Eb, C]
+    osti = [0, 1, 0, 3, 0, 1, 7, 6]  # semitones over the root, eighth notes
+    for bar, root in enumerate(prog):
+        b0 = bar * bpb
+        for i, iv in enumerate(osti):
+            m.add((b0 + i * 0.5) * spb, pulse_bass(root + 12 + iv, 0.22), 0.7 if i % 2 == 0 else 0.5)
+        m.add(b0 * spb, bass(root, 1.4), 0.75)
+        # war drums: kick + low toms, a roll every 4th bar
+        m.add(b0 * spb, kick(0.4, 1.1), 1.0)
+        m.add((b0 + 2) * spb, kick(0.4, 1.0), 0.85)
+        m.add((b0 + 1) * spb, tom(140, 70, 0.4), 0.7)
+        m.add((b0 + 3) * spb, tom(150, 75, 0.4), 0.75)
+        m.add((b0 + 3.5) * spb, snare(seed=60 + bar % 4), 0.45)
+        for i in range(4):
+            m.add((b0 + i + 0.5) * spb, hat(seed=70 + i), 0.18)
+        if bar % 4 == 3:
+            for i in range(8):
+                m.add((b0 + 2 + i * 0.25) * spb, tom(200 - i * 12, 90, 0.25), 0.4 + i * 0.04)
+        # brass-ish power chord (root + fifth) pad, minor third on top
+        for tn in (root + 12, root + 19, root + 24):
+            m.add(b0 * spb, pad(tn, bpb * spb, detune=0.1, nh=9, attack=0.08, release=0.4), 0.9, 0.3)
+        for tn in (root + 24, root + 27, root + 31):
+            m.add(b0 * spb, strings(tn, bpb * spb * 0.95, attack=0.5, release=0.6), 0.85, 0.5)
+    D5, Eb5, F5, G5, A5, C6, Bb4, A4 = (n(x) for x in ("D5", "Eb5", "F5", "G5", "A5", "C6", "Bb4", "A4"))
+    motif1 = [(D5, 1.5), (Eb5, 0.5), (D5, 1), (A4, 1), (Bb4, 1.5), (A4, 0.5), (G5 - 12, 1), (A4, 1)]
+    motif2 = [(F5, 1.5), (G5, 0.5), (A5, 1), (C6, 1), (Bb4 + 12, 1.5), (A5, 0.5), (G5, 1), (Eb5, 1)]
+    for bar, mel in ((4, motif1), (8, motif2), (12, motif1)):
+        put_melody(m, mel, bar * bpb, spb, pulse_lead, 0.34, 0.25, vib=0.005)
+    for bar in (0, 8):
+        m.add(bar * bpb * spb, bell(n("D5"), 3.0, 1.0), 0.35, 0.7)
+    return m.render(make_ir(1.4, 3.6, brightness=3000), wet=0.4)
+
+
+def music_rival():
+    """E minor, 150 bpm, 16 bars (26 s). Wren (#385): cocky, bouncy, a bright
+    whistle hook over a skipping bass and handclap kit."""
+    bpm, bars, bpb = 150, 16, 4
+    spb = 60 / bpm
+    m = Mix(bars * bpb * spb, loop=True)
+    E, C, G, D, B = n("E2"), n("C2"), n("G2"), n("D2"), n("B1")
+    prog = [E, E, C, D, E, E, C, B, G, D, E, C, G, D, C, B]
+    minor = {E: True, C: False, G: False, D: False, B: False}
+    for bar, root in enumerate(prog):
+        b0 = bar * bpb
+        for i, beat in enumerate((0, 0.75, 1.5, 2, 2.75, 3.5)):
+            nt = root + (12 if i in (2, 5) else 0)
+            m.add((b0 + beat) * spb, pulse_bass(nt + 12, 0.2), 0.75 if i % 3 == 0 else 0.55)
+        m.add(b0 * spb, kick(), 0.9)
+        m.add((b0 + 1.5) * spb, kick(), 0.55)
+        m.add((b0 + 2.5) * spb, kick(), 0.6)
+        m.add((b0 + 1) * spb, snare(seed=80 + bar % 3), 0.65)
+        m.add((b0 + 3) * spb, snare(seed=83 + bar % 3), 0.7)
+        for i in range(8):
+            m.add((b0 + i * 0.5) * spb, shaker(seed=90 + i % 4), 0.3 if i % 2 else 0.2)
+        t3 = triad(root + 24, bool(minor[root]))
+        for bt in (0.5, 1.25, 2.5, 3.25):
+            for tn in t3:
+                m.add((b0 + bt) * spb, stab(tn), 0.14, 0.1)
+    E5, Fs5, G5, A5, B5, D6, E6, D5 = (n(x) for x in ("E5", "F#5", "G5", "A5", "B5", "D6", "E6", "D5"))
+    hook = [(B5, 0.5), (E6, 0.5), (D6, 0.5), (B5, 0.5), (A5, 0.5), (G5, 0.5), (A5, 1), (B5, 1.5), (None, 0.5), (G5, 0.5), (A5, 0.5), (B5, 1)]
+    hook2 = [(E6, 0.75), (D6, 0.25), (B5, 0.5), (G5, 0.5), (A5, 1), (Fs5, 1), (G5, 0.5), (A5, 0.5), (B5, 0.5), (D6, 0.5), (E6, 2)]
+    for bar, mel in ((2, hook), (6, hook2), (10, hook), (14, hook2)):
+        put_melody(m, mel, bar * bpb, spb, whistle, 0.5, 0.3)
+    return m.render(make_ir(0.8, 5.0, brightness=3600), wet=0.25)
+
+
 MUSIC = {
     "title": music_title,
     "grove": music_grove,
@@ -590,6 +664,8 @@ MUSIC = {
     "battle": music_battle,
     "night": music_night,
     "victory": music_victory,
+    "boss": music_boss,
+    "rival": music_rival,
 }
 
 
@@ -719,6 +795,20 @@ def sfx_move(kind):
     return norm(sweep * 0.9 + thump, 0.8)
 
 
+def sfx_boss_sting():
+    """#385: VS / transformation hit. Gong + tom roll + low brass cluster."""
+    m = Mix(1.4, loop=False, tail=1.6)
+    for i in range(6):
+        m.add(i * 0.06, tom(210 - i * 20, 80, 0.3), 0.35 + i * 0.08)
+    t0 = 0.38
+    m.add(t0, kick(0.6, 1.2), 1.0)
+    for tn in (n("D2"), n("A2"), n("D3"), n("Eb3")):
+        m.add(t0, pad(tn, 1.0, detune=0.12, nh=10, attack=0.02, release=1.2), 1.4, 0.4)
+    m.add(t0, bell(n("D3"), 2.6, 0.7), 0.7, 0.6)
+    m.add(t0, noise(1.2, 31, lo=200, hi=3000) * np.exp(-tvec(1.2) * 3.5), 0.25, 0.5)
+    return norm(m.render(make_ir(1.4, 3.0), 0.5), 0.85)
+
+
 SFX = {
     "ui-click": sfx_ui_click,
     "step-grass": lambda: footstep("grass"),
@@ -735,6 +825,11 @@ SFX = {
     "move-neutral": lambda: sfx_move("neutral"),
 }
 
+# Longer SFX shipped compressed (.ogg + .m4a) like music (#385 review).
+COMPRESSED_SFX = {
+    "boss-sting": sfx_boss_sting,
+}
+
 
 # --------------------------------------------------------------------------
 # Writers
@@ -748,17 +843,17 @@ def write_wav(path: Path, x: np.ndarray) -> None:
         w.writeframes(pcm.tobytes())
 
 
-def write_music(name: str, x: np.ndarray) -> None:
+def write_music(name: str, x: np.ndarray, prefix: str = "music") -> None:
     import soundfile as sf
 
-    ogg = OUT / f"music-{name}.ogg"
+    ogg = OUT / f"{prefix}-{name}.ogg"
     # ponytail: quality 0.4 mono is ~45 kbps; raise if a track sounds crunchy
     sf.write(str(ogg), x.astype("float32"), SR, format="OGG", subtype="VORBIS")
     afconvert = shutil.which("afconvert")
     if afconvert:
         wav = OUT / f".tmp-{name}.wav"
         write_wav(wav, x)
-        m4a = OUT / f"music-{name}.m4a"
+        m4a = OUT / f"{prefix}-{name}.m4a"
         subprocess.run([afconvert, "-f", "m4af", "-d", "aac", "-b", "48000", str(wav), str(m4a)], check=True)
         wav.unlink()
     else:
@@ -767,14 +862,25 @@ def write_music(name: str, x: np.ndarray) -> None:
 
 def main(argv: list[str]) -> int:
     what = argv[1] if len(argv) > 1 else "all"
+    only = set(argv[2:])
     OUT.mkdir(parents=True, exist_ok=True)
     if what in ("all", "sfx"):
         for name, fn in SFX.items():
+            if only and name not in only:
+                continue
             x = fn()
             write_wav(OUT / f"sfx-{name}.wav", x)
             print(f"sfx-{name}.wav  {len(x) / SR:.2f}s")
+        for name, fn in COMPRESSED_SFX.items():
+            if only and name not in only:
+                continue
+            x = fn()
+            write_music(name, x, prefix="sfx")
+            print(f"sfx-{name}.ogg/.m4a  {len(x) / SR:.2f}s")
     if what in ("all", "music"):
         for name, fn in MUSIC.items():
+            if only and name not in only:
+                continue
             x = fn()
             write_music(name, x)
             print(f"music-{name}  {len(x) / SR:.1f}s peak={np.max(np.abs(x)):.2f} rms={np.sqrt(np.mean(x**2)):.3f}")

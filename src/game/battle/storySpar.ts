@@ -1,9 +1,11 @@
 import type Phaser from "phaser";
 import {
+  addToParty,
   getEffectiveMaxHp,
   hasLivingPartyMembers,
   playerParty,
 } from "../creatures/party";
+import { getCreatureDefinition } from "../creatures/catalog";
 import type { CreatureInstance } from "../creatures/types";
 import { drainBondTierUps } from "../companions/bond";
 import {
@@ -13,10 +15,7 @@ import {
   setInventoryFromSnapshot,
 } from "../inventory/playerInventory";
 import { MAX_LEVEL } from "../progression/leveling";
-import {
-  getPartyAverageLevel,
-  setScriptedWildLevel,
-} from "../progression/wildLevel";
+import { getPartyAverageLevel } from "../progression/wildLevel";
 import {
   getActiveQuestId,
   questProgress,
@@ -25,8 +24,10 @@ import {
 import type { StorySparId } from "../story/questTypes";
 import {
   getStorySpar,
+  hearthWardScale,
+  storySparRoster,
   storySparRoundLevel,
-  type StorySparRound,
+  storySparSpecies,
 } from "../story/storySpars";
 import { getItemName, getMaterialName } from "../inventory/materials";
 import { refreshQuestHud } from "../ui/questHud";
@@ -36,28 +37,25 @@ import {
   resumeHostPersist,
   suspendHostPersist,
 } from "../world/worldSaveSchedule";
+import { markCreatureDiscovered } from "../world/worldState";
 import { isVisitorMode } from "../world/worldSession";
-import {
-  getSparWinsForSpecies,
-  setSparWinsBySpecies,
-  sparWinsBySpecies,
-} from "../world/sparWins";
+import { setSparWinsBySpecies, sparWinsBySpecies } from "../world/sparWins";
 import { UNARMED_WANDERER } from "./wandererWeapons";
 
 /**
- * Story spar adapter (#369): runs a rival / boss party as consecutive rounds
- * of the existing BattleScene spar (no BattleScene changes). A round is won
- * when that species' spar-win counter ticks (grantSparRewards → recordSparWin).
+ * Story spar adapter (#369, #385): runs the rival / boss challenge as ONE
+ * BattleScene battle (explicit `story` init data; battle/boss/storyBattle.ts
+ * drives Wren's lineup and the Matriarch's forms). BattleScene reports the
+ * result with `reportStoryBattleResult` before it closes.
  *
- * Economy rules (no farming): every per-round side effect of grantSparRewards
+ * Economy rules (no farming): every side effect of the battle's reward path
  * (XP, levels, bond, Dust, materials, spar-win counts) is kept only on the
- * first win of the active beat. Every other ending — loss, forfeit, rematch —
- * restores the pre-spar snapshot. Host persistence is suspended while a story
- * spar runs, so closing the tab mid-spar reloads the pre-spar save. The party
- * is healed only on the first real loss of each beat (persisted in the save);
- * otherwise HP returns to its pre-spar value — never better than you started.
- * (grantSparRewards' win_spar quest event is inert here: story spars only
- * exist from beat 5 on, after first-spar is complete.)
+ * first win of the active beat. Every other ending — loss, forfeit, rematch,
+ * a battle that never started — restores the pre-spar snapshot. Host
+ * persistence is suspended while a story spar runs, so closing the tab
+ * mid-spar reloads the pre-spar save. The party is healed only on the first
+ * real loss of each beat (persisted in the save); otherwise HP returns to its
+ * pre-spar value — never better than you started.
  */
 
 type PreSparSnapshot = {
@@ -69,7 +67,6 @@ type PreSparSnapshot = {
 
 type ActiveStorySpar = {
   id: StorySparId;
-  roundIndex: number;
   /** Beat already complete — repeat challenge (no rewards, no heal). */
   rematch: boolean;
   before: PreSparSnapshot;
@@ -79,12 +76,25 @@ export type StorySparOutcome = {
   result: "won" | "lost";
   /** First win: the quest beat completed and the reward was granted. */
   firstWin: boolean;
-  /** Real loss of the active beat healed the party (once per session). */
+  /** Real loss of the active beat healed the party (once per beat). */
   healed: boolean;
   rewardText: string | null;
+  /** Wren's coverage companion that joined on this win, if any. */
+  gift?: string;
 };
 
-export type StorySparRoundResult = "next-round" | "won" | "lost";
+export type StorySparResult = "won" | "lost";
+
+/** Init data BattleScene receives for a story battle. */
+export type StoryBattleInit = {
+  sparId: StorySparId;
+  rematch: boolean;
+  /** Hearth Ward multiplier from the loss streak (1 = none). */
+  ward: number;
+};
+
+/** How long BattleScene may take to come up before the save pause is released. */
+export const STORY_BATTLE_START_TIMEOUT_MS = 5000;
 
 let active: ActiveStorySpar | null = null;
 const lastOutcome = new Map<StorySparId, StorySparOutcome>();
@@ -93,6 +103,13 @@ const lastOutcome = new Map<StorySparId, StorySparOutcome>();
  * beat heals, even across reloads.
  */
 const lostBeats = new Set<StorySparId>();
+/**
+ * Real losses in a row per challenge (persisted; a win resets it). Drives the
+ * Hearth Ward catch-up; forfeits do not count.
+ */
+const lossStreaks = new Map<StorySparId, number>();
+/** Set by BattleScene when a story battle ends (null = no verdict = loss). */
+let reportedResult: { id: StorySparId; won: boolean } | null = null;
 
 const STORY_SPAR_IDS: readonly StorySparId[] = ["rival-wren", "cinder-matriarch"];
 
@@ -100,10 +117,30 @@ export function isStorySparId(value: unknown): value is StorySparId {
   return STORY_SPAR_IDS.includes(value as StorySparId);
 }
 
+export function getStorySparLossStreaks(): Record<string, number> {
+  return Object.fromEntries([...lossStreaks].filter(([, n]) => n > 0));
+}
+
+/** Restore persisted streaks; unknown ids and bad counts are ignored. */
+export function setStorySparLossStreaks(streaks: Readonly<Record<string, unknown>>): void {
+  lossStreaks.clear();
+  for (const [id, n] of Object.entries(streaks)) {
+    if (isStorySparId(id) && typeof n === "number" && Number.isInteger(n) && n > 0) {
+      lossStreaks.set(id, Math.min(n, 99));
+    }
+  }
+}
+
+/** Hearth Ward multiplier the next attempt at `id` gets (1 = none). */
+export function getHearthWard(id: StorySparId): number {
+  return hearthWardScale(getStorySpar(id), lossStreaks.get(id) ?? 0);
+}
+
 export function getStorySparLosses(): StorySparId[] {
   return STORY_SPAR_IDS.filter((id) => lostBeats.has(id));
 }
 
+/** Restore persisted losses; unknown ids (older / newer saves) are ignored. */
 export function setStorySparLosses(ids: readonly string[]): void {
   lostBeats.clear();
   for (const id of ids) {
@@ -123,9 +160,9 @@ function takeSnapshot(): PreSparSnapshot {
 }
 
 /**
- * Undo every per-round spar side effect (XP, levels, bond, Dust, materials,
- * spar-win counts, queued bond tier-ups). HP keeps its current value
- * (clamped); callers choose the HP policy afterwards.
+ * Undo every spar side effect (XP, levels, bond, Dust, materials, spar-win
+ * counts, queued bond tier-ups). HP keeps its current value (clamped);
+ * callers choose the HP policy afterwards.
  */
 function rollBackRewards(before: PreSparSnapshot): void {
   setInventoryFromSnapshot(before.materials, before.items);
@@ -175,16 +212,20 @@ export function beginStorySpar(id: StorySparId): boolean {
   if (!canBeginStorySpar()) {
     return false;
   }
+  const rematch = questProgress[id] === "complete";
+  // Codex first, so a codex-complete reward is part of the snapshot and
+  // survives a rollback (#382 review).
+  for (const creatureId of storySparSpecies(getStorySpar(id), rematch)) {
+    if (!getCreatureDefinition(creatureId).excludeFromCodex) {
+      markCreatureDiscovered(creatureId);
+    }
+  }
   // Persist the pre-spar world now, then hold persistence until the spar
-  // resolves: a reload mid-spar restores this state (no round-reward farm).
+  // resolves: a reload mid-spar restores this state (no reward farm).
   flushPendingHostSave();
   suspendHostPersist();
-  active = {
-    id,
-    roundIndex: 0,
-    rematch: questProgress[id] === "complete",
-    before: takeSnapshot(),
-  };
+  active = { id, rematch, before: takeSnapshot() };
+  reportedResult = null;
   lastOutcome.delete(id);
   return true;
 }
@@ -192,12 +233,13 @@ export function beginStorySpar(id: StorySparId): boolean {
 /** Resolution commits: release persistence and save the settled state. */
 function endActiveSpar(): void {
   active = null;
+  reportedResult = null;
   resumeHostPersist();
   notifyWorldChanged();
 }
 
 export function getActiveStorySpar(): Readonly<
-  Pick<ActiveStorySpar, "id" | "roundIndex" | "rematch">
+  Pick<ActiveStorySpar, "id" | "rematch">
 > | null {
   return active;
 }
@@ -206,32 +248,21 @@ export function hasLostStorySpar(id: StorySparId): boolean {
   return lostBeats.has(id);
 }
 
-export function getCurrentStorySparRound(): {
-  round: StorySparRound;
-  level: number;
-  roundNumber: number;
-  roundCount: number;
-} | null {
-  if (!active) {
-    return null;
+/** "Lantern Fox (Lv 6), then Rootwalker (Lv 7)" for the challenge dialogue. */
+export function describeStorySparLineup(id: StorySparId): string {
+  const def = getStorySpar(id);
+  const rematch = questProgress[id] === "complete";
+  const average = getPartyAverageLevel();
+  if (def.boss) {
+    const level = storySparRoundLevel(def.boss, average, false, 0, MAX_LEVEL);
+    return `${def.name} (Lv ${level})`;
   }
-  const def = getStorySpar(active.id);
-  const round = def.rounds[active.roundIndex];
-  if (!round) {
-    return null;
-  }
-  return {
-    round,
-    level: storySparRoundLevel(
-      round,
-      getPartyAverageLevel(),
-      active.rematch,
-      def.rematchLevelBonus,
-      MAX_LEVEL,
-    ),
-    roundNumber: active.roundIndex + 1,
-    roundCount: def.rounds.length,
-  };
+  return storySparRoster(def, rematch)
+    .map(
+      (round) =>
+        `${getCreatureDefinition(round.creatureId).name} (Lv ${storySparRoundLevel(round, average, rematch, def.rematchLevelBonus, MAX_LEVEL)})`,
+    )
+    .join(", then ");
 }
 
 function grantFirstWinReward(id: StorySparId): string | null {
@@ -254,18 +285,39 @@ function grantFirstWinReward(id: StorySparId): string | null {
     .join(", ");
 }
 
+/**
+ * Wren's coverage companion (#385): joins once the party has nothing of the
+ * gift's type. Returns the reward text, or null when not needed / visitor.
+ */
+export function grantCoverageGift(id: StorySparId): string | null {
+  const gift = getStorySpar(id).coverageGift;
+  if (!gift || isVisitorMode()) {
+    return null;
+  }
+  const covered = playerParty.creatures.some(
+    (c) => getCreatureDefinition(c.definitionId).folkloreType === gift.type,
+  );
+  if (covered) {
+    return null;
+  }
+  const creature = addToParty(gift.creatureId, getPartyAverageLevel());
+  creature.nickname = gift.nickname;
+  return `${gift.nickname} the ${getCreatureDefinition(gift.creatureId).name}`;
+}
+
 function finishLoss(spar: ActiveStorySpar, forfeit: boolean): void {
   rollBackRewards(spar.before);
   const realLoss =
     !forfeit && getActiveQuestId() === spar.id && !lostBeats.has(spar.id);
   if (realLoss) {
-    // ponytail: one cheap-failure heal per beat per session (Hybrid session).
+    // ponytail: one cheap-failure heal per beat (Hybrid session).
     healParty();
   } else {
     restorePreSparHp(spar.before);
   }
   if (!forfeit) {
     lostBeats.add(spar.id);
+    lossStreaks.set(spar.id, (lossStreaks.get(spar.id) ?? 0) + 1);
   }
   lastOutcome.set(spar.id, {
     result: "lost",
@@ -275,18 +327,10 @@ function finishLoss(spar: ActiveStorySpar, forfeit: boolean): void {
   });
 }
 
-/** Advance after one BattleScene round ends. Null when no story spar is running. */
-export function resolveStorySparRound(
-  won: boolean,
-): StorySparRoundResult | null {
+/** Settle the running story spar after its battle. Null when none is running. */
+export function resolveStorySpar(won: boolean): StorySparResult | null {
   if (!active) {
     return null;
-  }
-  const def = getStorySpar(active.id);
-  if (won && active.roundIndex < def.rounds.length - 1) {
-    active.roundIndex += 1;
-    refreshQuestHud();
-    return "next-round";
   }
   const spar = active;
   if (!won) {
@@ -296,12 +340,20 @@ export function resolveStorySparRound(
     return "lost";
   }
   const firstWin = getActiveQuestId() === spar.id;
+  lossStreaks.delete(spar.id);
   if (!firstWin) {
     // Rematch: bragging rights only — no XP / Dust farm.
     rollBackRewards(spar.before);
   }
-  const rewardText = firstWin ? grantFirstWinReward(spar.id) : null;
-  lastOutcome.set(spar.id, { result: "won", firstWin, healed: false, rewardText });
+  const companion = firstWin ? grantCoverageGift(spar.id) : null;
+  const items = firstWin ? grantFirstWinReward(spar.id) : null;
+  lastOutcome.set(spar.id, {
+    result: "won",
+    firstWin,
+    healed: false,
+    rewardText: items,
+    ...(companion ? { gift: companion } : {}),
+  });
   if (firstWin) {
     recordQuestEvent({ type: "win_story_spar", sparId: spar.id });
   }
@@ -311,8 +363,8 @@ export function resolveStorySparRound(
 }
 
 /**
- * Walking away between rounds: back to exactly the pre-spar state (HP,
- * rewards) — never a heal, never a reward.
+ * Walking away (or a battle that never came up): back to exactly the
+ * pre-spar state (HP, rewards) — never a heal, never a reward.
  */
 export function forfeitStorySpar(): void {
   if (!active) {
@@ -333,14 +385,10 @@ export function consumeStorySparOutcome(
   return outcome;
 }
 
-/** HUD line for the rival beat that tracks the fight (#369 review). */
+/** HUD line for the rival beat after a loss (#369 review). */
 export function getStorySparNpcLine(): string | null {
-  if (getActiveQuestId() !== "rival-wren") {
+  if (getActiveQuestId() !== "rival-wren" || active) {
     return null;
-  }
-  const current = active?.id === "rival-wren" ? getCurrentStorySparRound() : null;
-  if (current) {
-    return `Wren: Round ${current.roundNumber}/${current.roundCount}. Don't stop now.`;
   }
   if (lostBeats.has("rival-wren")) {
     return "Wren: Not bad for a first try. Come back when you want a rematch.";
@@ -348,29 +396,68 @@ export function getStorySparNpcLine(): string | null {
   return null;
 }
 
+/** BattleScene's verdict for the running story battle (called before it closes). */
+export function reportStoryBattleResult(id: StorySparId, won: boolean): void {
+  if (active?.id === id) {
+    reportedResult = { id, won };
+  }
+}
+
+/** Init data for the running story battle (BattleScene `story`). */
+export function getStoryBattleInit(): StoryBattleInit | null {
+  return active
+    ? { sparId: active.id, rematch: active.rematch, ward: getHearthWard(active.id) }
+    : null;
+}
+
 /**
- * Launch the current round on the existing spar entry point. `onRoundEnd`
- * runs when BattleScene shuts down (it resumes IsometricScene itself).
+ * Launch the story battle. `onEnd` runs when BattleScene shuts down (it
+ * resumes IsometricScene itself) with the settled result. If BattleScene
+ * throws on create or never starts, the watchdog forfeits (releasing the
+ * save pause) and calls `onEnd(null)`.
  */
-export function launchStorySparRound(
+export function launchStorySpar(
   scene: Phaser.Scene,
-  onRoundEnd: (result: StorySparRoundResult | null) => void,
+  onEnd: (result: StorySparResult | null) => void,
+  timeoutMs = STORY_BATTLE_START_TIMEOUT_MS,
 ): boolean {
-  const current = getCurrentStorySparRound();
-  if (!current) {
+  const story = getStoryBattleInit();
+  if (!story) {
     return false;
   }
-  const { creatureId } = current.round;
-  setScriptedWildLevel(creatureId, current.level);
-  const winsBefore = getSparWinsForSpecies(creatureId);
-  scene.scene.get("BattleScene").events.once("shutdown", () => {
-    setScriptedWildLevel(creatureId, null);
-    const won = getSparWinsForSpecies(creatureId) > winsBefore;
-    onRoundEnd(resolveStorySparRound(won));
-  });
+  const def = getStorySpar(story.sparId);
+  const battle = scene.scene.get("BattleScene");
+  let started = false;
+  let settled = false;
+  const watchdog = setTimeout(() => {
+    if (started || settled) {
+      return;
+    }
+    settled = true;
+    battle.events.off("shutdown", onShutdown);
+    forfeitStorySpar();
+    onEnd(null);
+  }, timeoutMs);
+  const onCreate = (): void => {
+    started = true;
+    clearTimeout(watchdog);
+  };
+  const onShutdown = (): void => {
+    battle.events.off("create", onCreate);
+    clearTimeout(watchdog);
+    if (settled) {
+      return;
+    }
+    settled = true;
+    const verdict = reportedResult?.id === story.sparId ? reportedResult.won : false;
+    onEnd(resolveStorySpar(verdict));
+  };
+  battle.events.once("create", onCreate);
+  battle.events.once("shutdown", onShutdown);
   scene.scene.launch("BattleScene", {
-    wildCreatureId: creatureId,
+    wildCreatureId: def.boss?.spriteCreatureId ?? storySparRoster(def, story.rematch)[0]!.creatureId,
     wandererPartner: UNARMED_WANDERER,
+    story,
   });
   return true;
 }
@@ -381,6 +468,8 @@ export function resetStorySparForTest(): void {
     resumeHostPersist();
   }
   active = null;
+  reportedResult = null;
   lastOutcome.clear();
   lostBeats.clear();
+  lossStreaks.clear();
 }

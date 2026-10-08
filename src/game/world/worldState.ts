@@ -38,6 +38,8 @@ export const worldState = {
   harborBefriendUsed: [] as string[],
   /** Grove starters Bryn already gifted this save (#349). */
   brynGroveStartersGifted: [] as string[],
+  /** The altar's one-time Story 4 relic material top-up was given (#390). */
+  storyRelicBundleGiven: false,
   /** Sovereign Plate toggle: suppress wild encounters while owned + active (#289). */
   sovereignPlateActive: false,
 };

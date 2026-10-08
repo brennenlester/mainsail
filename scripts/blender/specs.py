@@ -339,6 +339,8 @@ SPECS += [
     *[_villager(n) for n in ("warden-bryn", "weaver-sable", "hearthkeep-odd", "island-hermit-reed")],
     _arena("village"),
     _arena("night"),
+    # #385: boss arena, shipped as standalone PNGs (public/assets/world), not atlas frames.
+    _arena("ember"),
 ]
 
 

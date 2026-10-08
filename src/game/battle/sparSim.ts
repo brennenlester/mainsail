@@ -79,6 +79,8 @@ export type SparResult = {
   befriendAttempts: number;
   /** `befriend` policy: the wild slipped away after a miss streak. */
   fled: boolean;
+  /** Party HP left on a win, as a fraction of party max HP (#390 heal tuning). */
+  hpLeft: number;
 };
 
 export type SparStats = {
@@ -90,6 +92,8 @@ export type SparStats = {
   fleeRate: number;
   /** Mean befriend attempts over runs that recruited. */
   avgAttemptsToRecruit: number;
+  /** Mean party HP fraction left over runs that won. */
+  avgHpLeftOnWin: number;
 };
 
 const MAX_TURNS = 60;
@@ -143,7 +147,8 @@ function bestDamageMove(
   )[0];
 }
 
-function chooseMove(
+/** Policy move pick, shared with the story battle sim (battle/boss). */
+export function chooseMove(
   policy: SparPolicy,
   player: BattleCombatant,
   wild: BattleCombatant,
@@ -239,7 +244,11 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
     recruited: false,
     befriendAttempts: 0,
     fled: false,
+    hpLeft: 0,
   };
+  const partyHpLeft = (): number =>
+    roster.reduce((sum, c) => sum + Math.max(0, c.currentHp), 0) /
+    roster.reduce((sum, c) => sum + c.maxHp, 0);
   const befriendAt = setup.befriendAt ?? 0.7;
   const skilledLike = setup.policy === "skilled" || setup.policy === "befriend";
   const befriendChance = () =>
@@ -328,6 +337,7 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
       }
       if (isFainted(wild)) {
         result.won = true;
+        result.hpLeft = partyHpLeft();
         return result;
       }
     }
@@ -345,6 +355,7 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
     tickStatuses(wild);
     if (isFainted(wild)) {
       result.won = true;
+      result.hpLeft = partyHpLeft();
       return result;
     }
     if (isFainted(player) && !replaceFainted()) {
@@ -376,12 +387,14 @@ export function sparStats(setup: SparSetup, seeds = 200): SparStats {
   let recruits = 0;
   let fled = 0;
   let recruitAttempts = 0;
+  let hpLeftOnWin = 0;
   // Each matchup gets its own seed stream (shared across policies), so
   // averages over many pairs are not dominated by a few lucky seeds.
   const base = hashSetup(setup);
   for (let i = 0; i < seeds; i++) {
     const r = simulateSpar(setup, base + i);
     wins += r.won ? 1 : 0;
+    hpLeftOnWin += r.won ? r.hpLeft : 0;
     turns += r.turns;
     finishers += r.finishers;
     statuses += r.statuses;
@@ -399,6 +412,7 @@ export function sparStats(setup: SparSetup, seeds = 200): SparStats {
     recruitRate: recruits / seeds,
     fleeRate: fled / seeds,
     avgAttemptsToRecruit: recruits > 0 ? recruitAttempts / recruits : 0,
+    avgHpLeftOnWin: wins > 0 ? hpLeftOnWin / wins : 0,
   };
 }
 

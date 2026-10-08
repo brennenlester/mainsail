@@ -35,6 +35,7 @@ import {
 } from "./dailyAsk";
 import { isStoryNpcId, storyNpcConversation } from "../story/storyNpcs";
 import type { StorySparId } from "../story/questTypes";
+import type { StoryCue } from "../story/finaleScene";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const TIDE_SOVEREIGN_ID = "tide-sovereign";
@@ -66,6 +67,10 @@ export type ConversationPrompt =
 export type Conversation = {
   lines: string[];
   prompt: ConversationPrompt;
+  /** Per-line presentation cues for scripted story scenes (#385). */
+  cues?: (StoryCue | undefined)[];
+  /** Game event emitted when the dialogue closes (scripted scene end). */
+  endEvent?: string;
 };
 
 let oddRestPurchased = false;

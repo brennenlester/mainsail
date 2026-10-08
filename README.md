@@ -39,14 +39,14 @@ The HUD shows `Story N/8: …`, a short “Next” hint, and on some beats a lin
 
 1. **Befriend your first companion.** Walk until an encounter appears, then choose **Befriend**. The toast names your companion's temperament.
 2. **Win a training spar.** Choose **Spar** and win; a hunter tip teaches one matchup. This **opens the overworld gate**.
-3. **Craft a relic at Moon Shrine.** Stand on the moon altar, press **E**, and craft any relic. Moss Salve or Ember Charm sets up the next beat.
-4. **Grow your first companion.** Apply Moss Salve to a Mossling or Ember Charm to an Ember Wisp. The cottage gate in Hearth Crossing opens; Warden Bryn gives a Grove starter if you are missing one.
-5. **Beat Wren, the rival.** Talk to Wren in the Hearth Crossing plaza and accept her spar. She fights with two companions in a row, and your HP carries over between rounds. Losing patches your party up for a retry. Winning gives Brook Tonic ×2 and **opens the Mistwood path**.
+3. **Craft a relic at Moon Shrine.** Stand on the moon altar, press **E**, and craft any relic. Moss Salve (Moss Fiber ×2 + Folklore Dust) or Ember Charm (Ember Ash ×2 + Folklore Dust) sets up the next beat. If you are short during steps 3-4, the altar gives one bundle of those materials (once per save).
+4. **Grow your first companion.** On the shrine's **Fusion** tab, apply Moss Salve to a Mossling or Ember Charm to an Ember Wisp. The cottage gate in Hearth Crossing opens; Warden Bryn gives a Grove starter if you are missing one.
+5. **Beat Wren, the rival.** Talk to Wren in the Hearth Crossing plaza and accept her challenge: one battle ("Wren, the Rival") where she sends out her creatures one after another. Losing patches your party up for a retry. Winning gives Brook Tonic ×2, **opens the Mistwood path**, and if nothing in your party hunts ember, Pip the Brook Nymph joins you.
 6. **Walk the Mistwood path.** Take the east exit of Folklore Fields into Mistwood Reach.
-7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). She fights in two forms and announces each one, along with the type that hunts it, before it rises. Swap your lead or Switch in the spar. Reward: Folklore Dust ×5 and a Moonwake Draught.
-8. **Return to the Moon Shrine.** Talk to Wren there for the finale. The main story is complete.
+7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). It is one boss battle with her own arena, music and boss bar. At half HP she transforms from Mire form (fen) to Cinder form (ember). She telegraphs Cinderfall with a wind-up; **Guard parries it and staggers her** (she loses a turn and takes extra damage). Wren fights at your side, cleansing, healing, dazzling or drenching her every few turns. Soaked, the Cinder form is doused and loses its ember bite. Losing is cheap: after 2 losses in a row the **Hearth Ward** softens her (and after 4, more). The same applies to Wren rematches. Reward: a Moonwake Draught and a warm ember egg.
+8. **Return to the Moon Shrine.** Talk to Wren there. The egg hatches into **Cinderling**, a rare Cinder Toad that joins your party, and then Wren points you toward the optional Sovereign voyage. The main story is complete.
 
-Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens. After the arc, Wren stays in the plaza for tougher rematches.
+Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens. After the arc, Wren stays in the plaza for tougher rematches, where her storm finch joins her team.
 
 **Optional side threads** never block the story: village asks, cottage minigames, daily asks, and the **Sovereign voyage**. The voyage goes: craft a Boat → Tide Sovereign on Reed's isle → Stone Sovereign on the cairn isle → Sovereign Seal → Horizon fusion at the Moon Shrine, with Eclipse beyond. After the finale, the HUD shows it as `Optional — Sovereign voyage: …`.
 
@@ -76,7 +76,7 @@ Talk again after the gift and each villager will offer a **side ask**:
 
 Active village asks show in the status panel as `Village ask: …`. Delivery asks only take materials when you successfully turn them in. Visitors cannot accept or complete side asks.
 
-After Hearthkeep Odd's side ask is done, talk to him again to rest the party at the hearth. Every rest costs **Wood ×5, Wild Fiber ×5, and Pebble ×5** (the first rest used to cost 20 of each). Confirm with **Rest** (or decline with **No**) — it fully restores every party creature, including fainted ones. Visitors cannot rest.
+After Hearthkeep Odd's side ask is done, you can also rest the party at his hearth. This is optional flavour now that the Moon Shrine altar heals for free. Every rest costs **Wood ×5, Wild Fiber ×5, and Pebble ×5** (the first rest used to cost 20 of each). Confirm with **Rest** (or decline with **No**) — it fully restores every party creature, including fainted ones. Visitors cannot rest.
 
 Stand next to the house's signature prop and press **E** for a minigame (same reach as talking). Standing on the villager still talks — gifts and side asks are unchanged. Visitors can play but never receive the first-win gift.
 
@@ -106,7 +106,8 @@ All ability rewards are optional and one-time; the main quest never needs them.
 
 ### Encounters and crafting
 
-- Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**.
+- Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**. Encounters are paced: after one ends you walk at least 12 tiles (14 after a flee) before the next roll, and entering a zone gives a 6-tile grace. Each habitat's encounter rate is otherwise unchanged.
+- **Soft overworld recovery.** Pressing **E** at the Moon Shrine altar fully heals the party for free, fainted companions included. Winning a wild spar restores 20% of max HP to your standing companions (story battles excluded). If your whole active party faints, it wakes beside the Moon Shrine altar fully healed. Nothing is lost and no materials are needed.
 - **Befriend is a decision, not a coin flip.** The card shows the odds (`~28%` for a fresh, common, peer-level wild) with a breakdown, and allows **one** try. Odds rise as the wild weakens (up to +40% at low HP), while it is **Rooted** or **Dazed** (+12%; Burn/Soaked +5%), with an opt-in offering — **Folk Seal** (+15%, any wild) or **Favorite Bait** (+25%, also spends 1 of the species' favorite material; the cost shows on the card and button) — and with your lead's bond (+2% per tier) or a Curious / Gentle / Loyal lead (+5%). Rare and higher-level wilds start lower. **Befriend** is also a spar action on wild-encounter spars: weaken it, then recruit it mid-fight. A card miss makes the wild strike first if you spar; a spar miss spends your turn. Three misses in one encounter (the card miss counts) and it slips away, with no other penalty. Story step 1 stays assured and never spends an offering.
 - Creatures and moves have folklore **types**. Spars use accuracy, hunter matchups (×1.3, prey resists ×0.8), and rare immunity traits on signature creatures.
 - Winning spars grants creature materials, Folklore Dust (with occasional bonus drops), and party XP: the fighter takes half the pool and benched actives split the rest (levels scale combat HP/ATK; wild level tracks your active party average plus a small rarity bonus, so winning never snowballs the next fight). Trees, stones, ferns, and pebble piles yield 2-3 materials per harvest with a 15s cooldown per node.

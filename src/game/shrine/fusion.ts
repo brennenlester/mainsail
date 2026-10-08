@@ -1,4 +1,3 @@
-import { playEvolveSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
   getCreatureInstance,
@@ -6,6 +5,12 @@ import {
   playerParty,
 } from "../creatures/party";
 import { consumeItem } from "../inventory/playerInventory";
+import {
+  buildGrowthReveal,
+  captureGrowthSide,
+  isFirstEvolution,
+  type GrowthReveal,
+} from "../evolution/growthReveal";
 import { recordQuestEvent } from "../story/questProgress";
 import { isVisitorMode } from "../world/worldSession";
 import {
@@ -22,7 +27,8 @@ import {
 } from "./shrineEffects";
 
 export type FusionResult =
-  | { ok: true; message: string }
+  /** `growth` is set for Growth unlocks (evolution / presence) — #393 cutscene data. */
+  | { ok: true; message: string; growth?: GrowthReveal }
   | { ok: false; message: string };
 
 export function applyShrineFusion(
@@ -62,12 +68,28 @@ export function applyShrineFusion(
     return { ok: false, message: "You don't have that item." };
   }
 
+  const isGrowth =
+    effect.effectType === "evolution" || effect.effectType === "presence";
+  const before = isGrowth ? captureGrowthSide(creature) : null;
+  const firstEvolution = isFirstEvolution(playerParty.creatures);
   const message = applyEffect(creature, effect, key);
   if (effect.effectType === "evolution" && effect.evolvesTo) {
+    // Quest event fires here exactly once; the evolve sting now plays in EvolutionScene.
     recordQuestEvent({ type: "evolve_creature", evolvesTo: effect.evolvesTo });
-    playEvolveSfx();
   }
-  return { ok: true, message };
+  if (!before) {
+    return { ok: true, message };
+  }
+  const growth = buildGrowthReveal({
+    kind: effect.effectType === "evolution" ? "evolution" : "presence",
+    instanceId: creature.instanceId,
+    level: creature.level,
+    before,
+    after: captureGrowthSide(creature),
+    bond: creature.bond,
+    firstEvolution,
+  });
+  return { ok: true, message, growth };
 }
 
 function applyEffect(
