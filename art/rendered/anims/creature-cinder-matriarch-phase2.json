@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-cinder-matriarch-phase2__idle",
+      "frames": [
+        "creature-cinder-matriarch-phase2__idle_00",
+        "creature-cinder-matriarch-phase2__idle_01",
+        "creature-cinder-matriarch-phase2__idle_02",
+        "creature-cinder-matriarch-phase2__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

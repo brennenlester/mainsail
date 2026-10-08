@@ -73,6 +73,51 @@ describe("packed atlas manifest", () => {
     }
   });
 
+  it("keeps texture memory bounded: at most 8 pages of 2048² (#392)", () => {
+    expect(atlas.textures.length).toBeLessThanOrEqual(8);
+  });
+
+  it("ships the #392 biome kits, Wren and the Fields/Mistwood/Emberfen roster", () => {
+    for (const zone of ["overworld", "mistwood", "emberfen", "harbor", "cottage"]) {
+      for (let v = 0; v < 4; v += 1) {
+        expect(frames.has(`floor-${zone}-v${v}`), `${zone} v${v}`).toBe(true);
+      }
+    }
+    for (const key of [
+      "floor-overworld-path-v",
+      "floor-overworld-path-cross",
+      "floor-overworld-shore",
+      "floor-harbor-shore",
+      "floor-cottage-path-north",
+      "tile-water-light",
+      "tile-dock-light",
+      "wall-cottage-face",
+      "wall-cottage-top",
+      "prop-brazier",
+      "prop-glowcap",
+      "prop-door",
+      "npc-rival-wren",
+      "npc-rival-wren-portrait",
+    ]) {
+      expect(frames.has(key), key).toBe(true);
+    }
+    const keys = new Set(anims.anims.map((a) => a.key));
+    expect(frames.has("arena-ember-sky"), "boss arena (#385) is packed").toBe(true);
+    expect(keys.has("npc-rival-wren__talk") && keys.has("npc-rival-wren-portrait__talk")).toBe(true);
+    for (const id of [
+      "peat-sprite",
+      "bog-lantern",
+      "mist-serpent",
+      "cinder-matriarch",
+      "cinder-matriarch-phase2",
+    ]) {
+      expect(frames.has(`creature-${id}-encounter`), id).toBe(true);
+      for (const anim of ["idle", "attack", "hurt", "faint"]) {
+        expect(keys.has(`creature-${id}-battle__${anim}`), `${id} ${anim}`).toBe(true);
+      }
+    }
+  });
+
   it("ships the Blender player walk (6 per facing) and Mossling sets", () => {
     for (const facing of ["south", "north", "east", "west"]) {
       for (let i = 0; i <= 6; i += 1) {

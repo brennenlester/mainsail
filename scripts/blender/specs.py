@@ -106,7 +106,15 @@ SPECS = [
 ]
 
 
-def _creature(cid: str, ow: float, battle: float, encounter: float, facing: tuple[int, int, int] = (-15, -35, -20)) -> list[dict]:
+def _creature(
+    cid: str,
+    ow: float,
+    battle: float,
+    encounter: float,
+    facing: tuple[int, int, int] = (-15, -35, -20),
+    ow_size: tuple[int, int] = (192, 208),
+    ow_anchor: int = 26,
+) -> list[dict]:
     """Overworld + battle + encounter specs for one creatures.SPECIES entry
     (#361). Same canvases, ppu and pitch as the Mossling so the whole roster
     shares one scale; `ow`/`battle`/`encounter` are per-species model scales
@@ -118,10 +126,10 @@ def _creature(cid: str, ow: float, battle: float, encounter: float, facing: tupl
             **model,
             "key": key,
             "args": {"species": cid, "facing_deg": facing[0], "scale": ow},
-            "size": (192, 208),
+            "size": ow_size,
             "ppu": OVERWORLD_PPU,
             "pitch": PITCH,
-            "anchor": 26,
+            "anchor": ow_anchor,
             "outline": 4.0,
             "shadow": (0.3, 0.48),
             "statics": [(key, "idle", 0.0), (f"{key}-idle", "idle", 0.0)],
@@ -333,4 +341,202 @@ SPECS += [
     _arena("night"),
     # #385: boss arena, shipped as standalone PNGs (public/assets/world), not atlas frames.
     _arena("ember"),
+]
+
+
+# --------------------------------------------------------------------------
+# #392: Folklore Fields, Mistwood Reach, Emberfen Hollow, Moonwake Harbor,
+# cottage interiors (biomes.py). Floors: `floor-<zone>-v0..3` + path pieces
+# (`-path` along X, `-path-v` along Y, `-path-cross`, `-path-<end>` caps),
+# `-shore` (bank on the south edge), whole-tile surfaces; see
+# src/game/render/floorVariants.ts for which tile uses which key.
+# --------------------------------------------------------------------------
+BIOME_FLOORS = {
+    "overworld": {
+        "style": "fields",
+        "variants": [
+            {"patches": 3},
+            {"flower": 3, "clover": 2},
+            {"pebble": 2, "clover": 3, "flower": 1},
+            {"tuft": 2, "flower": 2},
+        ],
+        "paths": ["h", "v", "cross"],
+        "shore": True,
+        "surfaces": ["islet"],
+    },
+    "mistwood": {
+        "style": "mistwood",
+        "variants": [
+            {"patches": 3, "leaf": 8, "twig": 1},
+            {"patches": 2, "leaf": 6, "moss": 3, "mushroom": 1},
+            {"patches": 3, "leaf": 7, "glowcap": 1, "twig": 1},
+            {"patches": 2, "leaf": 5, "moss": 2, "glowcap": 2},
+        ],
+        "paths": ["h"],
+    },
+    "emberfen": {
+        "style": "emberfen",
+        "variants": [
+            {"patches": 3, "coal": 1},
+            {"patches": 2, "reed": 2, "coal": 1},
+            {"patches": 3, "puddle": 1, "coal": 2},
+            {"patches": 2, "crack": 2, "reed": 1},
+        ],
+        "paths": ["h", "east"],
+    },
+    "harbor": {
+        "style": "harbor",
+        "variants": [{}, {}, {}, {}],
+        "paths": ["h"],
+        "shore": True,
+    },
+    "cottage": {
+        "style": "cottage",
+        "variants": [{}, {"knot": 2}, {"knot": 1, "straw": 2}, {"knot": 3}],
+        "paths": ["v", "north"],
+    },
+}
+PATH_SUFFIX = {"h": "path", "v": "path-v", "cross": "path-cross"}
+
+
+def _biome_floor(key: str, args: dict) -> dict:
+    return {**_floor(key, args), "model": "biome-ground"}
+
+
+def _biome_floor_set(zone: str) -> list[dict]:
+    cfg = BIOME_FLOORS[zone]
+    base = {"style": cfg["style"], "edge_seed": zone}
+    out = [_biome_floor(f"floor-{zone}-v{i}", {**base, "seed": 100 + i, "detail": d}) for i, d in enumerate(cfg["variants"])]
+    if zone != "cottage":
+        # Legacy light/dark keys (fallback path, other callers) share the look.
+        out[0]["statics"].append((f"floor-{zone}-light", "idle", 0.0))
+        out[1]["statics"].append((f"floor-{zone}-dark", "idle", 0.0))
+    for p in cfg.get("paths", []):
+        out.append(_biome_floor(f"floor-{zone}-{PATH_SUFFIX.get(p, 'path-' + p)}", {**base, "seed": 109, "detail": {}, "path": p}))
+    if cfg.get("shore"):
+        out.append(_biome_floor(f"floor-{zone}-shore", {**base, "seed": 110, "detail": cfg["variants"][1], "shore": True}))
+    for s in cfg.get("surfaces", []):
+        out.append(_biome_floor(f"floor-{zone}-{s}", {**base, "seed": 111, "surface": s}))
+    return out
+
+
+def _backdrop(key: str, model: str, args: dict | None = None) -> dict:
+    return {**_floor(key, args or {}), "model": model, "outline": 0.0}
+
+
+def _boundary(key: str, model: str) -> dict:
+    return {**_prop(key, model, (48, 56), 40), "shadow": None}
+
+
+SPECS += [
+    *[s for z in BIOME_FLOORS for s in _biome_floor_set(z)],
+    # Water + dock (global keys: Fields bay, Harbor, Archipelago).
+    _biome_floor("tile-water-light", {"seed": 201, "surface": "water"}),
+    _biome_floor("tile-water-dark", {"seed": 202, "surface": "water"}),
+    _biome_floor("tile-dock-light", {"seed": 203, "surface": "pier"}),
+    _biome_floor("tile-dock-dark", {"seed": 204, "surface": "pier"}),
+    # Canopy backdrops around each playfield.
+    _canopy_tile("backdrop-overworld", {"seed": 37, "colors": ("leaf", "#7aa04e", "leaf_light"), "ground": "#5f8a44", "accents": "petal_gold"}),
+    _backdrop("backdrop-mistwood", "mist-backdrop"),
+    _backdrop("backdrop-emberfen", "fen-backdrop"),
+    _backdrop("backdrop-harbor", "sea-backdrop"),
+    # Boundaries.
+    _boundary("boundary-overworld", "drystone"),
+    _boundary("boundary-mistwood", "pinewall"),
+    _boundary("boundary-emberfen", "fenwall"),
+    _boundary("boundary-harbor", "seawall"),
+    # Per-zone variants of gatherable props (`prop-<kind>-<zone>`).
+    _prop("prop-tree-mistwood", "mist-pine", (56, 84), 44),
+    _prop("prop-tree-emberfen", "charred-tree", (56, 72), 44),
+    _prop("prop-fern-mistwood", "dark-fern", (40, 32), 30),
+    _prop("prop-fern-emberfen", "reeds", (40, 44), 30),
+    _prop("prop-fern-harbor", "dune-grass", (40, 32), 30),
+    _prop("prop-standing-stone-mistwood", "moss-stone", (42, 38), 36),
+    _prop("prop-standing-stone-emberfen", "basalt", (42, 40), 36),
+    _prop("prop-standing-stone-harbor", "ballast", (42, 38), 36),
+    _prop("prop-pebble-pile-mistwood", "pebble-kind", (44, 32), 40, {"kind": "mistwood"}),
+    _prop("prop-pebble-pile-emberfen", "pebble-kind", (44, 32), 40, {"kind": "emberfen"}),
+    _prop("prop-pebble-pile-harbor", "pebble-kind", (44, 32), 40, {"kind": "harbor"}),
+    # Decorative dressing.
+    _prop("prop-glowcap", "glowcaps", (36, 36), 30),
+    {**_prop("prop-fog", "fog", (64, 32), 40), "shadow": None, "outline": 0.0},
+    _prop("prop-log", "moss-log", (56, 32), 40),
+    {**_prop("prop-brazier", "brazier", (32, 48), 30), "shadow": (0.12, 0.28)},
+    _prop("prop-crates", "crates", (48, 44), 36),
+    _prop("prop-boat", "boat", (48, 40), 70),
+    _prop("prop-hay", "hay", (40, 32), 34),
+    {**_prop("prop-signpost", "signpost", (32, 56), 24), "shadow": (0.12, 0.28)},
+    _prop("prop-wildflowers", "wildflowers", (36, 28), 30),
+    # Cottage interiors.
+    _prop("prop-hearth", "fireplace", (56, 64), 48),
+    _prop("prop-shelf", "bookcase", (40, 72), 30),
+    _prop("prop-loom", "loom", (46, 48), 34),
+    {**_prop("prop-door", "doorway", (48, 40), 40), "shadow": None},
+    _prop("prop-table", "table", (48, 44), 38),
+    {**_prop("prop-plant", "plant", (28, 40), 26), "shadow": (0.12, 0.28)},
+]
+
+
+# #392: remaining Fields / Mistwood / Emberfen spawns (Peat Sprite replaces
+# the dithered legacy cut) and the Cinder Matriarch boss. The Matriarch is
+# drawn larger: overworld 72x72 logical (288 px), battle/encounter fill their
+# canvases; `creature-cinder-matriarch-phase2*` is the Cinder (second) form.
+SPECS += [
+    *_creature("peat-sprite", 0.86, 0.9, 0.95),
+    *_creature("bog-lantern", 0.85, 0.9, 0.95),
+    *_creature("mist-serpent", 0.9, 0.92, 0.95, facing=(-20, -30, -20)),
+    *_creature("cinder-matriarch", 1.15, 0.76, 0.82, facing=(-20, -35, -25), ow_size=(288, 288), ow_anchor=40),
+    *_creature("cinder-matriarch-phase2", 1.15, 0.76, 0.82, facing=(-20, -35, -25), ow_size=(288, 288), ow_anchor=40),
+]
+
+
+# #392: Wren, the rival. `npc-rival-wren` (idle + talk, the overworld NPC
+# sprite), optional walk facings (`_wren`), and a bust portrait rendered closer and at
+# higher resolution for the dialogue panel (not a scaled-up sprite).
+def _wren(facing: str, deg: int) -> dict:
+    key = f"npc-rival-wren-{facing}"
+    return {
+        "key": key,
+        "folder": "npcs",
+        "model": "wren",
+        "args": {"facing_deg": deg},
+        "size": (192, 288),
+        "ppu": OVERWORLD_PPU,
+        "pitch": PITCH,
+        "anchor": 26,
+        "outline": 4.0,
+        "shadow": (0.22, 0.42),
+        "statics": [(f"{key}-0", "idle", 0.0)],
+        "anims": [{"name": "walk", "frames": 6, "fps": 10, "repeat": -1, "frame_key": f"{key}-{{n1}}"}],
+    }
+
+
+SPECS += [
+    {**_villager("rival-wren"), "model": "wren", "args": {"facing_deg": -12}, "shadow": (0.22, 0.42)},
+    # ponytail: walk facings (`_wren`) are not packed until Wren moves in the
+    # overworld; add `*[_wren(f, d) for f, d in FACINGS.items()]` back then.
+    {
+        "key": "npc-rival-wren-portrait",
+        "folder": "npcs",
+        "model": "wren",
+        "args": {"facing_deg": -18, "staff": False},
+        "size": (384, 400),
+        "ppu": 460,
+        "pitch": 8,
+        "anchor": -228,  # world origin below the frame: bust from mid-chest up
+        "outline": 6.0,
+        "shadow": None,
+        "statics": [("npc-rival-wren-portrait", "idle", 0.0)],
+        "anims": [
+            {"name": "idle", "frames": 4, "fps": 4, "repeat": -1},
+            {"name": "talk", "frames": 4, "fps": 8, "repeat": -1},
+        ],
+    },
+]
+
+
+# #392: cottage interior walls (IsometricScene.drawCottageWalls tiles these).
+SPECS += [
+    {**_floor("wall-cottage-face", {}), "model": "wall-face", "size": (192, 112), "anchor": 56, "outline": 0.0},
+    _biome_floor("wall-cottage-top", {"style": "wallcap", "edge_seed": "wallcap", "seed": 300}),
 ]

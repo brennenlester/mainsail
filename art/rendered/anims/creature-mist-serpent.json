@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-mist-serpent__idle",
+      "frames": [
+        "creature-mist-serpent__idle_00",
+        "creature-mist-serpent__idle_01",
+        "creature-mist-serpent__idle_02",
+        "creature-mist-serpent__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

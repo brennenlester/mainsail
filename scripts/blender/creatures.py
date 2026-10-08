@@ -341,15 +341,19 @@ def plan_toad(rig: Creature, sp: dict) -> None:
     eyes_z = cz + rz * 0.92
     bumps = []
     for side in (-1, 1):
-        bumps.append(sphere(f"bump{side}", (side * rx * 0.42, -ry * 0.42, eyes_z), (0.11, 0.1, 0.1), main, rig.body))
-    # Eyes on the front of the bumps.
-    eye_mat = toon("eye", shadow=0.0, highlight=0.0, rim=0.0)
+        bumps.append(sphere(f"bump{side}", (side * rx * 0.42, -ry * 0.42, eyes_z), (0.11, 0.1, 0.1), toon(sp.get("bump", sp["color"])), rig.body))
+    # Eyes on the front of the bumps (`eye_glow` makes them self-lit, #392).
+    eye_mat = toon(sp.get("eye_color", "eye"), shadow=0.0, highlight=0.0, rim=0.0, emission=sp.get("eye_glow", 0.0))
     shine = toon("#ffffff", emission=1.0)
     for side in (-1, 1):
         e = sphere(f"eye{side}", (side * rx * 0.42, -ry * 0.42 - 0.085, eyes_z + 0.01), (0.055, 0.03, 0.07), eye_mat, rig.body, outline=False)
         sphere(f"shine{side}", (-0.3, -0.9, 0.38), (0.36, 0.3, 0.27), shine, e, outline=False)
         rig.eyes.append(e)
         sphere(f"blush{side}", (side * rx * 0.62, surface_y(center, (rx, ry, rz), side * rx * 0.62, cz + 0.06, 0.012), cz + 0.06), (0.06, 0.015, 0.03), toon("blush", shadow=0.2, highlight=0.0, rim=0.0), rig.body, outline=False)
+        if sp.get("lids"):
+            # Heavy lids give the boss a stern, half-closed look (#392).
+            lid = sphere(f"lid{side}", (side * rx * 0.42, -ry * 0.42 - 0.05, eyes_z + 0.045), (0.105, 0.075, 0.05), toon(sp.get("bump", sp["color"])), rig.body)
+            lid.rotation_euler = (0.25, side * -0.3, 0)
     mz = cz + rz * 0.35
     sphere("mouth", (0, surface_y(center, (rx, ry, rz), 0, mz, 0.006), mz), (0.15, 0.01, 0.012), eye_mat, rig.body, outline=False)
     throat = rig.pivot("throat", (0, -ry * 0.72, cz - rz * 0.1))
@@ -425,6 +429,147 @@ def plan_stump(rig: Creature, sp: dict) -> None:
     _flower("budflower", (-0.12, 0.05, 0.62), rig.body, "petal", size=0.035, outline=True)
 
 
+def tube(name, pts, radii, mat, parent, *, segs=12, outline=True):
+    """Swept circle along a polyline (parallel-transport frames), capped.
+    Used for serpent bodies (#392)."""
+    from mathutils import Vector
+
+    P = [Vector(p) for p in pts]
+    verts, faces = [], []
+    prev = None
+    for i, p in enumerate(P):
+        t = (P[min(i + 1, len(P) - 1)] - P[max(i - 1, 0)]).normalized()
+        ref = prev if prev is not None else (Vector((0, 0, 1)) if abs(t.z) < 0.9 else Vector((1, 0, 0)))
+        n = (ref - t * ref.dot(t)).normalized()
+        prev = n
+        b = t.cross(n)
+        for k in range(segs):
+            a = k * TAU / segs
+            verts.append(tuple(p + (n * math.cos(a) + b * math.sin(a)) * radii[i]))
+    for i in range(len(P) - 1):
+        a0, a1 = i * segs, (i + 1) * segs
+        for k in range(segs):
+            k1 = (k + 1) % segs
+            faces.append((a0 + k, a0 + k1, a1 + k1, a1 + k))
+    c0 = len(verts)
+    verts.append(tuple(P[0]))
+    c1 = len(verts)
+    verts.append(tuple(P[-1]))
+    last = (len(P) - 1) * segs
+    for k in range(segs):
+        k1 = (k + 1) % segs
+        faces.append((c0, k1, k))
+        faces.append((c1, last + k, last + k1))
+    obj = mesh_from(name, verts, faces, mat, parent, smooth=True, outline=outline)
+    _recalc_normals(obj)
+    return obj
+
+
+def plan_serpent(rig: Creature, sp: dict) -> None:
+    """Mist Serpent (#392): body coiled on the ground, neck rising to a
+    finned, whiskered head that faces the camera."""
+    from mathutils import Vector
+
+    main, dark, light = toon(sp["color"]), toon(sp["dark"]), toon(sp["light"], shadow=0.35)
+    n = 44
+    turns = sp.get("turns", 1.75)
+    coil_end = 0.66
+    head = Vector(sp.get("head_at", (0.0, -0.1, 0.62)))
+    pts, radii = [], []
+    end = None
+    for i in range(n):
+        t = i / (n - 1)
+        if t <= coil_end:
+            u = t / coil_end
+            a = u * turns * TAU
+            r = 0.27 - 0.07 * u
+            p = Vector((math.cos(a) * r, math.sin(a) * r * 0.9, 0.07 + 0.16 * u))
+            end = p
+        else:
+            u = (t - coil_end) / (1 - coil_end)
+            c = Vector((end.x * 0.2, end.y * 0.4 - 0.04, 0.5))
+            p = end * (1 - u) ** 2 + c * 2 * u * (1 - u) + head * u * u
+        pts.append(tuple(p))
+        radii.append(0.022 + 0.088 * min(1.0, t / 0.3) - 0.025 * max(0.0, (t - 0.6) / 0.4))
+    tube("body", pts, radii, main, rig.body)
+    # Pale belly scales along the visible front of the neck.
+    for i in range(int(n * 0.72), n - 2, 2):
+        p = Vector(pts[i])
+        sphere(f"scale{i}", (p.x, p.y - radii[i] * 0.85, p.z), (radii[i] * 0.7, 0.02, radii[i] * 0.45), light, rig.body, outline=False)
+    # Dorsal fins along the coil.
+    for k, i in enumerate((8, 15, 22, 29)):
+        p = Vector(pts[i])
+        f = rig.pivot(f"dfin{k}", (p.x, p.y, p.z + radii[i] * 0.8))
+        teardrop(f"dfinm{k}", (0, 0, 0), 0.05, 0.14, light, f, squash=0.35, bend=-0.3, rot=(0, 0, math.atan2(p.y, p.x)))
+        rig.part(f, "swing", axis=1, amp=0.12, phase=k * 0.8, droop=0.4)
+    hp = rig.pivot("head", tuple(head))
+    rig.part(hp, "swing", axis=0, amp=0.07, phase=0.5, droop=0.5)
+    hr = (0.15, 0.15, 0.12)
+    sphere("skull", (0, 0, 0), hr, main, hp)
+    sphere("snout", (0, -0.12, -0.03), (0.09, 0.08, 0.065), main, hp)
+    sphere("jaw", (0, -0.1, -0.07), (0.08, 0.07, 0.035), light, hp, outline=False)
+    rig.face(hp, (0, 0, 0), hr, eye_x=0.07, eye_z=0.02, eye_size=(0.045, 0.03, 0.06), blush=True, mouth=False)
+    for side in (-1, 1):
+        horn = rig.pivot(f"horn{side}", (side * 0.07, 0.04, 0.09), hp, rot=(-0.5, side * 0.35, 0))
+        cylinder(f"hornm{side}", (0, 0, 0.06), 0.025, 0.13, toon(sp.get("horn", "cream"), shadow=0.35), horn, verts=6, radius_top=0.0)
+        wh = rig.pivot(f"whisk{side}", (side * 0.08, -0.17, -0.04), hp, rot=(0, math.radians(95), 0 if side > 0 else math.pi))
+        teardrop(f"whiskm{side}", (0, 0, 0), 0.014, 0.2, light, wh, squash=1.0, bend=0.4)
+        rig.part(wh, "swing", axis=1, amp=0.18, phase=side * 0.9, droop=0.6)
+        fin = rig.pivot(f"earfin{side}", (side * 0.13, 0.05, 0.02), hp, rot=(0, math.radians(-40), 0 if side > 0 else math.pi))
+        teardrop(f"earfinm{side}", (0, 0, 0), 0.06, 0.2, light, fin, rot=(0, math.pi / 2 - 0.3, 0), squash=0.3, bend=0.2)
+        rig.part(fin, "swing", amp=0.15, phase=side * 0.6, droop=0.6)
+    crest = rig.pivot("crest", (0, 0.06, 0.1), hp, rot=(-0.6, 0, 0))
+    for k, (x, h) in enumerate(((-0.04, 0.16), (0.0, 0.2), (0.04, 0.15))):
+        teardrop(f"crestm{k}", (x, 0, 0), 0.035, h, light, crest, squash=0.35, bend=-0.25, rot=(0, x * 4, 0))
+    rig.part(crest, "swing", axis=0, amp=0.1, phase=1.2, droop=0.6)
+    # Mist curling around the coil.
+    ring = rig.pivot("mist", (0, 0, 0.05))
+    for k in range(4):
+        a = k * TAU / 4 + 0.4
+        sphere(f"puff{k}", (math.cos(a) * 0.36, math.sin(a) * 0.33, 0.02 + 0.04 * (k % 2)), (0.1, 0.07, 0.05), toon(sp.get("mist", "#ece8f8"), shadow=0.2, highlight=0.4), ring, outline=False)
+    rig.part(ring, "spin", amp=0.25)
+    for extra in sp.get("extras", []):
+        EXTRAS[extra](rig, sp, (0, 0, 0.3), (0.3, 0.3, 0.3))
+
+
+def plan_lantern(rig: Creature, sp: dict) -> None:
+    """Bog Lantern (#392): a floating paper lantern with a face, bronze cap
+    and curled hook, a hanging tail and smoke wisps orbiting it."""
+    r = sp.get("radius", 0.27)
+    cz = r + 0.12
+    center = (0, 0, cz)
+    radii = (r, r * 0.95, r * 0.98)
+    body = toon(sp["color"], shadow=0.28, highlight=0.45, rim=0.45)
+    sphere("paper", center, radii, body, rig.body)
+    rib = toon(sp["dark"], shadow=0.3)
+    for k in range(8):
+        a = k * TAU / 8 + TAU / 16
+        if math.sin(a) < -0.45:
+            continue  # keep the face clear
+        sphere(f"rib{k}", center, (radii[0] * 1.012, 0.012, radii[2] * 1.005), rib, rig.body, outline=False, rot=(0, 0, a))
+    for side in (-1, 1):
+        sphere(f"swirl{side}", (side * r * 0.62, surface_y(center, radii, side * r * 0.62, cz - r * 0.35, 0.006), cz - r * 0.35), (0.05, 0.012, 0.03), toon(sp["light"], emission=1.1), rig.body, outline=False, rot=(0, side * 0.6, 0))
+    bronze = toon(sp.get("cap", "#7a4a2a"), shadow=0.5, highlight=0.3)
+    cylinder("cap", (0, 0, cz + r * 0.95), r * 0.48, 0.07, bronze, rig.body, verts=12, radius_top=r * 0.3)
+    cylinder("capring", (0, 0, cz - r * 0.95), r * 0.42, 0.06, bronze, rig.body, verts=12, radius_top=r * 0.48)
+    hook = rig.pivot("hook", (0, 0, cz + r * 1.0))
+    teardrop("hookm", (0, 0, 0), 0.035, 0.22, bronze, hook, bend=-0.55, squash=0.8)
+    rig.part(hook, "swing", amp=0.08, phase=0.3, droop=0.3)
+    tail = rig.pivot("tail", (0, 0, cz - r * 0.98), rot=(math.pi, 0, 0))
+    teardrop("tailm", (0, 0, 0), 0.05, 0.24, toon("wood", shadow=0.5), tail, bend=0.5)
+    rig.part(tail, "swing", axis=1, amp=0.2, phase=0.8, droop=0.4)
+    sphere("core", (0, surface_y(center, radii, 0, cz - 0.02, 0.03), cz - 0.03), (r * 0.6, 0.02, r * 0.55), toon(sp["light"], emission=1.0), rig.body, outline=False)
+    rig.face(rig.body, center, radii, eye_x=r * 0.36, eye_z=cz + 0.02, eye_size=(0.058, 0.03, 0.078), blush=True, brow=None, lift=0.035)
+    smoke = toon(sp.get("smoke", "#f1e6cf"), shadow=0.25, highlight=0.35)
+    # Smoke curls drift behind and beside the lantern (never over the face).
+    for k, (a, z) in enumerate(((0.15, 0.06), (1.6, 0.14), (2.95, 0.02))):
+        p = rig.pivot(f"wisp{k}", (math.cos(a) * r * 1.25, math.sin(a) * r * 1.25 + 0.04, cz + z), rot=(0, 0, a + math.pi / 2))
+        teardrop(f"wispm{k}", (0, 0, -0.1), 0.04, 0.26, smoke, p, squash=0.4, bend=0.5)
+        rig.part(p, "swing", axis=0, amp=0.25, phase=k * 2.1, droop=0.5)
+    for extra in sp.get("extras", []):
+        EXTRAS[extra](rig, sp, center, radii)
+
+
 PLANS = {
     "blob": plan_blob,
     "wisp": plan_wisp,
@@ -432,6 +577,8 @@ PLANS = {
     "toad": plan_toad,
     "quad": plan_quad,
     "stump": plan_stump,
+    "serpent": plan_serpent,
+    "lantern": plan_lantern,
 }
 
 
@@ -565,7 +712,137 @@ def x_fox_mask(rig, sp, hc, hr, head):
         sphere(f"cheek{side}", (x, surface_y(hc, hr, x, -0.08, 0.04), -0.08), (0.09, 0.05, 0.07), cream, head, outline=False)
 
 
+def _on_body(center, radii, a, z_frac, out=0.0):
+    """Point on an ellipsoid at azimuth `a` (0 = +X, -pi/2 = front) and
+    height fraction `z_frac` in [-1, 1]."""
+    k = math.sqrt(max(0.0, 1 - z_frac * z_frac))
+    return (
+        center[0] + math.cos(a) * radii[0] * k * (1 + out),
+        center[1] + math.sin(a) * radii[1] * k * (1 + out),
+        center[2] + z_frac * radii[2] * (1 + out),
+    )
+
+
+def _clear_of_face(a, z_frac):
+    """True unless (a, z) is on the front face region."""
+    front = abs(math.atan2(math.sin(a + math.pi / 2), math.cos(a + math.pi / 2)))
+    return front > 1.0 or z_frac > 0.72 or z_frac < -0.55
+
+
+def x_peat_lumps(rig, sp, center, radii):
+    """Peat Sprite (#392): faceted peat clods over the head, back and sides."""
+    import random as _r
+
+    rng = _r.Random(sp.get("seed", 4))
+    mats = [toon(sp["dark"], shadow=0.5), toon(sp["color"], shadow=0.5), toon(sp["light"], shadow=0.5)]
+    made = 0
+    while made < 16:
+        a = rng.uniform(0, TAU)
+        z = rng.uniform(-0.35, 0.95)
+        if not _clear_of_face(a, z):
+            continue
+        r = rng.uniform(0.07, 0.11)
+        sphere(f"lump{made}", _on_body(center, radii, a, z, -0.08), (r, r * 0.9, r * 0.85), mats[made % 3], rig.body, low=True, smooth=False, rot=(rng.random(), rng.random(), rng.random()))
+        made += 1
+
+
+def x_twig_horns(rig, sp, center, radii):
+    wood = toon(sp.get("horn", "wood"), shadow=0.5)
+    for side in (-1, 1):
+        p = rig.pivot(f"twig{side}", (side * radii[0] * 0.55, 0.04, center[2] + radii[2] * 0.72), rot=(0.15, side * 0.55, 0))
+        cylinder(f"twigm{side}", (0, 0, 0.13), 0.045, 0.28, wood, p, verts=6, radius_top=0.008, smooth=False)
+        b = empty(f"twigb{side}", (0, 0, 0.12), p)
+        b.rotation_euler = (0, side * 0.8, 0)
+        cylinder(f"twigbm{side}", (0, 0, 0.05), 0.02, 0.1, wood, b, verts=5, radius_top=0.005, smooth=False)
+        rig.part(p, "swing", amp=0.05, phase=side * 0.7, droop=0.25)
+    _flower("sprig", (radii[0] * 0.2, 0.08, center[2] + radii[2] * 0.98), rig.body, "petal_gold", size=0.03, outline=True)
+
+
+def x_stub_arms(rig, sp, center, radii):
+    mat = toon(sp["color"], shadow=0.5)
+    dark = toon(sp["dark"], shadow=0.5)
+    for side in (-1, 1):
+        p = rig.pivot(f"arm{side}", (side * radii[0] * 0.92, -0.04, center[2] - radii[2] * 0.2), rot=(0, math.radians(55), 0 if side > 0 else math.pi))
+        sphere(f"armm{side}", (0.08, 0, 0), (0.1, 0.085, 0.08), mat, p, low=True, smooth=False)
+        sphere(f"hand{side}", (0.17, -0.01, -0.02), (0.065, 0.065, 0.06), dark, p, low=True, smooth=False)
+        rig.part(p, "swing", amp=-0.15, phase=side * 0.8, droop=0.55)
+
+
+def x_ember_flecks(rig, sp, center, radii):
+    import random as _r
+
+    rng = _r.Random(7)
+    glow = toon("ember", emission=1.35)
+    made = 0
+    while made < 9:
+        a = rng.uniform(0, TAU)
+        z = rng.uniform(-0.6, 0.85)
+        if not _clear_of_face(a, z):
+            continue
+        sphere(f"fleck{made}", _on_body(center, radii, a, z, 0.02), (0.016, 0.016, 0.016), glow, rig.body, outline=False)
+        made += 1
+
+
+def x_peat_mantle(rig, sp, center, radii):
+    """Cinder Matriarch, Mire form: a mossy peat mantle with reeds on her back
+    and a smouldering seam."""
+    import random as _r
+
+    rng = _r.Random(11)
+    mats = [toon(c, shadow=0.5) for c in (sp["dark"], "#5f6a3e", sp["color"])]
+    for k in range(12):
+        a = rng.uniform(math.pi * 0.05, math.pi * 0.95)  # back half (+Y)
+        z = rng.uniform(0.15, 0.9)
+        r = rng.uniform(0.09, 0.14)
+        sphere(f"mantle{k}", _on_body(center, radii, a, z, -0.1), (r * 1.2, r, r * 0.7), mats[k % 3], rig.body, low=True, smooth=False, rot=(rng.random(), rng.random(), rng.random()))
+    stalk = toon("#8a7a5a", shadow=0.5)
+    head = toon("#6b4630", shadow=0.5)
+    for k, (x, y) in enumerate(((-0.2, 0.18), (-0.12, 0.24), (0.22, 0.2), (0.15, 0.27))):
+        z = center[2] + radii[2] * 0.8
+        p = rig.pivot(f"reed{k}", (x, y, z), rot=(rng.uniform(-0.2, 0.1), x * 0.8, 0))
+        cylinder(f"reedm{k}", (0, 0, 0.13), 0.012, 0.26, stalk, p, verts=5)
+        if k % 2 == 0:
+            cylinder(f"reedh{k}", (0, 0, 0.23), 0.028, 0.07, head, p, verts=8)
+        rig.part(p, "swing", amp=0.08, phase=k * 0.9, droop=0.4)
+    glow = toon("ember", emission=float(sp.get("seam_glow", 1.2)))
+    for k in range(4):
+        a = math.pi * (0.3 + 0.13 * k)
+        sphere(f"seam{k}", _on_body(center, radii, a, 0.55 + 0.08 * (k % 2), 0.01), (0.05, 0.016, 0.014), glow, rig.body, outline=False, rot=(0, 0, a))
+
+
+def x_ash_crown(rig, sp, center, radii):
+    """Cinder Matriarch: a crown of basalt spikes behind the eye bumps."""
+    mat = toon(sp.get("crown", "basalt"), shadow=0.5, highlight=0.3)
+    for k in range(5):
+        a = math.pi * (0.2 + 0.15 * k)
+        x, y, z = _on_body(center, radii, a, 0.78, -0.05)
+        h = 0.16 + 0.07 * (1 - abs(k - 2) / 2)
+        cylinder(f"spike{k}", (x, y, z + h / 2 - 0.02), 0.045, h, mat, rig.body, verts=5, radius_top=0.0, smooth=False, rot=(math.sin(a) * -0.35, math.cos(a) * 0.35, 0))
+
+
+def x_ember_back(rig, sp, center, radii):
+    """Cinder Matriarch, Cinder form: the back splits open; flames erupt
+    from glowing fissures."""
+    glow = toon("flame_core", emission=1.45)
+    for k in range(5):
+        a = math.pi * (0.18 + 0.16 * k)
+        sphere(f"rift{k}", _on_body(center, radii, a, 0.5 + 0.12 * (k % 2), 0.005), (0.09, 0.02, 0.02), glow, rig.body, outline=False, rot=(0, 0, a + math.pi / 2))
+    for k, (a, z, h, ph) in enumerate(((0.3, 0.75, 0.34, 0.2), (0.5, 0.85, 0.44, 1.4), (0.7, 0.75, 0.32, 2.6), (0.42, 0.55, 0.24, 3.4), (0.6, 0.55, 0.26, 4.2))):
+        x, y, zz = _on_body(center, radii, math.pi * a, z, -0.04)
+        _flame_tongue(rig, f"backflame{k}", (x, y, zz), 0.07, h, ("ember", "flame_core"), tilt=(-0.25, (x / radii[0]) * 0.5, 0), bend=0.1 * (1 if x > 0 else -1), phase=ph)
+    halo = disc("backhalo", (0, 0.1, center[2] + radii[2]), 0.55, radial_material("backhalo", "ember_glow", 0.4), rig.body)
+    halo.rotation_euler = (math.pi / 2, 0, 0)
+    halo.visible_shadow = False
+
+
 EXTRAS = {
+    "peat_lumps": x_peat_lumps,
+    "twig_horns": x_twig_horns,
+    "stub_arms": x_stub_arms,
+    "ember_flecks": x_ember_flecks,
+    "peat_mantle": x_peat_mantle,
+    "ash_crown": x_ash_crown,
+    "ember_back": x_ember_back,
     "sprout": x_sprout,
     "leaf_ears": x_leaf_ears,
     "tufts": x_tufts,
@@ -723,5 +1000,68 @@ SPECIES: dict[str, dict] = {
         "shadow": 0.45,
         "breath": 0.6,
         "extras": ["rune"],
+    },
+    # ---- #392: Mistwood / Emberfen spawns + the Cinder Matriarch boss ----
+    "peat-sprite": {
+        "plan": "blob",
+        "color": "peat_body",
+        "dark": "peat_body_dark",
+        "light": "peat_body_light",
+        "feet": "peat_body_dark",
+        "body": (0.32, 0.29, 0.34),
+        "eye": (0.06, 0.03, 0.08),
+        "face_z": 0.12,
+        "shadow": 0.4,
+        "breath": 0.8,
+        "horn": "wood_light",
+        "extras": ["peat_lumps", "twig_horns", "stub_arms", "ember_flecks"],
+    },
+    "bog-lantern": {
+        "plan": "lantern",
+        "color": "bog_lantern",
+        "dark": "bog_lantern_dark",
+        "light": "flame_core",
+        "radius": 0.27,
+        "hover": 0.14,
+        "glow": "bog_lantern",
+        "shadow": 0.32,
+        "breath": 0.7,
+    },
+    "mist-serpent": {
+        "plan": "serpent",
+        "color": "serpent",
+        "dark": "serpent_dark",
+        "light": "serpent_light",
+        "glow": "serpent_light",
+        "shadow": 0.42,
+        "breath": 0.6,
+    },
+    "cinder-matriarch": {
+        "plan": "toad",
+        "color": "matriarch",
+        "dark": "matriarch_dark",
+        "belly": "matriarch_belly",
+        "body": (0.52, 0.44, 0.31),
+        "shadow": 0.6,
+        "breath": 0.5,
+        "seam_glow": 0.9,
+        "lids": True,
+        "extras": ["peat_mantle", "ash_crown"],
+    },
+    "cinder-matriarch-phase2": {
+        "plan": "toad",
+        "color": "matriarch_cinder",
+        "dark": "matriarch_cinder_dark",
+        "belly": "ember_deep",
+        "bump": "matriarch_cinder_dark",
+        "body": (0.52, 0.44, 0.31),
+        "eye_color": "flame_core",
+        "eye_glow": 1.3,
+        "glow": "ember",
+        "shadow": 0.62,
+        "breath": 0.7,
+        "crown": "char",
+        "lids": True,
+        "extras": ["embers", "ash_crown", "ember_back"],
     },
 }

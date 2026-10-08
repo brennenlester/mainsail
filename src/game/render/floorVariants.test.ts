@@ -31,4 +31,19 @@ describe("floorVariantKey (#361)", () => {
     // A period-2 pattern would repeat on every tile; hashed picks do not.
     expect(checker).toBeLessThan(80);
   });
+
+  it("lays #392 roads, crossings, shores, piers and the cottage runner", () => {
+    expect(floorVariantKey("overworld", 7, 3)).toBe("floor-overworld-path-v");
+    expect(floorVariantKey("overworld", 10, 7)).toBe("floor-overworld-path");
+    expect(floorVariantKey("overworld", 7, 7)).toBe("floor-overworld-path-cross");
+    expect(floorVariantKey("overworld", 4, 12)).toBe("floor-overworld-shore");
+    expect(floorVariantKey("overworld", 7, 13)).toBe("tile-dock-light");
+    expect(floorVariantKey("overworld", 2, 14)).toBe("floor-overworld-islet");
+    expect(floorVariantKey("harbor", 3, 6)).toBe("tile-dock-light");
+    expect(floorVariantKey("emberfen", 7, 5)).toBe("floor-emberfen-path-east");
+    // Every cottage shares one plank set; the rug runs from the door.
+    expect(floorVariantKey("weaver-cottage", 3, 3)).toBe("floor-cottage-path-north");
+    expect(floorVariantKey("hermit-cottage", 3, 5)).toBe("floor-cottage-path-v");
+    expect(floorVariantKey("warden-cottage", 1, 1)).toMatch(/^floor-cottage-v[0-3]$/);
+  });
 });

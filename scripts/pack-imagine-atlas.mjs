@@ -114,44 +114,82 @@ async function loadFrame(file) {
   };
 }
 
-/** Shelf-pack into fixed-size pages. Returns [{items, usedW, usedH}]. */
+/** Lowest skyline spot for a w x h slot (bottom-left rule), or null. */
+function skylineFit(skyline, w, h, pageSize) {
+  let best = null;
+  for (let i = 0; i < skyline.length; i += 1) {
+    const x = skyline[i].x;
+    if (x + w > pageSize) break;
+    let y = 0;
+    let span = 0;
+    for (let j = i; j < skyline.length && span < w; j += 1) {
+      y = Math.max(y, skyline[j].y);
+      span = skyline[j].x + skyline[j].w - x;
+    }
+    if (span < w || y + h > pageSize) continue;
+    if (!best || y + h < best.y + best.h || (y + h === best.y + best.h && x < best.x)) {
+      best = { x, y, h };
+    }
+  }
+  return best;
+}
+
+function skylinePlace(skyline, x, y, w, h) {
+  const next = [];
+  for (const seg of skyline) {
+    const end = seg.x + seg.w;
+    if (end <= x || seg.x >= x + w) {
+      next.push(seg);
+      continue;
+    }
+    if (seg.x < x) next.push({ x: seg.x, y: seg.y, w: x - seg.x });
+    if (end > x + w) next.push({ x: x + w, y: seg.y, w: end - (x + w) });
+  }
+  next.push({ x, y: y + h, w });
+  next.sort((a, b) => a.x - b.x);
+  // Merge neighbours at the same height.
+  const merged = [];
+  for (const seg of next) {
+    const last = merged[merged.length - 1];
+    if (last && last.y === seg.y && last.x + last.w === seg.x) last.w += seg.w;
+    else merged.push({ ...seg });
+  }
+  return merged;
+}
+
+/**
+ * Skyline-pack into fixed-size pages (#392; the #360 shelf packer left
+ * ~30% of each page empty). Items go tallest first into the first page with
+ * room, so pages stay full and the result is deterministic for a given
+ * input set. Returns [{items, usedW, usedH}].
+ */
 export function packPages(items, pageSize = PAGE) {
   const sorted = [...items].sort(
     (a, b) => b.slotH - a.slotH || b.slotW - a.slotW || a.key.localeCompare(b.key),
   );
   const pages = [];
-  let page = null;
-  let x = 0;
-  let shelfY = 0;
-  let shelfH = 0;
-  const newPage = () => {
-    page = { items: [], usedW: 0, usedH: 0 };
-    pages.push(page);
-    x = 0;
-    shelfY = 0;
-    shelfH = 0;
-  };
-  newPage();
   for (const item of sorted) {
     if (item.slotW > pageSize || item.slotH > pageSize) {
       throw new Error(`${item.key} (${item.slotW}x${item.slotH}) exceeds ${pageSize}px page`);
     }
-    if (x + item.slotW > pageSize) {
-      shelfY += shelfH;
-      x = 0;
-      shelfH = 0;
+    let placed = false;
+    for (let p = 0; p < pages.length && !placed; p += 1) {
+      const page = pages[p];
+      const spot = skylineFit(page.skyline, item.slotW, item.slotH, pageSize);
+      if (!spot) continue;
+      page.skyline = skylinePlace(page.skyline, spot.x, spot.y, item.slotW, item.slotH);
+      Object.assign(item, { page: p, x: spot.x, y: spot.y });
+      page.items.push(item);
+      page.usedW = Math.max(page.usedW, item.x + item.slotW);
+      page.usedH = Math.max(page.usedH, item.y + item.slotH);
+      placed = true;
     }
-    if (shelfY + item.slotH > pageSize) {
-      newPage();
+    if (!placed) {
+      const page = { items: [item], usedW: item.slotW, usedH: item.slotH, skyline: [] };
+      page.skyline = skylinePlace([{ x: 0, y: 0, w: pageSize }], 0, 0, item.slotW, item.slotH);
+      Object.assign(item, { page: pages.length, x: 0, y: 0 });
+      pages.push(page);
     }
-    item.page = pages.length - 1;
-    item.x = x;
-    item.y = shelfY;
-    x += item.slotW;
-    shelfH = Math.max(shelfH, item.slotH);
-    page.items.push(item);
-    page.usedW = Math.max(page.usedW, item.x + item.slotW);
-    page.usedH = Math.max(page.usedH, item.y + item.slotH);
   }
   return pages;
 }

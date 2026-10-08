@@ -11,6 +11,8 @@ export type NpcDefinition = {
   y: number;
   /** Atlas villager render (#361); procedural `npc-villager` is the missing-file fallback. */
   spriteKey: string;
+  /** Used when `spriteKey` has no frame/texture (e.g. boss art not packed). */
+  fallbackSpriteKey?: string;
   /** Robe tint for the shared fallback villager sprite. */
   tint: number;
   /** Shown the first time you speak, before the gift line. */

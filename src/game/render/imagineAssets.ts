@@ -12,9 +12,10 @@ export const IMAGINE_ANIMS_KEY = "imagine-anims";
  *
  * Trainer frames: `player-{facing}-0` idle, `player-{facing}-1..N` walk
  * (Blender renders true east/west, #360), `player-{facing}__idle_NN` breath.
- * Blender renders (art/rendered, #360/#361) override legacy Imagine PNGs at
- * pack time: first-hour creatures, villagers, Grove/Shrine/Village floors,
- * props and boundaries, canopy backdrops, and the spar arenas.
+ * Blender renders (art/rendered, #360/#361/#392) override legacy Imagine PNGs
+ * at pack time: first-hour creatures, villagers and Wren, every zone's floors
+ * (except the Archipelago), props, boundaries, canopy backdrops, water/dock
+ * tiles, cottage interiors, and the spar arenas.
  */
 export function preloadImagineAssets(scene: Phaser.Scene): void {
   scene.load.multiatlas(

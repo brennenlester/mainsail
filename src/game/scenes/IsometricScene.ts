@@ -1681,15 +1681,37 @@ export class IsometricScene extends Phaser.Scene {
     paint(front, 0x3d2818, 0, wall, { south: true });
     paint(front, 0xe6d2b0, trim, wall - trim, { south: true });
 
-    back.lineStyle(3, 0x3d2818, 1);
-    back.beginPath();
-    back.moveTo(doorLeft, innerBottom);
-    back.lineTo(innerLeft, innerBottom);
-    back.lineTo(innerLeft, innerTop);
-    back.lineTo(innerRight, innerTop);
-    back.lineTo(innerRight, innerBottom);
-    back.lineTo(doorRight, innerBottom);
-    back.strokePath();
+    // Rendered timber-and-plaster back wall + stone wall tops (#392) over
+    // the flat fills; the fills stay as the fallback when frames are missing.
+    if (hasImagineFrame(this, "wall-cottage-face") && hasImagineFrame(this, "wall-cottage-top")) {
+      const thick = wall - trim;
+      const left = outerLeft + trim;
+      const right = outerRight - trim;
+      const bottom = outerBottom - trim;
+      const strip = (x: number, y: number, w: number, h: number, frame: string, depth: number, face = false): void => {
+        if (w <= 0 || h <= 0) return;
+        this.add
+          .tileSprite(x + w / 2, y + h / 2, w, h, IMAGINE_ATLAS_KEY, frame)
+          .setTileScale(0.25, face ? h / 112 : 0.25)
+          .setDepth(depth);
+      };
+      strip(left, outerTop + trim, right - left, thick, "wall-cottage-face", back.depth, true);
+      strip(left, innerTop, thick, bottom - innerTop, "wall-cottage-top", back.depth);
+      strip(right - thick, innerTop, thick, bottom - innerTop, "wall-cottage-top", back.depth);
+      strip(left, bottom - thick, doorLeft - left, thick, "wall-cottage-top", front.depth);
+      strip(doorRight, bottom - thick, right - doorRight, thick, "wall-cottage-top", front.depth);
+    }
+
+    const edge = this.add.graphics().setDepth(back.depth);
+    edge.lineStyle(3, 0x3d2818, 1);
+    edge.beginPath();
+    edge.moveTo(doorLeft, innerBottom);
+    edge.lineTo(innerLeft, innerBottom);
+    edge.lineTo(innerLeft, innerTop);
+    edge.lineTo(innerRight, innerTop);
+    edge.lineTo(innerRight, innerBottom);
+    edge.lineTo(doorRight, innerBottom);
+    edge.strokePath();
   }
 
   private drawWallsInColumns(

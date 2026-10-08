@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-bog-lantern__idle",
+      "frames": [
+        "creature-bog-lantern__idle_00",
+        "creature-bog-lantern__idle_01",
+        "creature-bog-lantern__idle_02",
+        "creature-bog-lantern__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

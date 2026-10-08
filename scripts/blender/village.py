@@ -129,6 +129,126 @@ class Villager(Rig):
 
 
 # --------------------------------------------------------------------------
+# Wren, the rival (#392): the player's chibi build (legs that walk) with her
+# own silhouette and signature rust red: short hooded capelet, high swinging
+# ponytail with a wren feather, walking staff, tall boots.
+# --------------------------------------------------------------------------
+class Wren(Rig):
+    def __init__(self, facing_deg: float = -12.0, staff: bool = True):
+        root = empty("wren")
+        root.rotation_euler.z = math.radians(facing_deg)
+        super().__init__(root)
+        red, red_dark = toon("wren_red"), toon("wren_red_dark")
+        trim = toon("wren_trim")
+        shirt = toon("cream", shadow=0.45)
+        legs = toon("wren_legs")
+        boot = toon("boot")
+        sleeve = toon("wren_sleeve")
+        skin = toon("skin", shadow=0.38)
+        hair = toon("wren_hair")
+
+        self.hip = empty("hip", (0, 0, 0.36), root)
+        self.legs = []
+        for side in (-1, 1):
+            p = empty(f"leg{side}", (side * 0.08, 0, 0), self.hip)
+            cylinder(f"thigh{side}", (0, 0, -0.12), 0.055, 0.22, legs, p, verts=10)
+            cylinder(f"bootleg{side}", (0, -0.005, -0.25), 0.062, 0.14, boot, p, verts=10)
+            cylinder(f"cuff{side}", (0, -0.005, -0.18), 0.07, 0.035, toon("wren_cuff"), p, verts=10, outline=False)
+            sphere(f"foot{side}", (0, -0.04, -0.31), (0.07, 0.11, 0.055), boot, p)
+            self.legs.append(p)
+        self.torso = empty("torso", (0, 0, 0.0), self.hip)
+        cylinder("tunic", (0, 0, 0.15), 0.17, 0.32, shirt, self.torso, verts=14, radius_top=0.13, scale=(1, 0.8, 1))
+        cylinder("belt", (0, 0, 0.04), 0.175, 0.05, toon("satchel"), self.torso, verts=14, scale=(1, 0.82, 1), outline=False)
+        box("pouch", (0.13, -0.1, 0.02), (0.08, 0.05, 0.08), toon("satchel"), self.torso, rot=(0, 0, 0.5), bevel=0.01)
+        # Capelet: wide cone over the shoulders, gold-trimmed hem, clasp.
+        cylinder("cape", (0, 0.01, 0.25), 0.27, 0.2, red, self.torso, verts=16, radius_top=0.12, scale=(1, 0.86, 1))
+        cylinder("capehem", (0, 0.01, 0.152), 0.272, 0.025, trim, self.torso, verts=16, scale=(1, 0.86, 1), outline=False)
+        sphere("hoodroll", (0, 0.09, 0.35), (0.16, 0.1, 0.07), red_dark, self.torso)
+        sphere("clasp", (0, -0.115, 0.33), (0.03, 0.02, 0.03), toon("banner_gold"), self.torso, outline=False)
+        self.cape_tail = empty("capetail", (0, 0.2, 0.3), self.torso)
+        sphere("capeback", (0, 0.0, -0.08), (0.2, 0.05, 0.14), red, self.cape_tail)
+        self.arms = []
+        for side in (-1, 1):
+            p = empty(f"arm{side}", (side * 0.19, 0, 0.27), self.torso)
+            p.rotation_euler.y = side * 0.14
+            cylinder(f"sleeve{side}", (0, 0, -0.09), 0.048, 0.2, sleeve, p, verts=10)
+            cylinder(f"glove{side}", (0, 0, -0.19), 0.05, 0.05, toon("satchel"), p, verts=10, outline=False)
+            sphere(f"hand{side}", (0, 0, -0.225), (0.05, 0.05, 0.05), skin, p)
+            self.arms.append(p)
+        if staff:
+            cylinder("staff", (0.0, -0.05, 0.02), 0.022, 1.02, toon("wood"), self.arms[1], verts=6)
+            sphere("staffknot", (0.0, -0.05, 0.53), (0.04, 0.04, 0.05), toon("bark"), self.arms[1])
+            cylinder("staffwrap", (0.0, -0.05, 0.42), 0.027, 0.05, trim, self.arms[1], verts=6, outline=False)
+        self.head = empty("head", (0, 0, 0.36), self.torso)
+        sphere("skull", (0, 0, 0.2), (0.23, 0.22, 0.215), skin, self.head)
+        sphere("hairback", (0, 0.07, 0.26), (0.24, 0.22, 0.22), hair, self.head)
+        # Side-swept bangs + a lock over one eye side.
+        sphere("bangs", (-0.05, -0.13, 0.33), (0.2, 0.1, 0.075), hair, self.head, rot=(0, 0.25, 0))
+        for side in (-1, 1):
+            sphere(f"sidehair{side}", (side * 0.2, -0.03, 0.17), (0.06, 0.08, 0.12), hair, self.head)
+        # High side ponytail (her right) with a red tie: reads from the front
+        # and swings on its own pivot.
+        sphere("tie", (0.17, 0.08, 0.36), (0.055, 0.05, 0.05), red, self.head)
+        self.tail = empty("pony", (0.2, 0.09, 0.37), self.head)
+        teardrop_tail = [(0.04, 0.02, 0.0, 0.08), (0.08, 0.03, -0.08, 0.085), (0.1, 0.04, -0.18, 0.075), (0.1, 0.04, -0.28, 0.055), (0.09, 0.03, -0.35, 0.035)]
+        for i, (x, y, z, r) in enumerate(teardrop_tail):
+            sphere(f"pony{i}", (x, y, z), (r, r * 0.9, r * 1.2), hair, self.tail)
+        # Wren feather tucked behind the left ear (ochre with a dark bar).
+        feather = empty("feather", (-0.21, 0.06, 0.3), self.head)
+        feather.rotation_euler = (0.7, -1.0, 0)
+        sphere("vane", (0, 0, 0.08), (0.026, 0.01, 0.09), toon("wren_feather"), feather)
+        for k in range(2):
+            sphere(f"bar{k}", (0, -0.011, 0.05 + k * 0.05), (0.024, 0.004, 0.01), toon("bark_dark"), feather, outline=False)
+        # Face: slightly narrower eyes, angled brows, freckles, smirk.
+        _face_decals(self.head, 0.088, -0.203, 0.17, (0.038, 0.022, 0.052), 0.145, -0.18, 0.1)
+        for side in (-1, 1):
+            b = sphere(f"brow{side}", (side * 0.09, -0.206, 0.245), (0.045, 0.012, 0.012), hair, self.head, outline=False)
+            b.rotation_euler = (0, -side * 0.28, 0)
+            for k in range(2):
+                sphere(f"freckle{side}{k}", (side * (0.12 + 0.025 * k), -0.19, 0.125 + 0.012 * k), (0.008, 0.004, 0.008), toon("#a8643d"), self.head, outline=False)
+        self.mouth = sphere("mouth", (0.02, -0.213, 0.088), (0.042, 0.012, 0.008), toon("eye", shadow=0.0, highlight=0.0, rim=0.0), self.head, outline=False, rot=(0, -0.22, 0))
+        contact_shadow(None, radius=0.25, squash=1.0, alpha=0.3)
+
+    def pose(self, anim: str, t: float) -> None:
+        s = math.sin(TAU * t)
+        c = math.cos(TAU * t)
+        for leg in self.legs:
+            leg.rotation_euler = (0, 0, 0)
+        self.torso.rotation_euler = (0, 0, 0)
+        self.torso.scale = (1, 1, 1)
+        self.head.rotation_euler = (0, 0, 0)
+        self.head.location.z = 0.36
+        self.hip.location.z = 0.36
+        self.arms[0].rotation_euler = (0, -0.14, 0)
+        self.arms[1].rotation_euler = (0, 0.14, 0)
+        self.mouth.scale = (0.042, 0.012, 0.008)
+        self.tail.rotation_euler = (0, 0, 0)
+        self.cape_tail.rotation_euler = (0, 0, 0)
+        if anim == "walk":
+            swing = 0.55 * s
+            self.legs[0].rotation_euler.x = swing
+            self.legs[1].rotation_euler.x = -swing
+            self.arms[0].rotation_euler.x = -0.5 * s
+            self.arms[1].rotation_euler.x = 0.25 * s
+            self.torso.rotation_euler.z = 0.07 * s
+            self.hip.location.z = 0.36 - 0.014 * abs(c)
+            self.tail.rotation_euler = (-0.25 - 0.2 * abs(c), 0.15 * s, 0)
+            self.cape_tail.rotation_euler = (-0.25 - 0.12 * abs(c), 0, 0)
+            return
+        breath = 0.012 * s
+        self.torso.scale = (1 + breath, 1 + breath, 1 + 0.02 * s)
+        self.head.location.z = 0.36 + 0.008 * s
+        self.tail.rotation_euler = (0.06 * s, 0.1 * math.sin(TAU * t + 0.8), 0)
+        if anim == "talk":
+            # Hand on hip, chin up, the other hand gestures; mouth on beats.
+            self.arms[0].rotation_euler = (-0.2, -0.9, 0.3)
+            self.arms[1].rotation_euler = (-0.35 - 0.2 * math.sin(TAU * t), 0.3, 0)
+            self.head.rotation_euler = (-0.06 + 0.06 * math.sin(TAU * t * 2), 0, 0.08 * s)
+            self.mouth.scale = (0.038, 0.012, 0.008 + 0.018 * abs(math.sin(TAU * t * 2)))
+            self.tail.rotation_euler = (0.1 * s, 0.18 * math.sin(TAU * t + 0.8), 0)
+
+
+# --------------------------------------------------------------------------
 # Props
 # --------------------------------------------------------------------------
 class Gate(Rig):
@@ -310,6 +430,7 @@ class Backdrop(Rig):
 
 
 BUILDERS = {
+    "wren": Wren,
     "villager": Villager,
     "gate": Gate,
     "lantern": LanternPost,
