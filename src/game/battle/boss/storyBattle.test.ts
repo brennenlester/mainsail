@@ -40,6 +40,24 @@ describe("Cinder Matriarch phases (#385)", () => {
     expect(warded.foe.damageScale!).toBeCloseTo(plain.foe.damageScale! * 0.75, 5);
   });
 
+  it("shows each form's slice of the shared pool as its own full bar (#401)", () => {
+    const battle = boss();
+    const max = battle.foe.maxHp;
+    const half = Math.round(max * 0.5);
+    expect(battle.formHp()).toEqual({ current: max - half, max: max - half });
+    battle.foe.currentHp = half + 5;
+    expect(battle.formHp()).toEqual({ current: 5, max: max - half });
+    battle.foe.currentHp = 1;
+    battle.checkTransform();
+    // Mire form's bar ends empty; Cinder form starts full on the clamp.
+    expect(battle.formHp(0)).toEqual({ current: 0, max: max - half });
+    expect(battle.formHp()).toEqual({ current: half, max: half });
+    battle.foe.currentHp = 10;
+    expect(battle.formHp()).toEqual({ current: 10, max: half });
+    const rival = new StoryBattle(getStorySpar("rival-wren"), { partyAverage: 8, partySize: 1, rematch: false, maxLevel: MAX_LEVEL });
+    expect(rival.formHp()).toBeNull();
+  });
+
   it("runs a fixed pattern that does not advance on a re-read", () => {
     const battle = boss();
     const player = simCombatant("bramblewarden", 8);

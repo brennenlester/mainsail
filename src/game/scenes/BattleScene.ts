@@ -2165,7 +2165,9 @@ export class BattleScene extends Phaser.Scene {
         hud.name.setFontSize(size);
       }
     }
-    const ratio = Math.max(0, who.currentHp / who.maxHp);
+    // The boss bar shows the current form's slice of her pool (#401).
+    const shown = (hud === this.wildHud && this.storyUi?.barHp()) || { current: who.currentHp, max: who.maxHp };
+    const ratio = Math.max(0, shown.current / shown.max);
     const width = hud.barWidth * ratio;
     this.tweens.killTweensOf(hud.bar);
     if (this.fx && !this.fx.mode().fast && Math.abs(hud.bar.width - width) > 0.5) {
@@ -2174,7 +2176,7 @@ export class BattleScene extends Phaser.Scene {
       hud.bar.width = width;
     }
     hud.bar.setFillStyle(ratio > 0.5 ? 0x6cd86a : ratio > 0.25 ? 0xf2c94c : 0xeb5757);
-    hud.hp.setText(`${who.currentHp}/${who.maxHp}`);
+    hud.hp.setText(`${shown.current}/${shown.max}`);
 
     for (const chip of hud.chips) {
       chip.destroy();

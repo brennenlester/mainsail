@@ -83,14 +83,25 @@ export type StoryHud = {
   barWidth: number;
   /** Scaled plate; chips are added into it in local coords. */
   container: Phaser.GameObjects.Container;
+  /** Room for the name line left of the phase label (base px). */
+  nameWidth?: number;
 };
 
 export class StoryBattleUi {
   private readonly scene: Phaser.Scene;
   private readonly battle: StoryBattle;
   private readonly fx: BattleFx;
-  private pips: Phaser.GameObjects.Text[] = [];
   private phaseLabel?: Phaser.GameObjects.Text;
+  private hud?: StoryHud;
+  /** Boss form art in a medallion left of the bar (#401). */
+  private icon?: Phaser.GameObjects.Image;
+  /**
+   * Form the boss bar shows. Trails `battle.formIndex` until the transform
+   * plays, so the bar drains Mire form to empty before Cinder form refills.
+   */
+  private shownForm = 0;
+  /** Phase-refill counter; stopped by the next HP refresh (`barHp`). */
+  private refill?: Phaser.Tweens.Tween;
   private warning: Phaser.GameObjects.GameObject[] = [];
   private embers?: Phaser.GameObjects.Particles.ParticleEmitter;
   private burst?: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -134,7 +145,7 @@ export class StoryBattleUi {
       : null;
   }
 
-  applyFoeTint(sprite: Phaser.GameObjects.Sprite): void {
+  applyFoeTint(sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image): void {
     const tint = this.customArt() ? null : (this.battle.form?.tint ?? null);
     if (tint === null) {
       sprite.clearTint();
@@ -153,8 +164,10 @@ export class StoryBattleUi {
     const s = this.scene;
     const ui = this.frame.ui;
     const width = rect.w / ui;
-    const barWidth = width - 100;
     const boss = this.battle.isBoss;
+    // Boss: the form medallion sits inside the plate's left end (#401), so
+    // it scales with the bar and never hangs off a phone's edge.
+    const inset = boss ? 64 : 0;
     const box = s.add.container(rect.x, rect.y).setScale(ui).setDepth(4);
     const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
       box.add(o);
@@ -165,11 +178,12 @@ export class StoryBattleUi {
     plate.fillRoundedRect(0, 0, width, 62, 12);
     plate.lineStyle(2, boss ? 0xff7a3a : 0xd8603c, 0.95);
     plate.strokeRoundedRect(0, 0, width, 62, 12);
-    const name = add(
-      s.add.text(12, 6, "", { color: "#fff0d8", fontFamily: HUD_FONT, fontSize: "15px", fontStyle: "bold" }),
-    );
-    const barX = 12;
+    const barX = 12 + inset;
     const barY = 34;
+    const barWidth = width - 100 - inset;
+    const name = add(
+      s.add.text(barX, 6, "", { color: "#fff0d8", fontFamily: HUD_FONT, fontSize: "15px", fontStyle: "bold" }),
+    );
     add(s.add.rectangle(barX, barY, barWidth, 12, 0x2a1c22, 1).setOrigin(0, 0.5).setStrokeStyle(1, 0x000000, 0.7));
     const bar = add(s.add.rectangle(barX, barY, barWidth, 12, 0xff7a3a, 1).setOrigin(0, 0.5));
     const hp = add(
@@ -177,32 +191,61 @@ export class StoryBattleUi {
         .text(width - 12, barY, "", { color: "#ffe8c8", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
         .setOrigin(1, 0.5),
     );
-    this.pips = this.battle.phaseMarks.map((mark, i) => {
-      const px = barX + barWidth * mark;
-      add(s.add.rectangle(px, barY, 3, 18, 0xffe45a, 1));
-      return add(
-        s.add
-          .text(px, barY + 15, ["II", "III", "IV"][i] ?? "", {
-            color: "#ffe45a",
-            fontFamily: HUD_FONT,
-            fontSize: "11px",
-            fontStyle: "bold",
-            stroke: "#140c14",
-            strokeThickness: 3,
-          })
-          .setOrigin(0.5),
-      );
-    });
     if (boss) {
       this.phaseLabel = add(
         s.add
           .text(width - 12, 6, "", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
           .setOrigin(1, 0),
       );
+      this.createIcon(box);
     }
     this.syncPhase();
     this.createWardRow(box);
-    return { name, hp, bar, chips: [], chipX: 12, chipY: 52, barWidth, container: box };
+    const hud: StoryHud = {
+      name,
+      hp,
+      bar,
+      chips: [],
+      chipX: barX,
+      chipY: 52,
+      barWidth,
+      container: box,
+      nameWidth: width - 12 - (this.phaseLabel?.width ?? 0) - 10 - barX,
+    };
+    this.hud = hud;
+    return hud;
+  }
+
+  /**
+   * HP the foe bar shows (#401): the boss bar is per form (each form's slice
+   * of the one pool reads as a full bar); null = the foe's own HP.
+   */
+  barHp(): { current: number; max: number } | null {
+    // A real HP refresh owns the bar from here: drop any phase refill.
+    this.refill?.stop();
+    this.refill = undefined;
+    return this.battle.formHp(this.shownForm);
+  }
+
+  /** Current form's art in a ringed medallion at the boss bar's left end. */
+  private createIcon(box: Phaser.GameObjects.Container): void {
+    const s = this.scene;
+    const cx = 36;
+    const cy = 31;
+    box.add(s.add.circle(cx, cy, 25, 0x2a1418, 1).setStrokeStyle(2, 0xff7a3a, 0.95));
+    this.icon = s.add.image(cx, cy + 3, "__DEFAULT");
+    box.add(this.icon);
+    this.syncIcon();
+  }
+
+  private syncIcon(): void {
+    if (!this.icon) {
+      return;
+    }
+    const key = this.customArt() ?? getCreatureDefinition(this.battle.spriteCreatureId).spriteKey;
+    this.icon.setTexture(...resolveCreaturePoseTexture(this.scene, key, "idle"));
+    this.icon.setScale(46 / Math.max(1, this.icon.width, this.icon.height));
+    this.applyFoeTint(this.icon);
   }
 
   /**
@@ -255,7 +298,6 @@ export class StoryBattleUi {
       const total = this.battle.def.boss?.forms.length ?? 1;
       this.phaseLabel.setText(`Phase ${this.battle.formIndex + 1}/${total} · ${form.label}`);
     }
-    this.pips.forEach((pip, i) => pip.setAlpha(i < this.battle.formIndex ? 0.35 : 1));
   }
 
   /** Story chips on the foe plate: Doused on a soaked Cinder form (the ward has its own row). */
@@ -398,34 +440,110 @@ export class StoryBattleUi {
       const ring = s.add.image(cx, cy, FX_TEX.ring).setTint(0xff8a3a).setBlendMode(Phaser.BlendModes.ADD).setDepth(9).setScale(0.4);
       s.tweens.add({ targets: ring, scale: 4.2, alpha: 0, duration: 700, ease: "Cubic.easeOut", onComplete: () => ring.destroy() });
     }
-    const scaleX = sprite.scaleX;
-    const scaleY = sprite.scaleY;
-    const swap = (): void => {
-      // New form: its own art (or tint), re-fitted; the idle breath follows the new size.
+    // New form: its own art (or tint), re-fitted. Two traps (#401: "the same
+    // sprite after the transform"): the rendered idle anim is keyed off the
+    // old frames, so it must be dropped; and the hit's knockback kills tweens
+    // on the sprite, so the swap runs on the clock, never a tween callback.
+    const home = { x: sprite.x, y: sprite.y };
+    const swap = (): { x: number; y: number } => {
+      s.tweens.killTweensOf(sprite);
+      sprite.setPosition(home.x, home.y).setAngle(0);
+      this.fx.resetPose("wild");
       this.decorateFoe(sprite);
-      this.fx.setHome("wild", sprite.x, sprite.y);
+      this.syncIcon();
+      return { x: sprite.scaleX, y: sprite.scaleY };
+    };
+    const settle = (scale: { x: number; y: number }): void => {
+      sprite.setScale(scale.x, scale.y);
+      this.applyFoeTint(sprite);
+      this.fx.setHome("wild", home.x, home.y);
+      this.fx.startIdle("wild");
     };
     if (fast || reduced) {
-      swap();
+      // After the hit reaction, so its recoil cannot resize the new art.
+      s.time.delayedCall(fast ? 240 : 0, () => settle(swap()));
     } else {
+      // Swell into a gold silhouette, swap the art at the peak under a
+      // second flash, then the new form settles out of the light.
       sprite.setTintFill(0xffd27a);
       s.tweens.add({
         targets: sprite,
-        scaleX: scaleX * 1.18,
-        scaleY: scaleY * 1.18,
-        duration: 260,
-        yoyo: true,
-        repeat: 1,
-        ease: "Sine.easeInOut",
-        onComplete: () => {
-          sprite.setScale(scaleX, scaleY);
-          swap();
-        },
+        scaleX: sprite.scaleX * 1.22,
+        scaleY: sprite.scaleY * 1.22,
+        duration: 420,
+        ease: "Sine.easeIn",
+      });
+      s.time.delayedCall(460, () => {
+        const scale = swap();
+        sprite.setScale(scale.x * 1.22, scale.y * 1.22).setTintFill(0xfff0c0);
+        s.cameras.main.flash(220, 255, 220, 160);
+        s.tweens.add({ targets: sprite, scaleX: scale.x, scaleY: scale.y, duration: 420, ease: "Back.easeOut" });
+        s.time.delayedCall(440, () => settle(scale));
       });
     }
+    this.playPhaseRefill(fast || reduced);
     this.banner(form.label.toUpperCase(), form.telegraph, "#ffb04a", fast ? 900 : 2200);
     this.syncPhase();
     s.time.delayedCall(fast ? 300 : 1100, done);
+  }
+
+  /**
+   * Boss bar after a transform (#401): the spent form's bar sits empty, then
+   * the new form's bar refills from zero in gold under a "PHASE n" tag, so
+   * the clamp reads as a second wind instead of an odd number jump.
+   */
+  private playPhaseRefill(instant: boolean): void {
+    this.shownForm = this.battle.formIndex;
+    const hud = this.hud;
+    const view = this.battle.formHp(this.shownForm);
+    if (!hud || !view) {
+      return;
+    }
+    const s = this.scene;
+    const width = hud.barWidth * (view.current / view.max);
+    s.tweens.killTweensOf(hud.bar);
+    const tag = s.add
+      .text(hud.chipX + hud.barWidth / 2, 34, `PHASE ${this.battle.formIndex + 1}`, {
+        color: "#2a1000",
+        fontFamily: HUD_FONT,
+        fontSize: "12px",
+        fontStyle: "bold",
+        backgroundColor: "#ffd27a",
+        padding: { x: 8, y: 1 },
+      })
+      .setOrigin(0.5);
+    // In the scaled plate, over the bar (local coords).
+    hud.container.add(tag);
+    s.tweens.add({ targets: tag, alpha: 0, delay: instant ? 900 : 1800, duration: 300, onComplete: () => tag.destroy() });
+    const finish = (): void => {
+      hud.bar.width = width;
+      // Same colour bands as the shared HP plate.
+      const ratio = view.current / view.max;
+      hud.bar.setFillStyle(ratio > 0.5 ? 0x6cd86a : ratio > 0.25 ? 0xf2c94c : 0xeb5757);
+      hud.hp.setText(`${view.current}/${view.max}`);
+    };
+    if (instant) {
+      finish();
+      return;
+    }
+    hud.bar.width = 0;
+    hud.bar.setFillStyle(0xffd27a);
+    this.refill = s.tweens.addCounter({
+      from: 0,
+      to: 1,
+      delay: 380,
+      duration: 760,
+      ease: "Cubic.easeOut",
+      onUpdate: (tw) => {
+        const t = tw.getValue() ?? 1;
+        hud.bar.width = width * t;
+        hud.hp.setText(`${Math.round(view.current * t)}/${view.max}`);
+      },
+      onComplete: () => {
+        this.refill = undefined;
+        finish();
+      },
+    });
   }
 
   /** Pulsing warning under the intent while the signature is telegraphed. */
