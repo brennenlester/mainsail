@@ -47,10 +47,28 @@ export function enterCutscene(): () => void {
 /** Hold the cutscene class for a scene's lifetime (start -> shutdown). */
 export function bindCutscene(scene: {
   events: { once(event: string, fn: () => void): unknown };
-}): void {
+}): () => void {
   const release = enterCutscene();
   scene.events.once("shutdown", release);
   scene.events.once("destroy", release);
+  return release;
+}
+
+/**
+ * Run a cutscene's `create()` body under the lock. If it throws, the scene
+ * never reaches shutdown, so release here or the HUD would stay locked.
+ */
+export function runCutsceneCreate(
+  scene: { events: { once(event: string, fn: () => void): unknown } },
+  build: () => void,
+): void {
+  const release = bindCutscene(scene);
+  try {
+    build();
+  } catch (error) {
+    release();
+    throw error;
+  }
 }
 
 /** Make the dock inert while locked; drop transient DOM hints. */

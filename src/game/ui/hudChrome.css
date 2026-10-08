@@ -24,6 +24,9 @@
   bottom: 64px;
   z-index: 60;
   width: min(260px, calc(100vw - 24px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px;
   border: 2px solid #80b0d0;
   border-radius: 10px;

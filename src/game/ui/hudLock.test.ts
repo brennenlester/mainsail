@@ -8,6 +8,7 @@ import {
   initHudLock,
   isCutsceneActive,
   isHudLocked,
+  runCutsceneCreate,
   syncHudLock,
 } from "./hudLock";
 
@@ -51,6 +52,18 @@ describe("hud lock (#391)", () => {
     expect(isHudLocked()).toBe(true);
     b();
     expect(isHudLocked()).toBe(false);
+  });
+
+  it("releases the lock when a cutscene's create() throws", () => {
+    const scene = fakeScene();
+    expect(() =>
+      runCutsceneCreate(scene, () => {
+        expect(isHudLocked()).toBe(true);
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
+    expect(isHudLocked()).toBe(false);
+    expect(isCutsceneActive()).toBe(false);
   });
 
   it("locks the dock for battle and encounter classes too", () => {

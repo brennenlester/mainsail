@@ -292,6 +292,11 @@ export class IsometricScene extends Phaser.Scene {
   private walkHintTravel = 0;
   private walkHint?: Phaser.GameObjects.Text;
   private walkHintFading = false;
+  /** First walk persisted this session / remembered walk (read once). */
+  private walkMarked = false;
+  private walkedMemo?: boolean;
+  /** Cached stick visibility; refreshed on layout (CSS media query changes with size). */
+  private touchControlsShown = false;
   private godSailTravelSinceEncounter = 0;
   private godLandTravelSinceEncounter = 0;
   private inEncounter = false;
@@ -1317,6 +1322,7 @@ export class IsometricScene extends Phaser.Scene {
       // Status copy first: its height decides how much canvas is left (#391).
       updateStatusPanel(zone);
       const stage = layoutStage();
+      this.touchControlsShown = areTouchControlsVisible();
       syncQuestHudPosition();
       resizeGameForDisplay(this, stage.width, stage.height);
       this.scale.refresh();
@@ -1794,14 +1800,18 @@ export class IsometricScene extends Phaser.Scene {
    */
   private syncWalkHint(): void {
     const walked = !shouldShowWalkHint(this.walkHintTravel);
-    if (walked) {
+    if (walked && !this.walkMarked) {
+      // State change only: this runs every frame and must not hit storage.
+      this.walkMarked = true;
+      this.walkedMemo = true;
       markWalked();
       // Same first-step gate that kills the WASD ghost unlocks host invite (#257).
       unlockHostInviteChrome();
     }
+    this.walkedMemo ??= hasWalkedBefore();
     const eligible = movementHintEligible({
-      touchControls: areTouchControlsVisible(),
-      walkedBefore: walked || hasWalkedBefore(),
+      touchControls: this.touchControlsShown,
+      walkedBefore: walked || this.walkedMemo,
       atFirstBeat: getActiveQuestId() === QUEST_ORDER[0],
       visitor: isVisitorMode(),
     });

@@ -1,10 +1,14 @@
 import Phaser from "phaser";
 import { topHudInsetCss } from "./hudInset";
+import { DEVICE_DPR_CAP, effectivePixelRatio } from "./pixelBudget";
 
-/** Cap DPR so fill-rate stays reasonable on 3× phones. */
-export const RENDER_DPR = Math.min(
+/**
+ * Live buffer pixels per CSS pixel. Reassigned by `resizeGameForDisplay`
+ * (ES live binding), so importers always read the ratio the buffer uses.
+ */
+export let RENDER_DPR = Math.min(
   typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
-  2,
+  DEVICE_DPR_CAP,
 );
 
 /** Logical layout size for overlay scenes (battle / encounter / shrine). */
@@ -16,6 +20,11 @@ export function resizeGameForDisplay(
   stageCssWidth: number,
   stageCssHeight: number,
 ): void {
+  RENDER_DPR = effectivePixelRatio(
+    stageCssWidth,
+    stageCssHeight,
+    typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+  );
   const width = Math.max(1, Math.round(stageCssWidth * RENDER_DPR));
   const height = Math.max(1, Math.round(stageCssHeight * RENDER_DPR));
   if (
