@@ -165,6 +165,7 @@ import { unlockCodexHud } from "../ui/hudChrome";
 import { getPartyAverageLevel, getWildEffectiveLevel } from "../progression/wildLevel";
 import { scaledStat } from "../progression/leveling";
 import { setPartyEditLocked } from "../ui/partyPanel";
+import { dismissAmbientNicknamePrompt } from "../ui/nicknamePrompt";
 import { applyBondToCombatant } from "../companions/bond";
 import {
   afterBefriendMiss,
@@ -302,6 +303,7 @@ export class BattleScene extends Phaser.Scene {
   private story: StoryBattle | null = null;
   private titleOverride: string | undefined;
   private blockedToast?: Phaser.GameObjects.Container;
+  private lastBlockedAt = -Infinity;
   private storyUi: StoryBattleUi | null = null;
   // ponytail: temporary god-spar kill cheat
   private onGodSparKillCheatKeyDown = (event: KeyboardEvent) => {
@@ -345,6 +347,7 @@ export class BattleScene extends Phaser.Scene {
   }): void {
     this.titleOverride = data.title;
     this.blockedToast = undefined;
+    this.lastBlockedAt = -Infinity;
     this.story = data.story
       ? new StoryBattle(getStorySpar(data.story.sparId), {
           partyAverage: getPartyAverageLevel(),
@@ -469,6 +472,8 @@ export class BattleScene extends Phaser.Scene {
 
   create(): void {
     setPartyEditLocked(true);
+    // A docked "name your friend" prompt must not sit over the battle plates.
+    dismissAmbientNicknamePrompt();
     // Quest card sits over the top-right of the board; hide it during spars.
     document.body.classList.add("battle-active");
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -1143,6 +1148,12 @@ export class BattleScene extends Phaser.Scene {
 
   /** "Not yet" feedback (#409): short toast over the arena, a log line, a quiet tick. */
   private notifyBlocked(message: string): void {
+    // Held / mashed keys: one sound, log line and toast per ~250ms.
+    const now = this.time.now;
+    if (now - this.lastBlockedAt < 250) {
+      return;
+    }
+    this.lastBlockedAt = now;
     playDeniedSfx(this);
     this.log(message);
     this.blockedToast?.destroy();

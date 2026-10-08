@@ -391,6 +391,8 @@ function drawHero(
   drawCreatureArt(ctx, creature, lookup, x + 240 + (grow - 1) * 60, top + h - 36, 320 * grow, rng);
 
   const tx = x + 500;
+  // Text column ends 28px inside the panel border, so a 16-character nickname never touches it.
+  const nameRoom = w - 500 - 28;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = GOLD;
@@ -402,8 +404,8 @@ function drawHero(
   do {
     ctx.font = `700 ${size}px ${SERIF}`;
     size -= 2;
-  } while (size >= 36 && ctx.measureText(name).width > w - 470);
-  ctx.fillText(fitText(ctx, name, w - 470), tx, y + 144);
+  } while (size >= 36 && ctx.measureText(name).width > nameRoom);
+  ctx.fillText(fitText(ctx, name, nameRoom), tx, y + 144);
   ctx.fillStyle = GOLD;
   ctx.font = `700 40px ${SERIF}`;
   ctx.fillText(`Lv ${creature.level}`, tx, y + 198);

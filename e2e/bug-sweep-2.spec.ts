@@ -144,6 +144,28 @@ test("a cooling-down move shakes, toasts 'ready in N' and logs, by key and tap",
   expect(await battle(page, `(s) => s.logText.text`)).toBe("No one to switch to");
 });
 
+test("mashing a cooling card never drifts it sideways and throttles the feedback", async ({ page }) => {
+  await startSpar(page);
+  await page.waitForTimeout(1200);
+  const idx = (await battle(page, `(s) => s.moveCards.findIndex((c) => !c.ready)`)) as number;
+  const restX = (await battle(page, `(s) => s.moveCards[${idx}].container.x`)) as number;
+  for (let i = 0; i < 20; i += 1) {
+    await page.keyboard.press(String(idx + 1));
+    await page.waitForTimeout(25);
+  }
+  await expect.poll(() => battle(page, `(s) => s.moveCards[${idx}].container.x`), { timeout: 10_000 }).toBe(restX);
+  // Many presses inside ~250ms make one sound / log (the shake itself still plays).
+  const sounds = (await page.evaluate(`(async () => {
+    const s = window.__game.scene.getScene("BattleScene");
+    let n = 0;
+    const real = s.sound.play.bind(s.sound);
+    s.sound.play = (...a) => { n += 1; return real(...a); };
+    for (let i = 0; i < 12; i += 1) s.moveCards[${idx}].activate();
+    return n;
+  })()`)) as number;
+  expect(sounds).toBeLessThanOrEqual(1);
+});
+
 test("move card titles wrap instead of collapsing to 'Bar…' on a 320px phone", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await startSpar(page);

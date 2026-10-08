@@ -1,3 +1,5 @@
+import { cleanDisplayText } from "./displayText";
+
 /** Local player display name (overworld + Hearth Lots nametag). Not invite hostLabel. */
 
 export const PLAYER_NAME_MAX_LENGTH = 16;
@@ -7,9 +9,9 @@ type NameListener = () => void;
 let playerName: string | null = null;
 const listeners = new Set<NameListener>();
 
-/** Trim and enforce the max length. Empty / whitespace-only → null. */
+/** Strip invisibles, trim and enforce the max length. Empty / invisible-only → null. */
 export function normalizePlayerName(raw: string): string | null {
-  const trimmed = raw.trim();
+  const trimmed = cleanDisplayText(raw);
   if (!trimmed) {
     return null;
   }

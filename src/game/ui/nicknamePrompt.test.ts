@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  dismissAmbientNicknamePrompt,
   isNicknamePromptBlocking,
   isNicknamePromptOpen,
   promptNickname,
@@ -8,9 +9,9 @@ import {
 import { getOverlayStackIds, resetOverlayStack } from "./overlayStack";
 import type { CreatureInstance } from "../creatures/types";
 
-function creature(): CreatureInstance {
+function creature(id = "a"): CreatureInstance {
   return {
-    instanceId: "a",
+    instanceId: id,
     definitionId: "ember-wisp",
     speciesId: "ember-wisp",
     currentHp: 10,
@@ -78,6 +79,52 @@ describe("nickname prompt focus (#409)", () => {
     );
     await second;
     expect(isNicknamePromptOpen()).toBe(false);
+  });
+
+  it("Rename on creature B while the docked prompt for A is up names only B", async () => {
+    const a = creature("a");
+    const b = creature("b");
+    const docked = promptNickname(a, { ambient: true });
+    const rename = promptNickname(b);
+    // The docked prompt was closed (resolved) when the modal one took the form.
+    await docked;
+    vi.runAllTimers();
+    expect(isNicknamePromptBlocking()).toBe(true);
+    input().value = "Zed";
+    document.querySelector("#nickname-overlay form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await rename;
+    expect(b.nickname).toBe("Zed");
+    expect(a.nickname).toBeUndefined();
+    expect(isNicknamePromptOpen()).toBe(false);
+    expect(getOverlayStackIds()).not.toContain("nickname");
+  });
+
+  it("the Rename prompt keeps its overlay entry when an older docked prompt closes", async () => {
+    const docked = promptNickname(creature("a"), { ambient: true });
+    void promptNickname(creature("b"));
+    await docked;
+    // A late dismiss of the (already closed) docked prompt must not touch B's modal state.
+    dismissAmbientNicknamePrompt();
+    expect(getOverlayStackIds()).toContain("nickname");
+    expect(isNicknamePromptBlocking()).toBe(true);
+  });
+
+  it("Escape dismisses the docked prompt even when the input is not focused", async () => {
+    const done = promptNickname(creature(), { ambient: true });
+    expect(document.activeElement).not.toBe(input());
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await done;
+    expect(isNicknamePromptOpen()).toBe(false);
+  });
+
+  it("dismissAmbientNicknamePrompt closes a docked prompt but not a modal one", async () => {
+    const docked = promptNickname(creature(), { ambient: true });
+    dismissAmbientNicknamePrompt();
+    await docked;
+    expect(isNicknamePromptOpen()).toBe(false);
+    void promptNickname(creature());
+    dismissAmbientNicknamePrompt();
+    expect(isNicknamePromptOpen()).toBe(true);
   });
 
   it("an explicit prompt (Party panel Rename) is modal and focuses the input", () => {

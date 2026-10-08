@@ -13,6 +13,8 @@ import { popOverlay, pushOverlay } from "./overlayStack";
  */
 let open = false;
 let blocking = false;
+/** Closes whichever prompt is showing; the form is shared, so only one may be live. */
+let pendingFinish: (() => void) | null = null;
 let keyboardHandler: ((captured: boolean) => void) | null = null;
 
 /** The overworld lends its keyboard gate so typed letters reach the input. */
@@ -68,6 +70,13 @@ function ensureRoot(): HTMLElement {
   return root;
 }
 
+/** Close the docked (ambient) prompt, e.g. when a battle, dialogue or shrine takes over. */
+export function dismissAmbientNicknamePrompt(): void {
+  if (open && !blocking) {
+    pendingFinish?.();
+  }
+}
+
 export type NicknamePromptOptions = {
   /**
    * Ambient prompts (a companion just joined) are non-blocking: no backdrop,
@@ -82,6 +91,8 @@ export function promptNickname(
   options: NicknamePromptOptions = {},
 ): Promise<void> {
   const ambient = options.ambient === true;
+  // One shared form: finish any prompt still up so its handlers cannot rename this creature.
+  pendingFinish?.();
   const root = ensureRoot();
   const form = root.querySelector("form") as HTMLFormElement;
   const title = root.querySelector("#nickname-title") as HTMLElement;
@@ -105,12 +116,20 @@ export function promptNickname(
   const previouslyFocused =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;
   return new Promise((resolve) => {
+    let done = false;
     const finish = (): void => {
+      if (done) {
+        return;
+      }
+      done = true;
+      if (pendingFinish === finish) {
+        pendingFinish = null;
+      }
+      window.removeEventListener("keydown", onKeyDown);
       form.removeEventListener("submit", onSubmit);
       skip.removeEventListener("click", finish);
       input.removeEventListener("focus", onFocus);
       input.removeEventListener("blur", onBlur);
-      form.removeEventListener("keydown", onKeyDown);
       popOverlay("nickname");
       root.hidden = true;
       open = false;
@@ -145,13 +164,15 @@ export function promptNickname(
     };
     form.addEventListener("submit", onSubmit);
     skip.addEventListener("click", finish);
+    pendingFinish = finish;
     open = true;
     blocking = !ambient;
     root.hidden = false;
     if (ambient) {
       input.addEventListener("focus", onFocus);
       input.addEventListener("blur", onBlur);
-      form.addEventListener("keydown", onKeyDown);
+      // Esc dismisses the docked prompt whether or not the input has focus.
+      window.addEventListener("keydown", onKeyDown);
       return;
     }
     pushOverlay("nickname", finish);

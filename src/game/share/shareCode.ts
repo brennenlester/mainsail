@@ -2,6 +2,7 @@ import { CREATURES } from "../creatures/catalog";
 import { MAX_LEVEL } from "../progression/leveling";
 import { PLAYER_NAME_MAX_LENGTH } from "../world/playerName";
 import { fromBase64Url, toBase64Url } from "../world/invite";
+import { capCodePoints, cleanDisplayText } from "../world/displayText";
 
 /**
  * Companion Card share code (#368): a compact, versioned party snapshot that
@@ -63,20 +64,9 @@ export type ShareParseResult =
 
 export const SHARE_FALLBACK_NAME = "A friend";
 
-/**
- * Strip control, format (bidi / zero-width), private-use, unassigned and lone
- * surrogate characters, cap combining marks at two per base character,
- * collapse whitespace, and cap at the in-game name length (code points).
- */
+/** Shared display-text filter (see world/displayText), capped in code points. */
 function cleanShareText(raw: string, max: number): string {
-  const cleaned = raw
-    .slice(0, 256)
-    .replace(/[\s\p{Zl}\p{Zp}]+/gu, " ")
-    .replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu, "")
-    // Zalgo guard: keep at most two combining marks per base character.
-    .replace(/(\p{M}{2})\p{M}+/gu, "$1")
-    .trim();
-  return Array.from(cleaned).slice(0, max).join("").trim();
+  return capCodePoints(cleanDisplayText(raw), max);
 }
 
 export function sanitizeShareName(raw: unknown): string {

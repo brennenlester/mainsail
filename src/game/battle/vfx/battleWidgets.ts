@@ -159,6 +159,7 @@ export class MoveCard {
   private readonly data: MoveCardData;
   private readonly onActivate: () => void;
   private readonly onBlocked?: () => void;
+  private homeX = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -253,6 +254,7 @@ export class MoveCard {
     parts.push(title, effect, sub);
     this.container = scene.add.container(rect.x + rect.w / 2, rect.y + rect.h / 2, parts);
     this.container.setScale(ui).setDepth(6).setSize(w, h);
+    this.homeX = this.container.x;
     if (!ready) {
       // A cooling-down card still answers a tap: shake + "ready in N" (#409).
       this.container.setInteractive(new Phaser.Geom.Rectangle(-2, -3, w + 4, h + 6), Phaser.Geom.Rectangle.Contains);
@@ -314,7 +316,9 @@ export class MoveCard {
 
   /** Quick side-to-side jiggle: "not yet". Restores the exact resting x. */
   shake(): void {
-    const restX = this.container.x;
+    // Always around the home x captured at build time, so rapid presses
+    // (a killed tween never runs onComplete) cannot walk the card sideways.
+    const restX = this.homeX;
     this.scene.tweens.killTweensOf(this.container);
     this.container.x = restX;
     this.scene.tweens.add({

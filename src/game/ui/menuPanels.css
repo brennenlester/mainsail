@@ -579,6 +579,13 @@
   }
 }
 
+body.battle-active .nickname-overlay--ambient,
+body.encounter-active .nickname-overlay--ambient,
+body.cutscene-active .nickname-overlay--ambient,
+body.shrine-active .nickname-overlay--ambient {
+  display: none;
+}
+
 /* The docked "name your new friend" prompt steps aside while a panel is open. */
 body:has(.menu-root:not([hidden])) .nickname-overlay--ambient {
   display: none;
