@@ -42,7 +42,12 @@ const SFX = {
   moveWater: "sfx-move-water",
   moveGrove: "sfx-move-grove",
   moveNeutral: "sfx-move-neutral",
-  bossSting: "sfx-boss-sting",
+} as const;
+
+/** Story battle sting (#385): compressed like music, loaded only by story battles. */
+const BOSS_STING = {
+  key: "sfx-boss-sting",
+  urls: ["assets/audio/sfx-boss-sting.ogg", "assets/audio/sfx-boss-sting.m4a"],
 } as const;
 
 const STEP_BY_SURFACE: Record<StepSurface, string> = {
@@ -84,7 +89,9 @@ export function preloadGameAudio(scene: Phaser.Scene): void {
     scene.load.audio(key, `assets/audio/${key}.wav`);
   }
   for (const cfg of Object.values(MUSIC_TRACKS)) {
-    scene.load.audio(cfg.key, [...cfg.urls]);
+    if (!cfg.lazy) {
+      scene.load.audio(cfg.key, [...cfg.urls]);
+    }
   }
 }
 
@@ -260,7 +267,18 @@ export function playAbilitySfx(scene?: Phaser.Scene): void {
 
 /** Story battle VS banner / boss transformation hit (#385). */
 export function playBossStingSfx(scene: Phaser.Scene): void {
-  playSfx(scene, SFX.bossSting, 0.7);
+  playSfx(scene, BOSS_STING.key, 0.7);
+}
+
+/** Queue the story battle theme + sting in a scene's preload (no boot cost for everyone). */
+export function preloadStoryAudio(scene: Phaser.Scene, theme: "boss" | "rival"): void {
+  const cfg = MUSIC_TRACKS[theme];
+  if (!scene.cache.audio.exists(cfg.key)) {
+    scene.load.audio(cfg.key, [...cfg.urls]);
+  }
+  if (!scene.cache.audio.exists(BOSS_STING.key)) {
+    scene.load.audio(BOSS_STING.key, [...BOSS_STING.urls]);
+  }
 }
 
 /** Move cast sound by battle type: fire / water / grove / neutral. */

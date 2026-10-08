@@ -6,6 +6,7 @@ import {
   playHitPlayerSfx,
   playHitWildSfx,
   playMoveTypeSfx,
+  preloadStoryAudio,
   setBattleTheme,
   STRONG_HIT_DAMAGE,
 } from "../audio/gameAudio";
@@ -21,6 +22,7 @@ import type { BossForm } from "../story/storySpars";
 import { getStorySpar } from "../story/storySpars";
 import { getActiveQuestId } from "../story/questProgress";
 import { MAX_LEVEL } from "../progression/leveling";
+import { hideOpeningCaption } from "../opening/openingCaption";
 import { BattleFx, type Side } from "../battle/vfx/battleFx";
 import {
   fastBattleEnabled,
@@ -313,6 +315,7 @@ export class BattleScene extends Phaser.Scene {
           partyAverage: getPartyAverageLevel(),
           partySize: getActiveCreatures().filter((c) => c.currentHp > 0).length,
           rematch: data.story.rematch,
+          ward: data.story.ward,
           maxLevel: MAX_LEVEL,
         })
       : null;
@@ -418,6 +421,7 @@ export class BattleScene extends Phaser.Scene {
   preload(): void {
     if (this.story) {
       preloadStoryArena(this, storyArenaVariant(this.story));
+      preloadStoryAudio(this, this.story.def.theme);
     }
   }
 
@@ -431,6 +435,7 @@ export class BattleScene extends Phaser.Scene {
     });
     this.scene.bringToTop();
     bindOverlayPixelRatio(this);
+    hideOpeningCaption();
     ensureCreatureTextures(this);
     ensurePlayerAnims(this);
     this.cameras.main.fadeIn(140, 255, 255, 255);
@@ -523,9 +528,10 @@ export class BattleScene extends Phaser.Scene {
     const wildOpens = SPAR_WILD_OPENING_TURNS > 0 || this.wildOpens;
     this.log(
       this.story
-        ? this.story.isBoss
-          ? `The ${this.wild.name} rises from the smoking peat — ${this.story.form?.label ?? ""}!`
-          : `Wren sends out ${this.wild.name}! (${this.story.remainingFoes + 1} to beat)`
+        ? (this.story.isBoss
+            ? `The ${this.wild.name} rises from the smoking peat — ${this.story.form?.label ?? ""}!`
+            : `Wren sends out ${this.wild.name}! (${this.story.remainingFoes + 1} to beat)`) +
+          (this.story.ward < 1 ? " The shrine's warmth steadies you." : "")
         : wildOpens
           ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
           : `A training spar with ${this.wild.name} begins.`,
@@ -1605,10 +1611,8 @@ export class BattleScene extends Phaser.Scene {
       this.fainted.delete("wild");
       this.fx.resetPose("wild");
       this.tweens.killTweensOf(this.wildSprite);
-      this.wildSprite.setTexture(
-        ...resolveCreaturePoseTexture(this, getCreatureDefinition(this.wildCreatureId).spriteKey, "battle"),
-      );
       fitDisplay(this.wildSprite, BATTLE_CREATURE_DISPLAY);
+      this.storyUi?.decorateFoe(this.wildSprite);
       this.fx.setHome("wild", WILD_HOME.x, WILD_HOME.y);
       this.fx.enter("wild");
       this.storyUi?.announceNextFoe(next.name);
@@ -1877,8 +1881,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private syncHpHud(hud: HpHud, who: BattleCombatant, level: number | null): void {
+    // A doused boss keeps her form's type on the bar; the chip says Doused.
+    const shownType = (hud === this.wildHud && this.story?.form?.type) || who.folkloreType;
     hud.name.setText(
-      `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${who.folkloreType}`,
+      `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${shownType}`,
     );
     const ratio = Math.max(0, who.currentHp / who.maxHp);
     const width = (hud.barWidth ?? HP_BAR_WIDTH) * ratio;
@@ -1902,6 +1908,7 @@ export class BattleScene extends Phaser.Scene {
     if (who.guarding) {
       chips.push({ text: "GUARD", color: ROLE_STYLE.guard.css });
     }
+    chips.push(...(this.storyUi?.extraChips(hud === this.wildHud ? "wild" : "player") ?? []));
     for (const chip of chips) {
       const t = this.add
         .text(x, hud.chipY, chip.text, {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getStorySpar, hearthWardScale } from "../../story/storySpars";
 import { storyPartyRate } from "./storyBattleBalance";
 import { storyBattleStats } from "./storyBattleSim";
 
@@ -30,11 +31,25 @@ describe("Cinder Matriarch balance", () => {
     expect(trio).toBeGreaterThan(duo);
   });
 
-  it("asks for the telegraph read: max-damage and random play are far behind", () => {
+  it("asks for the telegraph read on a first attempt: max-damage is far behind skilled", () => {
     for (const size of [1, 2, 3] as const) {
-      const skilled = rate(size, "skilled");
-      expect(rate(size, "max-damage"), `max-damage ${size}`).toBeLessThanOrEqual(skilled - 0.25);
-      expect(rate(size, "random"), `random ${size}`).toBeLessThanOrEqual(0.15);
+      expect(rate(size, "max-damage"), `max-damage ${size}`).toBeLessThanOrEqual(rate(size, "skilled") - 0.25);
+    }
+  });
+
+  it("Hearth Ward makes her winnable for casual play after repeated losses", () => {
+    const def = getStorySpar("cinder-matriarch");
+    const after2 = hearthWardScale(def, 2);
+    const after4 = hearthWardScale(def, 4);
+    expect(hearthWardScale(def, 1)).toBe(1);
+    for (const size of [1, 2, 3] as const) {
+      const warded = (policy: "random" | "max-damage" | "guard-read", ward: number) =>
+        storyPartyRate("cinder-matriarch", size, policy, 8, SEEDS, false, ward).winRate;
+      // Learned only "Guard Cinderfall": real odds after two losses.
+      expect(warded("guard-read", after2), `guard-read ${size}`).toBeGreaterThanOrEqual(0.3);
+      // Never guards at all: still winnable after four.
+      expect(warded("max-damage", after4), `max-damage ${size}`).toBeGreaterThanOrEqual(0.2);
+      expect(warded("random", after4), `random ${size}`).toBeGreaterThanOrEqual(0.15);
     }
   });
 
@@ -80,6 +95,16 @@ describe("Wren balance", () => {
     }
     expect(rate(1, "skilled")).toBeGreaterThanOrEqual(0.55);
     expect(rate(1, "skilled")).toBeLessThanOrEqual(0.9);
+  });
+
+  it("rematch Hearth Ward keeps casual rematches winnable after losses", () => {
+    const after4 = hearthWardScale(getStorySpar("rival-wren"), 4);
+    for (const size of [1, 2, 3] as const) {
+      expect(
+        storyPartyRate("rival-wren", size, "max-damage", 6, SEEDS, true, after4).winRate,
+        `rematch max-damage ${size}`,
+      ).toBeGreaterThanOrEqual(0.4);
+    }
   });
 
   it("escalates on rematch: harder than the first win, still winnable with a party", () => {

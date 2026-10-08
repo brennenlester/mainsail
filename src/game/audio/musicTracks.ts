@@ -28,6 +28,8 @@ export type MusicTrackConfig = {
   fadeOutMs: number;
   /** One-shot length; only set for non-looping tracks. */
   durationMs?: number;
+  /** Not preloaded at boot: loaded by the scene that needs it (story battles). */
+  lazy?: boolean;
 };
 
 function track(id: string, extra: Partial<MusicTrackConfig> = {}): MusicTrackConfig {
@@ -50,8 +52,8 @@ export const MUSIC_TRACKS: Readonly<Record<MusicTrackId, MusicTrackConfig>> = {
   battle: track("battle", { gain: 0.26, fadeInMs: 400, fadeOutMs: 700 }),
   night: track("night", { gain: 0.32 }),
   // Story battles (#385): the Cinder Matriarch and Wren have their own themes.
-  boss: track("boss", { gain: 0.3, fadeInMs: 300, fadeOutMs: 900 }),
-  rival: track("rival", { gain: 0.28, fadeInMs: 300, fadeOutMs: 700 }),
+  boss: track("boss", { gain: 0.3, fadeInMs: 300, fadeOutMs: 900, lazy: true }),
+  rival: track("rival", { gain: 0.28, fadeInMs: 300, fadeOutMs: 700, lazy: true }),
   victory: track("victory", {
     loop: false,
     gain: 0.38,

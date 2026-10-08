@@ -12,6 +12,8 @@ import type { StorySparId } from "./questTypes";
  */
 export type StorySparRound = {
   creatureId: string;
+  /** Bespoke battle art (`creature-<id>` + `-battle`); species art when missing. */
+  spriteKey?: string;
   /** Added to the party-average level for this creature. */
   levelBonus: number;
 };
@@ -21,6 +23,11 @@ export type BossPatternStep = string;
 
 export type BossForm = {
   id: string;
+  /**
+   * Bespoke art for this form (#392): `<key>` / `<key>-battle` atlas frames.
+   * Falls back to the boss species art + `tint` until it exists.
+   */
+  spriteKey?: string;
   /** "Mire form" — shown on the boss bar and in the transformation banner. */
   label: string;
   type: FolkloreType;
@@ -80,6 +87,13 @@ export type StoryAssist = {
 
 export type ChallengerScale = { hp: number; damage: number };
 
+/**
+ * Hearth Ward (#385 review): after `after` real losses in a row on this
+ * challenge, the opposition's HP and damage are multiplied by `scale`. Cheap
+ * catch-up for casual play; a first attempt is never softened.
+ */
+export type HearthWardStep = { after: number; scale: number };
+
 export type StorySparDefinition = {
   id: StorySparId;
   /** Speaker / NPC id used for the dialogue around the spar. */
@@ -104,6 +118,8 @@ export type StorySparDefinition = {
   challengerScale: readonly ChallengerScale[];
   /** Rematches bring more creatures, so they scale on their own table. */
   rematchChallengerScale?: readonly ChallengerScale[];
+  /** Catch-up steps by losses in a row (ascending `after`). */
+  hearthWard: readonly HearthWardStep[];
   boss?: BossDefinition;
   assist?: StoryAssist;
   /** Granted once, on the first win (the quest beat). */
@@ -158,6 +174,10 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
       { hp: 1.2, damage: 1.1 },
       { hp: 1.4, damage: 1.15 },
     ],
+    hearthWard: [
+      { after: 2, scale: 0.85 },
+      { after: 4, scale: 0.75 },
+    ],
     firstWinReward: [{ kind: "item", id: "brook-tonic", amount: 2 }],
     coverageGift: { type: "water", creatureId: "brook-nymph", nickname: "Pip" },
   },
@@ -176,6 +196,10 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
     rounds: [],
     rematchRounds: [],
     rematchLevelBonus: 0,
+    hearthWard: [
+      { after: 2, scale: 0.85 },
+      { after: 4, scale: 0.75 },
+    ],
     challengerScale: [
       { hp: 1, damage: 1 },
       { hp: 1.6, damage: 1.15 },
@@ -193,6 +217,7 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
       forms: [
         {
           id: "mire",
+          spriteKey: "creature-cinder-matriarch",
           label: "Mire form",
           type: "fen",
           counterType: "woodland",
@@ -207,6 +232,7 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
         },
         {
           id: "cinder",
+          spriteKey: "creature-cinder-matriarch-phase2",
           label: "Cinder form",
           type: "ember",
           counterType: "water",
@@ -217,7 +243,7 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
           dousedType: "hearth",
           tint: null,
           telegraph:
-            "Cinder form (ember) hunts woodland. Water hunts ember: swap in while she gathers. Soaked, her embers are doused. Guard Cinderfall to stagger her.",
+            "Cinder form (ember) hunts woodland. Water hunts ember: swap in while she gathers. Soaked, her embers are doused. Guard the turn AFTER she gathers.",
         },
       ],
     },
@@ -232,6 +258,17 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
     firstWinReward: [{ kind: "item", id: "moonwake-draught", amount: 1 }],
   },
 };
+
+/** Ward multiplier for `losses` real losses in a row (1 = no ward). */
+export function hearthWardScale(def: StorySparDefinition, losses: number): number {
+  let scale = 1;
+  for (const step of def.hearthWard) {
+    if (losses >= step.after) {
+      scale = step.scale;
+    }
+  }
+  return scale;
+}
 
 /** Scale for a party of `size` standing companions (1 when the table is empty). */
 export function challengerScaleFor(

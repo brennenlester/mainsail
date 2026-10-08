@@ -4,6 +4,7 @@ import { MAX_LEVEL } from "../../progression/leveling";
 import type { StorySparId } from "../../story/questTypes";
 import { getStorySpar } from "../../story/storySpars";
 import { executeMove, isFainted, primeOpeningCooldowns } from "../battleLogic";
+import { moveRole } from "../kits";
 import { chooseMove, seededRng, simCombatant, type SparPolicy } from "../sparSim";
 import { tickStatuses } from "../statusEffects";
 import { StoryBattle } from "./storyBattle";
@@ -25,8 +26,14 @@ export type StorySimSetup = {
   /** Player party, lead first. */
   party: readonly string[];
   level: number;
-  policy: Exclude<SparPolicy, "befriend">;
+  /**
+   * `guard-read`: casual play that only learned the boss lesson: max-damage,
+   * except Guard into a telegraphed finisher (Cinderfall) when Guard is ready.
+   */
+  policy: Exclude<SparPolicy, "befriend"> | "guard-read";
   rematch?: boolean;
+  /** Hearth Ward multiplier (1 = none). */
+  ward?: number;
 };
 
 export type StorySimResult = {
@@ -52,6 +59,7 @@ export function simulateStoryBattle(setup: StorySimSetup, seed: number): StorySi
   const battle = new StoryBattle(getStorySpar(setup.sparId), {
     partyAverage: setup.level,
     partySize: setup.party.length,
+    ward: setup.ward ?? 1,
     rematch: setup.rematch ?? false,
     maxLevel: MAX_LEVEL,
   });
@@ -113,7 +121,13 @@ export function simulateStoryBattle(setup: StorySimSetup, seed: number): StorySi
       active = swap;
       player = roster[active]!;
     } else {
-      const move = chooseMove(setup.policy, player, battle.foe, intent.move, rng);
+      const guard = player.moves.find((m) => moveRole(m) === "guard" && (player.cooldowns?.[m.id] ?? 0) <= 0);
+      const move =
+        setup.policy === "guard-read"
+          ? guard && moveRole(intent.move) === "finisher"
+            ? guard
+            : chooseMove("max-damage", player, battle.foe, intent.move, rng)
+          : chooseMove(setup.policy, player, battle.foe, intent.move, rng);
       executeMove(player, move, battle.foe, rng);
       const transformed = battle.checkTransform();
       if (isFainted(battle.foe)) {
@@ -174,6 +188,7 @@ export function storyBattleStats(setup: StorySimSetup, seeds = 300): StorySimSta
   let parries = 0;
   let assists = 0;
   const key = `${setup.sparId}|${setup.party.join("+")}|${setup.level}|${setup.rematch ? 1 : 0}`;
+  // Same seed stream with or without the ward, so the ward's effect is isolated.
   let base = 2166136261;
   for (let i = 0; i < key.length; i++) {
     base = Math.imul(base ^ key.charCodeAt(i), 16777619);

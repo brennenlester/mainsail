@@ -1,6 +1,9 @@
 import Phaser from "phaser";
 import { playBossStingSfx } from "../../audio/gameAudio";
-import { NPC_DISPLAY } from "../../render/displaySizes";
+import { BATTLE_CREATURE_DISPLAY, NPC_DISPLAY } from "../../render/displaySizes";
+import { getCreatureDefinition } from "../../creatures/catalog";
+import { resolveCreaturePoseTexture } from "../../creatures/creaturePoses";
+import { hasWorldTexture } from "../../render/imagineAssets";
 import { ensureFxTextures, FX_TEX } from "../../render/fx/fxTextures";
 import { arenaLayerKeys, type ArenaVariant } from "../../render/arenaLayers";
 import { applyNpcSprite } from "../../render/worldTextures";
@@ -76,15 +79,28 @@ export class StoryBattleUi {
 
   /** Boss art: bigger, tinted per form. Call before fx.setHome. */
   decorateFoe(sprite: Phaser.GameObjects.Sprite): void {
-    if (!this.battle.isBoss) {
-      return;
-    }
-    sprite.setDisplaySize(sprite.displayWidth * BOSS_SCALE, sprite.displayHeight * BOSS_SCALE);
+    const art = this.customArt();
+    const key = art ?? getCreatureDefinition(this.battle.spriteCreatureId).spriteKey;
+    sprite.setTexture(...resolveCreaturePoseTexture(this.scene, key, "battle"));
+    const scale = this.battle.isBoss ? BOSS_SCALE : 1;
+    sprite.setDisplaySize(BATTLE_CREATURE_DISPLAY.width * scale, BATTLE_CREATURE_DISPLAY.height * scale);
     this.applyFoeTint(sprite);
   }
 
+  /**
+   * Bespoke art key for the foe when its frames are loaded (#392:
+   * `creature-cinder-matriarch[-phase2]` + `-battle`), else null (species
+   * art + form tint).
+   */
+  private customArt(): string | null {
+    const key = this.battle.foeArtKey;
+    return key && (hasWorldTexture(this.scene, key) || hasWorldTexture(this.scene, `${key}-battle`))
+      ? key
+      : null;
+  }
+
   applyFoeTint(sprite: Phaser.GameObjects.Sprite): void {
-    const tint = this.battle.form?.tint ?? null;
+    const tint = this.customArt() ? null : (this.battle.form?.tint ?? null);
     if (tint === null) {
       sprite.clearTint();
     } else {
@@ -148,13 +164,22 @@ export class StoryBattleUi {
     this.pips.forEach((pip, i) => pip.setAlpha(i < this.battle.formIndex ? 0.35 : 1));
   }
 
+  /** Story chips: Hearth Ward on your side, Doused on a soaked Cinder form. */
+  extraChips(side: "wild" | "player"): { text: string; color: string }[] {
+    if (side === "player") {
+      return this.battle.ward < 1 ? [{ text: "HEARTH WARD", color: "#ffd27a" }] : [];
+    }
+    return this.battle.isDoused ? [{ text: "DOUSED", color: "#9ad8ff" }] : [];
+  }
+
   /** Extra words on the intent plate for the boss's special beats. */
   intentDetail(note: IntentNote, detail: string): string {
     switch (note) {
       case "signature":
-        return `${detail}  SIGNATURE · Guard to parry!`;
+        // Short on purpose: the plate must fit at phone width (#385 review).
+        return "SIGNATURE · Guard!";
       case "charge":
-        return "winding up — Cinderfall next. Save your Guard!";
+        return "winding up — Cinderfall NEXT turn. Save your Guard!";
       case "stagger":
         return "reeling — exposed, your hits land harder!";
       default:
@@ -277,7 +302,11 @@ export class StoryBattleUi {
     }
     const scaleX = sprite.scaleX;
     const scaleY = sprite.scaleY;
-    const swap = (): void => this.applyFoeTint(sprite);
+    const swap = (): void => {
+      // New form: its own art (or tint), re-fitted; the idle breath follows the new size.
+      this.decorateFoe(sprite);
+      this.fx.setHome("wild", sprite.x, sprite.y);
+    };
     if (fast || reduced) {
       swap();
     } else {

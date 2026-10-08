@@ -31,6 +31,15 @@ describe("Cinder Matriarch phases (#385)", () => {
     expect(boss(7).foe.maxHp).toBe(trio.foe.maxHp);
   });
 
+  it("Hearth Ward scales her HP and damage down", () => {
+    const def = getStorySpar("cinder-matriarch");
+    const warded = new StoryBattle(def, { partyAverage: 8, partySize: 1, rematch: false, maxLevel: MAX_LEVEL, ward: 0.75 });
+    const plain = boss();
+    expect(warded.ward).toBe(0.75);
+    expect(warded.foe.maxHp).toBeCloseTo(plain.foe.maxHp * 0.75, -1);
+    expect(warded.foe.damageScale!).toBeCloseTo(plain.foe.damageScale! * 0.75, 5);
+  });
+
   it("runs a fixed pattern that does not advance on a re-read", () => {
     const battle = boss();
     const player = simCombatant("bramblewarden", 8);

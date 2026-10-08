@@ -46,6 +46,8 @@ export type AssistAction =
 
 export type StoryBattleOptions = {
   partyAverage: number;
+  /** Hearth Ward multiplier on opposition HP and damage (1 = none). */
+  ward?: number;
   /** Standing companions at battle start (the boss scales to challengers, up to 3). */
   partySize: number;
   rematch: boolean;
@@ -91,6 +93,16 @@ export class StoryBattle {
   /** HP / damage scale for the standing party at battle start. */
   private get scale(): ChallengerScale {
     return challengerScaleFor(this.def, this.options.partySize, this.rematch);
+  }
+
+  /** Hearth Ward multiplier in effect (1 = none). */
+  get ward(): number {
+    return this.options.ward ?? 1;
+  }
+
+  /** Bespoke art key for the foe right now (may not be loaded yet). */
+  get foeArtKey(): string | undefined {
+    return this.form?.spriteKey ?? (this.isBoss ? undefined : this.roster[this.stage]?.spriteKey);
   }
 
   get isBoss(): boolean {
@@ -145,7 +157,9 @@ export class StoryBattle {
     const boss = this.def.boss!;
     const form = boss.forms[0]!;
     const scale = this.scale;
-    const maxHp = Math.round(scaledStat(boss.baseHp, this.level) * boss.hpMult * scale.hp);
+    const maxHp = Math.round(
+      scaledStat(boss.baseHp, this.level) * boss.hpMult * scale.hp * this.ward,
+    );
     return {
       name: this.def.name,
       level: this.level,
@@ -155,7 +169,7 @@ export class StoryBattle {
       defense: form.defense,
       moves: [...form.kit],
       folkloreType: form.type,
-      damageScale: boss.damageScale * scale.damage,
+      damageScale: boss.damageScale * scale.damage * this.ward,
       bulk: 1,
       cooldowns: {},
     };
@@ -165,7 +179,7 @@ export class StoryBattle {
     const round = this.roster[index]!;
     const def = getCreatureDefinition(round.creatureId);
     const level = this.levelFor(round.levelBonus);
-    const maxHp = Math.round(scaledStat(def.maxHp, level) * this.scale.hp);
+    const maxHp = Math.round(scaledStat(def.maxHp, level) * this.scale.hp * this.ward);
     return primeOpeningCooldowns({
       name: def.name,
       level,
@@ -175,7 +189,7 @@ export class StoryBattle {
       defense: def.defense,
       moves: getBattleKit(def),
       folkloreType: def.folkloreType,
-      damageScale: WILD_DAMAGE_SCALE * this.scale.damage,
+      damageScale: WILD_DAMAGE_SCALE * this.scale.damage * this.ward,
       bulk: outleveledWildBulk(this.options.partyAverage, level),
     });
   }

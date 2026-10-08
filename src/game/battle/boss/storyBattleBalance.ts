@@ -35,10 +35,11 @@ export function storyPartyRate(
   level = EXPECTED_LEVEL[sparId],
   seeds = 300,
   rematch = false,
+  ward = 1,
 ): StorySimStats {
   const parties = STORY_PARTIES[size];
   const runs = parties.map((party) =>
-    storyBattleStats({ sparId, party, level, policy, rematch }, seeds),
+    storyBattleStats({ sparId, party, level, policy, rematch, ward }, seeds),
   );
   const mean = (pick: (s: StorySimStats) => number) =>
     runs.reduce((sum, s) => sum + pick(s), 0) / runs.length;

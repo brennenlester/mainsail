@@ -24,6 +24,7 @@ import {
 import type { StorySparId } from "../story/questTypes";
 import {
   getStorySpar,
+  hearthWardScale,
   storySparRoster,
   storySparRoundLevel,
   storySparSpecies,
@@ -85,7 +86,12 @@ export type StorySparOutcome = {
 export type StorySparResult = "won" | "lost";
 
 /** Init data BattleScene receives for a story battle. */
-export type StoryBattleInit = { sparId: StorySparId; rematch: boolean };
+export type StoryBattleInit = {
+  sparId: StorySparId;
+  rematch: boolean;
+  /** Hearth Ward multiplier from the loss streak (1 = none). */
+  ward: number;
+};
 
 /** How long BattleScene may take to come up before the save pause is released. */
 export const STORY_BATTLE_START_TIMEOUT_MS = 5000;
@@ -97,6 +103,11 @@ const lastOutcome = new Map<StorySparId, StorySparOutcome>();
  * beat heals, even across reloads.
  */
 const lostBeats = new Set<StorySparId>();
+/**
+ * Real losses in a row per challenge (persisted; a win resets it). Drives the
+ * Hearth Ward catch-up; forfeits do not count.
+ */
+const lossStreaks = new Map<StorySparId, number>();
 /** Set by BattleScene when a story battle ends (null = no verdict = loss). */
 let reportedResult: { id: StorySparId; won: boolean } | null = null;
 
@@ -104,6 +115,25 @@ const STORY_SPAR_IDS: readonly StorySparId[] = ["rival-wren", "cinder-matriarch"
 
 export function isStorySparId(value: unknown): value is StorySparId {
   return STORY_SPAR_IDS.includes(value as StorySparId);
+}
+
+export function getStorySparLossStreaks(): Record<string, number> {
+  return Object.fromEntries([...lossStreaks].filter(([, n]) => n > 0));
+}
+
+/** Restore persisted streaks; unknown ids and bad counts are ignored. */
+export function setStorySparLossStreaks(streaks: Readonly<Record<string, unknown>>): void {
+  lossStreaks.clear();
+  for (const [id, n] of Object.entries(streaks)) {
+    if (isStorySparId(id) && typeof n === "number" && Number.isInteger(n) && n > 0) {
+      lossStreaks.set(id, Math.min(n, 99));
+    }
+  }
+}
+
+/** Hearth Ward multiplier the next attempt at `id` gets (1 = none). */
+export function getHearthWard(id: StorySparId): number {
+  return hearthWardScale(getStorySpar(id), lossStreaks.get(id) ?? 0);
 }
 
 export function getStorySparLosses(): StorySparId[] {
@@ -287,6 +317,7 @@ function finishLoss(spar: ActiveStorySpar, forfeit: boolean): void {
   }
   if (!forfeit) {
     lostBeats.add(spar.id);
+    lossStreaks.set(spar.id, (lossStreaks.get(spar.id) ?? 0) + 1);
   }
   lastOutcome.set(spar.id, {
     result: "lost",
@@ -309,6 +340,7 @@ export function resolveStorySpar(won: boolean): StorySparResult | null {
     return "lost";
   }
   const firstWin = getActiveQuestId() === spar.id;
+  lossStreaks.delete(spar.id);
   if (!firstWin) {
     // Rematch: bragging rights only — no XP / Dust farm.
     rollBackRewards(spar.before);
@@ -373,7 +405,9 @@ export function reportStoryBattleResult(id: StorySparId, won: boolean): void {
 
 /** Init data for the running story battle (BattleScene `story`). */
 export function getStoryBattleInit(): StoryBattleInit | null {
-  return active ? { sparId: active.id, rematch: active.rematch } : null;
+  return active
+    ? { sparId: active.id, rematch: active.rematch, ward: getHearthWard(active.id) }
+    : null;
 }
 
 /**
@@ -437,4 +471,5 @@ export function resetStorySparForTest(): void {
   reportedResult = null;
   lastOutcome.clear();
   lostBeats.clear();
+  lossStreaks.clear();
 }

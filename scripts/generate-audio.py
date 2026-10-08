@@ -823,6 +823,10 @@ SFX = {
     "move-water": lambda: sfx_move("water"),
     "move-grove": lambda: sfx_move("grove"),
     "move-neutral": lambda: sfx_move("neutral"),
+}
+
+# Longer SFX shipped compressed (.ogg + .m4a) like music (#385 review).
+COMPRESSED_SFX = {
     "boss-sting": sfx_boss_sting,
 }
 
@@ -839,17 +843,17 @@ def write_wav(path: Path, x: np.ndarray) -> None:
         w.writeframes(pcm.tobytes())
 
 
-def write_music(name: str, x: np.ndarray) -> None:
+def write_music(name: str, x: np.ndarray, prefix: str = "music") -> None:
     import soundfile as sf
 
-    ogg = OUT / f"music-{name}.ogg"
+    ogg = OUT / f"{prefix}-{name}.ogg"
     # ponytail: quality 0.4 mono is ~45 kbps; raise if a track sounds crunchy
     sf.write(str(ogg), x.astype("float32"), SR, format="OGG", subtype="VORBIS")
     afconvert = shutil.which("afconvert")
     if afconvert:
         wav = OUT / f".tmp-{name}.wav"
         write_wav(wav, x)
-        m4a = OUT / f"music-{name}.m4a"
+        m4a = OUT / f"{prefix}-{name}.m4a"
         subprocess.run([afconvert, "-f", "m4af", "-d", "aac", "-b", "48000", str(wav), str(m4a)], check=True)
         wav.unlink()
     else:
@@ -867,6 +871,12 @@ def main(argv: list[str]) -> int:
             x = fn()
             write_wav(OUT / f"sfx-{name}.wav", x)
             print(f"sfx-{name}.wav  {len(x) / SR:.2f}s")
+        for name, fn in COMPRESSED_SFX.items():
+            if only and name not in only:
+                continue
+            x = fn()
+            write_music(name, x, prefix="sfx")
+            print(f"sfx-{name}.ogg/.m4a  {len(x) / SR:.2f}s")
     if what in ("all", "music"):
         for name, fn in MUSIC.items():
             if only and name not in only:

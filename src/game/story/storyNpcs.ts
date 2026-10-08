@@ -2,6 +2,7 @@ import {
   canBeginStorySpar,
   consumeStorySparOutcome,
   describeStorySparLineup,
+  getHearthWard,
   grantCoverageGift,
 } from "../battle/storySpar";
 import { registerStoryNpcProvider, type NpcDefinition } from "../world/npcs";
@@ -119,6 +120,13 @@ function talk(
   return cues ? { lines, prompt, cues } : { lines, prompt };
 }
 
+/** Kind note when the Hearth Ward is on for the next attempt (never a shame label). */
+function wardLine(id: StorySparId): string[] {
+  return getHearthWard(id) < 1
+    ? ["The shrine's warmth steadies you. (Hearth Ward: the next fight is a little gentler.)"]
+    : [];
+}
+
 function rivalConversation(): StoryConversation {
   const outcome = consumeStorySparOutcome("rival-wren");
   if (outcome?.result === "won") {
@@ -176,6 +184,7 @@ function rivalConversation(): StoryConversation {
         "So you're the one the Moon Shrine keeps humming about. I'm Wren — I've walked every path from here to the fens.",
         `One battle, my whole team, one after the other: ${describeStorySparLineup("rival-wren")}. No breather between them.`,
         "Win, and I'll get the Mistwood path opened for you. Lose, and I'll patch you up and laugh.",
+        ...wardLine("rival-wren"),
       ],
       { kind: "challenge", sparId: "rival-wren", label: "Spar Wren" },
     );
@@ -184,6 +193,7 @@ function rivalConversation(): StoryConversation {
     [
       "Back for more? I've been training too — and my storm finch wants a turn.",
       `${describeStorySparLineup("rival-wren")}. No prizes on rematches. Just bragging rights.`,
+      ...wardLine("rival-wren"),
     ],
     { kind: "challenge", sparId: "rival-wren", label: "Rematch" },
   );
@@ -234,8 +244,9 @@ function bossConversation(): StoryConversation {
     [
       "A great toad of ash and peat rises from the fen — the Cinder Matriarch. Her shape will not hold still.",
       `She fights in ${boss?.forms.length ?? 2} forms in one battle. ${boss?.forms[0]?.telegraph ?? ""}`,
-      "At half strength she splits into Cinder form. When she gathers embers, Guard: a parried Cinderfall staggers her.",
+      "At half strength she splits into Cinder form. Cinderfall comes after she gathers — Guard THAT turn. A parried Cinderfall staggers her.",
       "She swells to meet every companion you bring. Wren stands at your shoulder.",
+      ...wardLine("cinder-matriarch"),
     ],
     { kind: "challenge", sparId: "cinder-matriarch", label: "Challenge" },
   );

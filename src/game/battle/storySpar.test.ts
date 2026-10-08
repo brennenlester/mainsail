@@ -46,7 +46,11 @@ import {
   resolveStorySpar,
   setStorySparLosses,
   getStorySparLosses,
+  getStorySparLossStreaks,
+  getHearthWard,
+  getStoryBattleInit,
   grantCoverageGift,
+  setStorySparLossStreaks,
 } from "./storySpar";
 
 function progressAt(activeId: QuestId): Record<QuestId, QuestStatus> {
@@ -294,7 +298,7 @@ describe("launchStorySpar (BattleScene adapter)", () => {
         key: "BattleScene",
         data: expect.objectContaining({
           wildCreatureId: "lantern-fox",
-          story: { sparId: "rival-wren", rematch: false },
+          story: { sparId: "rival-wren", rematch: false, ward: 1 },
         }),
       },
     ]);
@@ -363,6 +367,43 @@ describe("launchStorySpar (BattleScene adapter)", () => {
     const fake = fakeScene();
     expect(launchStorySpar(fake.scene, () => undefined)).toBe(false);
     expect(fake.launches).toEqual([]);
+  });
+});
+
+describe("Hearth Ward catch-up (#385 review)", () => {
+  it("softens the next attempt after repeated real losses, and a win resets it", () => {
+    restoreQuestProgress(progressAt("cinder-matriarch"));
+    expect(getHearthWard("cinder-matriarch")).toBe(1);
+    const lose = () => {
+      beginStorySpar("cinder-matriarch");
+      resolveStorySpar(false);
+    };
+    lose();
+    expect(getHearthWard("cinder-matriarch")).toBe(1);
+    lose();
+    expect(getHearthWard("cinder-matriarch")).toBe(0.85);
+    // A forfeit is not a loss.
+    beginStorySpar("cinder-matriarch");
+    forfeitStorySpar();
+    expect(getHearthWard("cinder-matriarch")).toBe(0.85);
+    lose();
+    lose();
+    expect(getHearthWard("cinder-matriarch")).toBe(0.75);
+    beginStorySpar("cinder-matriarch");
+    expect(getStoryBattleInit()).toMatchObject({ ward: 0.75 });
+    resolveStorySpar(true);
+    expect(getHearthWard("cinder-matriarch")).toBe(1);
+  });
+
+  it("persists streaks, dropping unknown ids and bad counts", () => {
+    setStorySparLossStreaks({ "rival-wren": 3, ghost: 5, "cinder-matriarch": -1 });
+    expect(getStorySparLossStreaks()).toEqual({ "rival-wren": 3 });
+    expect(getHearthWard("rival-wren")).toBe(0.85);
+    persistHostSave();
+    resetStorySparForTest();
+    restoreHostSave(loadHostSave()!);
+    expect(getHearthWard("rival-wren")).toBe(0.85);
+    setStorySparLossStreaks({});
   });
 });
 
