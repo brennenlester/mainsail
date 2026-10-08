@@ -8,18 +8,24 @@ export type GatherAction = {
   cooldownMs: number;
 };
 
+/** Shorter than the old 30s so a node feels worth returning to. */
+export const GATHER_COOLDOWN_MS = 15_000;
+/** Inclusive yield range per harvest (was a flat 1). */
+export const GATHER_YIELD_MIN = 2;
+export const GATHER_YIELD_MAX = 3;
+
 export const GATHERABLE_PROPS: Partial<Record<PropKind, GatherAction>> = {
-  tree: { materialId: "wood", prompt: "Chop tree", cooldownMs: 30_000 },
+  tree: { materialId: "wood", prompt: "Chop tree", cooldownMs: GATHER_COOLDOWN_MS },
   "standing-stone": {
     materialId: "stone",
     prompt: "Mine stone",
-    cooldownMs: 30_000,
+    cooldownMs: GATHER_COOLDOWN_MS,
   },
-  fern: { materialId: "wild-fiber", prompt: "Gather fiber", cooldownMs: 30_000 },
+  fern: { materialId: "wild-fiber", prompt: "Gather fiber", cooldownMs: GATHER_COOLDOWN_MS },
   "pebble-pile": {
     materialId: "pebble",
     prompt: "Collect pebbles",
-    cooldownMs: 30_000,
+    cooldownMs: GATHER_COOLDOWN_MS,
   },
 };
 

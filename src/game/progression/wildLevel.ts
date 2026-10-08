@@ -1,13 +1,10 @@
 import { ZONE_ENCOUNTERS } from "../encounters/tables";
 import { MAX_LEVEL } from "./leveling";
-import { getSparWinsForSpecies } from "../world/sparWins";
-
-/** Spar wins per +1 wild level (before rarity bias). */
-export const WINS_PER_WILD_LEVEL = 2;
+import { getActiveCreatures, playerParty } from "../creatures/party";
 
 export const RARITY_BIAS_COMMON = 0;
-export const RARITY_BIAS_UNCOMMON = 3;
-export const RARITY_BIAS_RARE = 6;
+export const RARITY_BIAS_UNCOMMON = 1;
+export const RARITY_BIAS_RARE = 2;
 
 // Inline ids to avoid import cycles with godFusion/party.
 const DEFEAT_SCALING_EXCLUDED = new Set([
@@ -44,7 +41,7 @@ export function getSpeciesMaxEncounterWeight(
 
 /**
  * Rarity bias from max encounter weight:
- * common ≥40 → +0, uncommon 13–39 → +3, rare ≤12 → +6.
+ * common ≥40 → +0, uncommon 13–39 → +1, rare ≤12 → +2.
  * Unlisted species (evos, etc.) get +0 — they are not wild-scaled spawns.
  */
 export function rarityBiasFromWeight(weight: number | null): number {
@@ -67,17 +64,29 @@ export function getRarityBias(creatureId: string): number {
   return rarityBiasFromWeight(getSpeciesMaxEncounterWeight(creatureId));
 }
 
+/** Rounded average level of the active party (all creatures if none active); 1 when empty. */
+export function getPartyAverageLevel(): number {
+  const actives = getActiveCreatures();
+  const pool = actives.length > 0 ? actives : playerParty.creatures;
+  if (pool.length === 0) {
+    return 1;
+  }
+  const total = pool.reduce((sum, c) => sum + c.level, 0);
+  return Math.max(1, Math.round(total / pool.length));
+}
+
 /**
- * Wild effective level from per-species spar wins + rarity bias.
+ * Wild effective level: party average + small rarity bias, capped at MAX_LEVEL (#370).
+ * Spar win counts no longer raise wild level, so success is never punished.
  * Sovereigns always return 1 (catalog baseline; no defeat scaling).
  */
 export function getWildEffectiveLevel(
   creatureId: string,
-  wins = getSparWinsForSpecies(creatureId),
+  partyAverage = getPartyAverageLevel(),
 ): number {
   if (isDefeatScalingExcluded(creatureId)) {
     return 1;
   }
-  const fromWins = 1 + Math.floor(Math.max(0, wins) / WINS_PER_WILD_LEVEL);
-  return Math.min(MAX_LEVEL, fromWins + getRarityBias(creatureId));
+  const base = Math.max(1, Math.round(partyAverage));
+  return Math.min(MAX_LEVEL, base + getRarityBias(creatureId));
 }

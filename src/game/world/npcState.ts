@@ -53,7 +53,7 @@ const GROVE_STARTER_LINE: Record<BrynGroveStarterId, readonly string[]> = {
   "ember-wisp": ["ember-wisp", "hearthflame"],
 };
 const ODD_REST_MATERIALS = ["wood", "wild-fiber", "pebble"] as const;
-export const ODD_REST_FIRST_COST = 20;
+export const ODD_REST_FIRST_COST = 5;
 export const ODD_REST_REPEAT_COST = 5;
 
 export type ConversationPrompt =
