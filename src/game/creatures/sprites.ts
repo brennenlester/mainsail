@@ -1,4 +1,5 @@
 import { hasWorldTexture } from "../render/imagineAssets";
+import { isLateImagePending } from "../render/lateAssets";
 import Phaser from "phaser";
 import { CREATURES } from "./catalog";
 
@@ -677,6 +678,11 @@ export function ensureCreatureTextures(scene: Phaser.Scene): void {
     // Prefer Imagine art (atlas frame or standalone PNG); procedural only as
     // fallback.
     if (hasWorldTexture(scene, creature.spriteKey)) {
+      continue;
+    }
+    // Late-game PNG not fetched yet (#410): leave the key free so the scene
+    // that shows it can still load the real art; a failed fetch draws here.
+    if (isLateImagePending(scene, creature.spriteKey)) {
       continue;
     }
 

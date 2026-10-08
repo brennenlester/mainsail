@@ -1,12 +1,36 @@
 import Phaser from "phaser";
-import { preloadGameAudio } from "../audio/gameAudio";
 import { getBootContext } from "../opening/bootRoute";
 import { preloadTitleArt } from "./TitleScene";
 import { type LoadErrorFile, warnOnLoadError } from "./loadError";
+import { createImagineAnims } from "../render/imagineAssets";
 import {
-  createImagineAnims,
-  preloadImagineAssets,
-} from "../render/imagineAssets";
+  markWorldAssetsReady,
+  queueBootAssets,
+  setWorldAssetsProgress,
+} from "../render/bootAssets";
+import { lateCreatureKeys, queueLateImages } from "../render/lateAssets";
+import { playerParty } from "../creatures/party";
+import { worldState } from "../world/worldState";
+import { readShareParam } from "../share/shareCode";
+
+/**
+ * Sovereign art a save (or a shared card) can show from the first frame:
+ * owned or codex-discovered sovereigns load at boot, everyone else's on demand.
+ */
+function bootLateImageKeys(): string[] {
+  const ids = new Set<string>(worldState.discoveredCreatures);
+  for (const c of playerParty.creatures) {
+    ids.add(c.definitionId);
+    ids.add(c.speciesId);
+  }
+  const card = readShareParam();
+  if (card.status === "ok") {
+    for (const c of card.snapshot.party) {
+      ids.add(c.id);
+    }
+  }
+  return lateCreatureKeys(ids);
+}
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -27,46 +51,13 @@ export class PreloadScene extends Phaser.Scene {
     this.load.on("loaderror", (file: LoadErrorFile) => {
       warnOnLoadError(file, import.meta.env.DEV);
     });
-    preloadImagineAssets(this);
-    this.load.image(
-      "creature-tide-sovereign",
-      "assets/creatures/creature-tide-sovereign.png",
-    );
-    this.load.image(
-      "creature-cairn-sovereign",
-      "assets/creatures/creature-cairn-sovereign.png",
-    );
-    this.load.image(
-      "creature-horizon-sovereign",
-      "assets/creatures/creature-horizon-sovereign.png",
-    );
-    this.load.image(
-      "creature-eclipse-sovereign",
-      "assets/creatures/creature-eclipse-sovereign.png",
-    );
-    // Villagers are Blender renders in the atlas (#361); applyNpcSprite falls
-    // back to the procedural villager if a frame is missing.
-    this.load.image(
-      "minigame-hearth-lots-board",
-      "assets/minigames/hearth-lots-board.png",
-    );
-    this.load.image(
-      "boundary-warden-cottage",
-      "assets/world/boundary-cottage.png",
-    );
-    this.load.image(
-      "boundary-weaver-cottage",
-      "assets/world/boundary-cottage.png",
-    );
-    this.load.image(
-      "boundary-hearthkeep-cottage",
-      "assets/world/boundary-cottage.png",
-    );
-    this.load.image(
-      "boundary-hermit-cottage",
-      "assets/world/boundary-cottage.png",
-    );
-    preloadGameAudio(this);
+    // Title route (#410): only what the title shows blocks it; the atlas and
+    // world audio stream in behind the title (see create). Other routes go
+    // straight into play, so they load everything now.
+    queueBootAssets(this, title ? "title" : "all");
+    if (!title) {
+      queueLateImages(this, bootLateImageKeys(), null);
+    }
   }
 
   /**
@@ -128,10 +119,36 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (getBootContext().route === "title") {
+      this.scene.launch("TitleScene");
+      this.streamWorldAssets();
+      return;
+    }
     // Global anims (scene.anims is game-wide): idle/walk/attack/hurt sets.
     createImagineAnims(this);
-    this.scene.start(
-      getBootContext().route === "title" ? "TitleScene" : "IsometricScene",
-    );
+    markWorldAssetsReady();
+    this.scene.start("IsometricScene");
+  }
+
+  /**
+   * Second boot phase behind the title (#410): atlas pages, anims and world
+   * audio. TitleScene waits on `whenWorldAssetsReady` (with the loading
+   * veil) only if the player gets through the menu first.
+   */
+  private streamWorldAssets(): void {
+    // The title draws over this scene; hide the loader art and keep only
+    // the loader itself running.
+    this.tweens.killAll();
+    this.cameras.main.setVisible(false);
+    this.load.removeAllListeners("progress");
+    queueBootAssets(this, "world");
+    queueLateImages(this, bootLateImageKeys(), null);
+    this.load.on("progress", setWorldAssetsProgress);
+    this.load.once("complete", () => {
+      createImagineAnims(this);
+      markWorldAssetsReady();
+      this.scene.stop();
+    });
+    this.load.start();
   }
 }

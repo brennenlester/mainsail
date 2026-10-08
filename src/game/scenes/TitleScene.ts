@@ -23,6 +23,8 @@ import {
   resizeGameForDisplay,
 } from "../render/pixelRatio";
 import { initNameIntro } from "../ui/nameIntro";
+import { hideLoadingVeil, showLoadingVeil } from "../ui/loadingVeil";
+import { whenWorldAssetsReady } from "../render/bootAssets";
 import { getPlayerName } from "../world/playerName";
 import { clearHostSave, isHostSaveLocked } from "../world/worldSave";
 
@@ -95,6 +97,8 @@ export class TitleScene extends Phaser.Scene {
   private menu?: TitleMenu;
   private started = false;
   private leaving = false;
+  /** Name keys typed between New Game and the name form (#410). */
+  private typedAhead: string | null = null;
   private prompt?: Phaser.GameObjects.Text;
   private logoParts: Phaser.GameObjects.GameObject[] = [];
   private logoTweens: Phaser.Tweens.Tween[] = [];
@@ -115,6 +119,7 @@ export class TitleScene extends Phaser.Scene {
     this.logoFinal = [];
     this.started = false;
     this.leaving = false;
+    this.typedAhead = null;
     this.motion = !prefersReducedMotion();
     document.body.classList.add("title-active");
     this.layoutBoard();
@@ -855,7 +860,11 @@ export class TitleScene extends Phaser.Scene {
   };
 
   private onKeyDown = (event: KeyboardEvent): void => {
-    if (this.leaving || event.repeat) {
+    if (this.leaving) {
+      this.bufferTypedAhead(event);
+      return;
+    }
+    if (event.repeat) {
       return;
     }
     if (!this.started) {
@@ -924,16 +933,61 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
     this.leaving = true;
+    this.typedAhead = newGame ? "" : null;
     // Pressing Enter/clicking here is a gesture too: make sure audio is live.
     unlockAudioFromGesture(this);
     setAudioScreen(undefined, this);
     this.cameras.main.fadeOut(520, 13, 20, 36);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       document.body.classList.remove("title-active");
-      this.scene.start("IsometricScene");
-      // Continue with a named save is a no-op; New Game asks for the name.
-      initNameIntro(newGame ? startOpeningBeat : undefined);
+      // The atlas streams in behind the title (#410); a fast player waits
+      // here on the branded veil instead of a blank stage.
+      whenWorldAssetsReady(
+        () => this.enterWorld(newGame),
+        (progress) => showLoadingVeil("Gathering moonlight…", progress),
+      );
     });
+  }
+
+  /**
+   * Name form first, world second (#410): the form paints and takes focus
+   * before IsometricScene's heavy first frame, so keys typed during that
+   * frame land in the input. Keys typed during the fade are replayed.
+   */
+  private enterWorld(newGame: boolean): void {
+    showLoadingVeil("Waking the grove…");
+    // Continue with a named save is a no-op; New Game asks for the name.
+    if (initNameIntro(newGame ? startOpeningBeat : undefined)) {
+      const input = document.getElementById("name-intro-input") as HTMLInputElement | null;
+      if (input) {
+        const max = input.maxLength > 0 ? input.maxLength : undefined;
+        input.value = (this.typedAhead ?? "").slice(0, max);
+        input.focus();
+      }
+    }
+    this.typedAhead = null;
+    const world = this.scene.get("IsometricScene");
+    world.events.once(Phaser.Scenes.Events.CREATE, () => {
+      this.game.events.once(Phaser.Core.Events.POST_RENDER, () => hideLoadingVeil());
+    });
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => this.scene.start("IsometricScene"), 0);
+    });
+  }
+
+  /** Collect plain name keys typed while leaving for New Game. */
+  private bufferTypedAhead(event: KeyboardEvent): void {
+    if (this.typedAhead === null || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    if (event.key === "Backspace") {
+      this.typedAhead = this.typedAhead.slice(0, -1);
+    } else if (event.key.length === 1 && !(event.key === " " && this.typedAhead === "")) {
+      this.typedAhead += event.key;
+    } else {
+      return;
+    }
+    event.preventDefault();
   }
 
   private wipeAndRestart(): void {

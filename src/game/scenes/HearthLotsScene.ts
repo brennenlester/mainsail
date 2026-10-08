@@ -24,6 +24,7 @@ import {
   resolveMinigameEnd,
 } from "../minigames/overlay";
 import { getPlayerName } from "../world/playerName";
+import { queueLateImages } from "../render/lateAssets";
 
 const CELL = 88;
 const BOARD_LEFT = (DESIGN_SIZE - CELL * 5) / 2;
@@ -124,6 +125,11 @@ export class HearthLotsScene extends Phaser.Scene {
 
   constructor() {
     super({ key: "HearthLotsScene" });
+  }
+
+  /** The painted board is fetched the first time the table opens (#410). */
+  preload(): void {
+    queueLateImages(this, [HEARTH_LOTS_BOARD_TEXTURE], "Setting out the board…");
   }
 
   create(): void {

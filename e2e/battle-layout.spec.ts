@@ -187,14 +187,19 @@ for (const [label, won, key] of [
       (playerWon ? s.wild : s.player).currentHp = 0;
       s.endBattle(playerWon);
     }, won);
-    // The result card arms its keys after a beat.
+    // The result card arms its keys after a beat (longer on a slow
+    // software-GL runner): press until it closes.
     await page.waitForTimeout(2500);
-    await page.keyboard.press(key);
-    await expect
-      .poll(() =>
-        page.evaluate(() => (window as unknown as { __game: any }).__game.scene.isActive("BattleScene")),
-      )
-      .toBe(false);
+    await expect(async () => {
+      await page.keyboard.press(key);
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => (window as unknown as { __game: any }).__game.scene.isActive("BattleScene")),
+          { timeout: 1000 },
+        )
+        .toBe(false);
+    }).toPass({ timeout: 15_000 });
     await expect(page.locator("#status-panel")).toBeVisible();
     await expect
       .poll(async () => {

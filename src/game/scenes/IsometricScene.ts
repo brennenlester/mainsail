@@ -1608,16 +1608,21 @@ export class IsometricScene extends Phaser.Scene {
     canopyKey: string,
   ): void {
     const pad = 900;
+    // A TileSprite allocates (and uploads) a blank canvas texture of its own
+    // size even under WebGL; build it at 1/4 size and scale up so world start
+    // uploads ~0.4 MPx instead of ~6 MPx (#410). Same tiles on screen.
+    const shrink = 4;
     this.add
       .tileSprite(
         bounds.minX + bounds.width / 2,
         bounds.minY + bounds.height / 2,
-        bounds.width + pad * 2,
-        bounds.height + pad * 2,
+        (bounds.width + pad * 2) / shrink,
+        (bounds.height + pad * 2) / shrink,
         IMAGINE_ATLAS_KEY,
         canopyKey,
       )
-      .setTileScale(0.4)
+      .setScale(shrink)
+      .setTileScale(0.4 / shrink)
       .setTint(0xb4c0c4)
       .setDepth(-1000);
     // Soft navy vignette: deepens with distance from the tile edge (bounds

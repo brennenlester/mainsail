@@ -5,11 +5,13 @@ import { getItemIconSrc, getItemName } from "../inventory/materials";
 import { getItemCount } from "../inventory/playerInventory";
 import { applyShrineFusion, getEligibleCreaturesForItem } from "../shrine/fusion";
 import { launchEvolutionScene } from "../evolution/launchEvolution";
+import { lateCreatureKeys, loadLateImages } from "../render/lateAssets";
 import {
   applyEclipseFusion,
   applyGodFusion,
   findGodFusionParents,
   findHorizonFusionParents,
+  ECLIPSE_SOVEREIGN_ID,
   HORIZON_SOVEREIGN_ID,
   SOVEREIGN_SEAL_ID,
 } from "../shrine/godFusion";
@@ -432,17 +434,24 @@ export class ShrineScene extends Phaser.Scene {
       summary: string,
       label: string,
       run: () => { ok: boolean; message: string },
+      resultId: string,
     ): void => {
       host.append(el("p", "shrine-lead", summary));
+      // Fetch the new sovereign's art while the card is read (#410), and
+      // never let it join the party before its art can draw.
+      const art = loadLateImages(this, lateCreatureKeys([resultId]), "The seal awakens…");
       const btn = createShrineButton(label, "primary", () => {
-        const result = run();
-        this.setStatus(result.message);
-        if (result.ok) {
-          notifyWorldChanged();
-          refreshPartyStatusLine();
-          this.selectedItemId = null;
-        }
-        this.renderTabContent();
+        btn.disabled = true;
+        void art.then(() => {
+          const result = run();
+          this.setStatus(result.message);
+          if (result.ok) {
+            notifyWorldChanged();
+            refreshPartyStatusLine();
+            this.selectedItemId = null;
+          }
+          this.renderTabContent();
+        });
       });
       btn.classList.add("sh-wide");
       host.append(btn);
@@ -464,6 +473,7 @@ export class ShrineScene extends Phaser.Scene {
             second.instanceId,
             SOVEREIGN_SEAL_ID,
           ),
+        ECLIPSE_SOVEREIGN_ID,
       );
       return;
     }
@@ -485,6 +495,7 @@ export class ShrineScene extends Phaser.Scene {
       `Tide Sovereign Lv.${tide.level} + Stone Sovereign Lv.${cairn.level}`,
       "Fuse into Horizon Sovereign",
       () => applyGodFusion(tide.instanceId, cairn.instanceId, SOVEREIGN_SEAL_ID),
+      HORIZON_SOVEREIGN_ID,
     );
   }
 
