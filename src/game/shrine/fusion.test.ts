@@ -60,7 +60,7 @@ describe("Growth unlock fusion (#296)", () => {
     setPartyFromSnapshot([wisp], 1);
     setInventoryFromSnapshot({}, { "ember-charm": 1 });
 
-    expect(applyShrineFusion(wisp.instanceId, "ember-charm")).toEqual({
+    expect(applyShrineFusion(wisp.instanceId, "ember-charm")).toMatchObject({
       ok: true,
       message: "Ember Wisp evolved into Hearthflame!",
     });
@@ -76,7 +76,7 @@ describe("Growth unlock fusion (#296)", () => {
     setPartyFromSnapshot([mossling], 1);
     setInventoryFromSnapshot({}, { "moss-salve": 1 });
 
-    expect(applyShrineFusion(mossling.instanceId, "moss-salve")).toEqual({
+    expect(applyShrineFusion(mossling.instanceId, "moss-salve")).toMatchObject({
       ok: true,
       message: "Mossling evolved into Bramblewarden!",
     });
@@ -87,7 +87,7 @@ describe("Growth unlock fusion (#296)", () => {
     setPartyFromSnapshot([mossling], 1);
     setInventoryFromSnapshot({}, { "moss-salve": 1 });
 
-    expect(applyShrineFusion(mossling.instanceId, "moss-salve")).toEqual({
+    expect(applyShrineFusion(mossling.instanceId, "moss-salve")).toMatchObject({
       ok: true,
       message: "Mossling evolved into Bramblewarden!",
     });
@@ -132,7 +132,7 @@ describe("Growth unlock fusion (#296)", () => {
     setPartyFromSnapshot([fox], 1);
     setInventoryFromSnapshot({}, { "fox-fire-charm": 1 });
 
-    expect(applyShrineFusion(fox.instanceId, "fox-fire-charm")).toEqual({
+    expect(applyShrineFusion(fox.instanceId, "fox-fire-charm")).toMatchObject({
       ok: true,
       message:
         "Lantern Fox shows a new presence in the world! (+2 ATK, +4 HP)",

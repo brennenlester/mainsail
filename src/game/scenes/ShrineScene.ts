@@ -6,6 +6,7 @@ import {
   getItemCount,
 } from "../inventory/playerInventory";
 import { applyShrineFusion, getEligibleCreaturesForItem } from "../shrine/fusion";
+import { launchEvolutionScene } from "../evolution/launchEvolution";
 import {
   applyEclipseFusion,
   applyGodFusion,
@@ -599,6 +600,10 @@ export class ShrineScene extends Phaser.Scene {
           this.selectedItemId = null;
         }
         this.renderTabContent();
+        if (result.ok && result.growth) {
+          // Growth unlock: data is applied; leave the menu for the cutscene (#393).
+          launchEvolutionScene(this, { reveal: result.growth });
+        }
       });
       this.contentContainer.add(btn);
       y += 38;
