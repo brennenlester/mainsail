@@ -85,6 +85,8 @@ export const ITEM_NAMES: Record<string, string> = {
   "moonwake-draught": "Moonwake Draught",
   "portable-moonshrine": "Portable Moonshrine",
   boat: "Boat",
+  "folk-seal": "Folk Seal",
+  "favorite-bait": "Favorite Bait",
 };
 
 export function getMaterialForCreature(creatureId: string): string | undefined {

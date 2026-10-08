@@ -16,6 +16,13 @@ import {
 } from "./battleLogic";
 import { getBattleKit, moveRole } from "./kits";
 import { canApplyStatus, hasAnyStatus, tickStatuses } from "./statusEffects";
+import { applyBondToCombatant, bondTier } from "../companions/bond";
+import {
+  afterBefriendMiss,
+  computeBefriendOdds,
+  type BefriendOffering,
+} from "../encounters/befriendChance";
+import { getRarityBias } from "../progression/wildLevel";
 
 /**
  * Headless spar used by balance tests (#364, #378). Same turn order, intent,
@@ -29,8 +36,13 @@ import { canApplyStatus, hasAnyStatus, tickStatuses } from "./statusEffects";
  * - `skilled`: reads the telegraph: guards into a big finisher, sets up a
  *   status then cashes the finisher, never throws a finisher into a guard,
  *   and uses the free switch to leave a matchup where the foe hunts it.
+ * - `befriend` (#366): skilled play that tries to recruit instead of KO —
+ *   attempts Befriend once the odds reach `befriendAt` or the next hit
+ *   would knock the wild out. `cardTry` spends the encounter card's single
+ *   full-HP try first (a miss lets the wild open). A miss spends the turn;
+ *   BEFRIEND_FLEE_STREAK misses (card included) and the wild slips away.
  */
-export type SparPolicy = "random" | "max-damage" | "skilled";
+export type SparPolicy = "random" | "max-damage" | "skilled" | "befriend";
 
 export type SparSetup = {
   /** Player party, lead first. One id = a 1v1 spar. */
@@ -43,6 +55,14 @@ export type SparSetup = {
   wildLevel?: number;
   /** Story 2 tutorial tuning for the wild. */
   tutorial?: boolean;
+  /** Bond points on every player creature (BattleScene applies the tier bonus). */
+  bond?: number;
+  /** `befriend` policy: attempt once odds reach this (0 = attempt at once). Default 0.7. */
+  befriendAt?: number;
+  /** `befriend` policy: spend the single encounter-card try first (full HP). */
+  cardTry?: boolean;
+  /** `befriend` policy: offering used on every attempt. */
+  offering?: BefriendOffering;
 };
 
 export type SparResult = {
@@ -54,6 +74,11 @@ export type SparResult = {
   /** Statuses the player landed (applied or refreshed). */
   statuses: number;
   switches: number;
+  /** `befriend` policy: the wild joined. */
+  recruited: boolean;
+  befriendAttempts: number;
+  /** `befriend` policy: the wild slipped away after a miss streak. */
+  fled: boolean;
 };
 
 export type SparStats = {
@@ -61,6 +86,10 @@ export type SparStats = {
   avgTurns: number;
   avgFinishers: number;
   avgStatuses: number;
+  recruitRate: number;
+  fleeRate: number;
+  /** Mean befriend attempts over runs that recruited. */
+  avgAttemptsToRecruit: number;
 };
 
 const MAX_TURNS = 60;
@@ -194,11 +223,35 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
     bulk: outleveledWildBulk(level, wildLevel),
   };
   // One combatant per party slot; HP, statuses and cooldowns persist on the bench.
-  const roster = setup.party.map((id) => primeOpeningCooldowns(simCombatant(id, level)));
+  const roster = setup.party.map((id) => {
+    const combatant = primeOpeningCooldowns(simCombatant(id, level));
+    return setup.bond ? applyBondToCombatant(combatant, { bond: setup.bond }) : combatant;
+  });
   let active = 0;
   let player = roster[active];
   let freeSwitch = true;
-  const result: SparResult = { won: false, turns: 0, finishers: 0, statuses: 0, switches: 0 };
+  const result: SparResult = {
+    won: false,
+    turns: 0,
+    finishers: 0,
+    statuses: 0,
+    switches: 0,
+    recruited: false,
+    befriendAttempts: 0,
+    fled: false,
+  };
+  const befriendAt = setup.befriendAt ?? 0.7;
+  const skilledLike = setup.policy === "skilled" || setup.policy === "befriend";
+  const befriendChance = () =>
+    computeBefriendOdds({
+      rarityBias: getRarityBias(setup.wild),
+      levelGap: wildLevel - level,
+      hpFraction: wild.currentHp / wild.maxHp,
+      statuses: (wild.statuses ?? []).filter((s) => s.turns > 0).map((s) => s.id),
+      offering: setup.offering ?? "none",
+      leadBondTier: bondTier(setup.bond),
+      habitatEdge: 0,
+    }).chance;
 
   const pickIntent = () =>
     chooseEnemyIntent(wild, player, rng, { matchupAware: tuning.matchupAware }).move;
@@ -213,16 +266,30 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
     if (options.length === 0) {
       return false;
     }
-    active = setup.policy === "skilled" ? bestBench()! : options[0];
+    active = skilledLike ? bestBench()! : options[0];
     player = roster[active];
     return true;
   };
 
   let intent = pickIntent();
+  if (setup.policy === "befriend" && setup.cardTry) {
+    // One try on the encounter card at full HP; a miss makes the wild open the spar.
+    result.befriendAttempts += 1;
+    if (rng() < befriendChance()) {
+      result.recruited = true;
+      return result;
+    }
+    executeMove(wild, intent, player, rng);
+    tickStatuses(wild);
+    if (isFainted(player) && !replaceFainted()) {
+      return result;
+    }
+    intent = pickIntent();
+  }
   while (result.turns < MAX_TURNS) {
     // Skilled play spends the free switch to leave a bad matchup (no turn spent;
     // the telegraphed move now lands on the newcomer).
-    if (setup.policy === "skilled" && freeSwitch) {
+    if (skilledLike && freeSwitch) {
       const candidate = bestBench();
       if (
         candidate !== undefined &&
@@ -238,16 +305,31 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
 
     result.turns += 1;
     const move = chooseMove(setup.policy, player, wild, intent, rng);
-    const outcome = executeMove(player, move, wild, rng);
-    if (moveRole(move) === "finisher" && outcome.attack?.kind === "hit") {
-      result.finishers += 1;
-    }
-    if (outcome.status?.kind === "applied" || outcome.status?.kind === "refreshed") {
-      result.statuses += 1;
-    }
-    if (isFainted(wild)) {
-      result.won = true;
-      return result;
+    const chance = setup.policy === "befriend" ? befriendChance() : 0;
+    const wouldKo = expectedDamage(player, bestDamageMove(player, wild), wild) >= wild.currentHp;
+    if (setup.policy === "befriend" && (chance >= befriendAt || wouldKo)) {
+      result.befriendAttempts += 1;
+      if (rng() < chance) {
+        result.recruited = true;
+        return result;
+      }
+      const miss = afterBefriendMiss(result.befriendAttempts - 1);
+      if (miss.fled) {
+        result.fled = true;
+        return result;
+      }
+    } else {
+      const outcome = executeMove(player, move, wild, rng);
+      if (moveRole(move) === "finisher" && outcome.attack?.kind === "hit") {
+        result.finishers += 1;
+      }
+      if (outcome.status?.kind === "applied" || outcome.status?.kind === "refreshed") {
+        result.statuses += 1;
+      }
+      if (isFainted(wild)) {
+        result.won = true;
+        return result;
+      }
     }
     tickStatuses(player);
     if (isFainted(player)) {
@@ -274,7 +356,11 @@ export function simulateSpar(setup: SparSetup, seed: number): SparResult {
 }
 
 function hashSetup(setup: SparSetup): number {
-  const key = `${setup.party.join("+")}|${setup.wild}|${setup.level ?? 1}|${setup.wildLevel ?? ""}|${setup.tutorial ? 1 : 0}`;
+  // Seeds for the pre-#366 fields are unchanged; new fields only extend the key.
+  const extra = [setup.bond, setup.befriendAt, setup.offering, setup.cardTry].some((v) => v !== undefined)
+    ? `|${setup.bond ?? ""}|${setup.befriendAt ?? ""}|${setup.offering ?? ""}|${setup.cardTry ? 1 : ""}`
+    : "";
+  const key = `${setup.party.join("+")}|${setup.wild}|${setup.level ?? 1}|${setup.wildLevel ?? ""}|${setup.tutorial ? 1 : 0}${extra}`;
   let h = 2166136261;
   for (let i = 0; i < key.length; i++) {
     h = Math.imul(h ^ key.charCodeAt(i), 16777619);
@@ -287,6 +373,9 @@ export function sparStats(setup: SparSetup, seeds = 200): SparStats {
   let turns = 0;
   let finishers = 0;
   let statuses = 0;
+  let recruits = 0;
+  let fled = 0;
+  let recruitAttempts = 0;
   // Each matchup gets its own seed stream (shared across policies), so
   // averages over many pairs are not dominated by a few lucky seeds.
   const base = hashSetup(setup);
@@ -296,12 +385,20 @@ export function sparStats(setup: SparSetup, seeds = 200): SparStats {
     turns += r.turns;
     finishers += r.finishers;
     statuses += r.statuses;
+    fled += r.fled ? 1 : 0;
+    if (r.recruited) {
+      recruits += 1;
+      recruitAttempts += r.befriendAttempts;
+    }
   }
   return {
     winRate: wins / seeds,
     avgTurns: turns / seeds,
     avgFinishers: finishers / seeds,
     avgStatuses: statuses / seeds,
+    recruitRate: recruits / seeds,
+    fleeRate: fled / seeds,
+    avgAttemptsToRecruit: recruits > 0 ? recruitAttempts / recruits : 0,
   };
 }
 

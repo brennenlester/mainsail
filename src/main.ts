@@ -153,6 +153,8 @@ if (inviteResult.status === "invalid") {
         if (previewParams.has("spar")) {
           iso.scene.launch("BattleScene", {
             wildCreatureId: creatureId,
+            // QA: the preview stands in for a wild-encounter spar.
+            allowBefriend: true,
             wandererPartner: {
               name: "Wanderer's Spark",
               maxHp: 24,
