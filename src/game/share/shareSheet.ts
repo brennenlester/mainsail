@@ -1,3 +1,4 @@
+import type Phaser from "phaser";
 import "./share.css";
 import { popOverlay, pushOverlay } from "../ui/overlayStack";
 
@@ -44,6 +45,8 @@ export function openShareSheet(options: {
   buttons: SheetButton[];
   /** Esc / backdrop close; omit to make the sheet modal-only (preview). */
   onClose?: () => void;
+  /** Running game whose keyboard is muted while the sheet is open. */
+  game?: Phaser.Game;
 }): ShareSheet {
   document.getElementById(options.id)?.remove();
   const root = el("div", "share-overlay");
@@ -95,12 +98,24 @@ export function openShareSheet(options: {
 
   const playfield = document.getElementById("playfield");
   playfield?.setAttribute("inert", "");
+  // inert does not stop Phaser's window-level key listener: mute it so
+  // WASD / E cannot walk or interact behind the sheet.
+  const keyboard = options.game?.input?.keyboard ?? null;
+  if (keyboard) {
+    keyboard.enabled = false;
+  }
   let closed = false;
   const close = (): void => {
     if (closed) return;
     closed = true;
     popOverlay(options.id);
     playfield?.removeAttribute("inert");
+    if (keyboard && options.game) {
+      keyboard.enabled = true;
+      for (const scene of options.game.scene.getScenes(true)) {
+        scene.input.keyboard?.resetKeys();
+      }
+    }
     if (image.src.startsWith("blob:")) {
       URL.revokeObjectURL(image.src);
     }

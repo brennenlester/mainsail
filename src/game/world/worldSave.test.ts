@@ -94,6 +94,28 @@ describe("loadHostSave repair path (#190)", () => {
     expect(localStorage.getItem(BACKUP_STORAGE_KEY)).toBe(raw);
   });
 
+  it("readOnly load never writes storage (share-card sandbox, #368)", () => {
+    const snapshot = storedSnapshot({ zoneId: STARTING_ZONE_ID, x: 3, y: 7 });
+    snapshot.sailing = "garbage";
+    const raw = JSON.stringify(snapshot);
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadHostSave({ readOnly: true })).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    expect(localStorage.getItem(BACKUP_STORAGE_KEY)).toBeNull();
+
+    localStorage.clear();
+    localStorage.setItem(STORAGE_KEY, "{not json");
+    expect(loadHostSave({ readOnly: true })).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("{not json");
+
+    localStorage.clear();
+    const legacy = JSON.stringify(storedSnapshot({ zoneId: STARTING_ZONE_ID, x: 3, y: 7 }));
+    localStorage.setItem("poke-save-v1", legacy);
+    expect(loadHostSave({ readOnly: true })).not.toBeNull();
+    expect(localStorage.getItem("poke-save-v1")).toBe(legacy);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
   it("quarantines non-object JSON payloads", () => {
     for (const raw of ["null", "[3]", "42"]) {
       localStorage.clear();

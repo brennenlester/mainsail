@@ -140,6 +140,7 @@ export async function openCompanionShare(): Promise<void> {
     subtitle: "Show off your party — friends can challenge it from the link.",
     imageAlt: "Companion Card showing your party",
     onClose: () => undefined,
+    game,
     buttons: [
       {
         label: "Share",

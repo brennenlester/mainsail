@@ -33,6 +33,7 @@ export function openCardPreview(game: Phaser.Game, snapshot: ShareSnapshot): voi
     subtitle: "shared a party from Ivyward — a folklore creature RPG in your browser.",
     imageAlt: `${snapshot.name}'s Companion Card`,
     note: "Challenge is a practice spar against a ghost of this party. Nothing is saved.",
+    game,
     buttons: [
       {
         label: "Play now",
@@ -78,6 +79,7 @@ function openChallengeResult(
     // The gauntlet stops at the first loss, so this is a win streak.
     subtitle: `Win streak: ${result.wins} of ${result.total} ghosts beaten. Build your own party and send them a card back.`,
     imageAlt: `${snapshot.name}'s Companion Card`,
+    game,
     buttons: [
       {
         label: "Play now",

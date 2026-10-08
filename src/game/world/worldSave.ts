@@ -35,15 +35,15 @@ const DEFAULT_HOST_POSITION: WorldSnapshot["position"] = {
 
 let hostPosition: WorldSnapshot["position"] = { ...DEFAULT_HOST_POSITION };
 
-function readRawSave(): string | null {
+function readRawSave(readOnly = false): string | null {
   try {
     const current = localStorage.getItem(STORAGE_KEY);
     if (current) {
       return current;
     }
     const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!legacy) {
-      return null;
+    if (!legacy || readOnly) {
+      return legacy;
     }
     localStorage.setItem(STORAGE_KEY, legacy);
     localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -160,10 +160,17 @@ function quarantineRawSave(raw: string): void {
   clearHostSave();
 }
 
-export function loadHostSave(): WorldSnapshot | null {
+/**
+ * `readOnly` (share-card sandbox, #368) skips every storage side effect:
+ * no legacy-key migration, quarantine, or clear — a bad save just loads as null.
+ */
+export function loadHostSave(
+  options: { readOnly?: boolean } = {},
+): WorldSnapshot | null {
+  const readOnly = options.readOnly === true;
   let raw: string | null = null;
   try {
-    raw = readRawSave();
+    raw = readRawSave(readOnly);
     if (!raw) {
       return null;
     }
@@ -180,9 +187,14 @@ export function loadHostSave(): WorldSnapshot | null {
       return repaired;
     }
     // Unrepairable: keep the raw payload recoverable instead of deleting it.
-    quarantineRawSave(raw);
+    if (!readOnly) {
+      quarantineRawSave(raw);
+    }
     return null;
   } catch {
+    if (readOnly) {
+      return null;
+    }
     if (raw) {
       quarantineRawSave(raw);
     } else {

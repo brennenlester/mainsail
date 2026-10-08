@@ -115,6 +115,21 @@ describe("card preview DOM", () => {
     expect(labels).toEqual(["Play now", "Challenge"]);
   });
 
+  it("mutes the game keyboard while a sheet is open", async () => {
+    const { openShareSheet } = await import("./shareSheet");
+    let reset = 0;
+    const keyboard = { enabled: true };
+    const game = {
+      input: { keyboard },
+      scene: { getScenes: () => [{ input: { keyboard: { resetKeys: () => (reset += 1) } } }] },
+    } as unknown as Parameters<typeof openShareSheet>[0]["game"];
+    const sheet = openShareSheet({ id: "kb-test", title: "t", imageAlt: "", buttons: [], game });
+    expect(keyboard.enabled).toBe(false);
+    sheet.close();
+    expect(keyboard.enabled).toBe(true);
+    expect(reset).toBe(1);
+  });
+
   it("shows a blocking notice for broken cards", () => {
     showInvalidCardScreen();
     expect(document.getElementById("card-preview-title")?.textContent).toBe(

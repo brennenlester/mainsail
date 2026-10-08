@@ -90,7 +90,7 @@ if (inviteResult.status === "invalid") {
       // Challenge spar rewards) can reach the recipient's save.
       suspendHostPersist();
     }
-    const saved = loadHostSave();
+    const saved = loadHostSave({ readOnly: shareResult.status === "ok" });
     if (saved) {
       restoreHostSave(saved);
     } else {
