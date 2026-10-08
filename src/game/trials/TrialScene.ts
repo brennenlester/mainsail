@@ -14,6 +14,7 @@ import { layoutStage } from "../ui/stageLayout";
 import { SCORE } from "./scoring";
 import { typeLabel } from "./trialBoss";
 import { ECLIPSE_BOSS_CREATURE, TRIAL_ROUNDS } from "./trialPlan";
+import { isInTrialTable } from "./dailyTrial";
 import {
   abandonTrial,
   beginTrial,
@@ -105,6 +106,15 @@ export class TrialScene extends Phaser.Scene {
     void fetchLateImages(this.textures, lateCreatureKeys([ECLIPSE_BOSS_CREATURE]));
     this.fitStage();
     this.scale.on("resize", this.drawSky, this);
+    if (!isInTrialTable(this.data_.day)) {
+      // Only fairness-gated days are offered; an ungated roll can be far harder.
+      this.overlay.renderMessage(
+        "Trials continue next season",
+        "The Eclipse has no trial charted for this day yet. Check back after the next update.",
+        () => this.exit(null),
+      );
+      return;
+    }
     if (!beginTrial(this.data_.day, this.data_.mode)) {
       this.overlay.renderMessage(
         "The Eclipse Gate is closed",

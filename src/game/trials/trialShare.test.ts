@@ -60,8 +60,12 @@ describe("trial share links (#420)", () => {
   it("opens past days up to a year back, never a future day", () => {
     expect(readTrialLink("?trial=2026-10-08", DAY).status).toBe("ok");
     expect(readTrialLink("?trial=2026-10-09", DAY).status).toBe("invalid");
-    expect(readTrialLink("?trial=2025-10-07", DAY).status).toBe("ok");
-    expect(readTrialLink("?trial=2025-10-06", DAY).status).toBe("invalid");
+    const later = parseTrialDayKey("2027-12-01")!;
+    expect(readTrialLink("?trial=2026-12-01", later).status).toBe("ok");
+    expect(readTrialLink("?trial=2026-11-29", later).status).toBe("invalid");
+    // Never before the first fairness-gated day.
+    expect(readTrialLink("?trial=2026-10-01", DAY).status).toBe("ok");
+    expect(readTrialLink("?trial=2026-09-30", DAY).status).toBe("invalid");
   });
 
   it("drops a brag whose title or rounds don't match its score", () => {

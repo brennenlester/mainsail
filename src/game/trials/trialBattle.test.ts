@@ -70,7 +70,7 @@ describe("Eclipse modifiers (#420)", () => {
     expect(hasStatus(wet, "soaked")).toBe(true);
   });
 
-  it("Glass Cannons: both sides hit 30% harder and are 30% more fragile", () => {
+  it("Glass Cannons: both sides hit 30% harder and take 43% more (×1.86 per hit)", () => {
     const glass = battle(["glass-cannons"]);
     const plain = battle([]);
     expect(glass.foe.damageScale! / plain.foe.damageScale!).toBeCloseTo(1.3);

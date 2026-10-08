@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SCORE, scoreTrial, trialTitle, trialTitleIndex, TRIAL_TITLES, type TrialRoundRecord } from "./scoring";
-import { parseTrialDayKey } from "./trialSeed";
+import { parseTrialDayKey, trialDayKey } from "./trialSeed";
 import {
   BEST_DAYS_KEPT,
   currentStreak,
@@ -63,7 +63,13 @@ describe("trial scoring (#420)", () => {
 });
 
 describe("trial record (#420)", () => {
-  beforeEach(() => resetTrialRecordForTest());
+  beforeEach(() => {
+    resetTrialRecordForTest();
+    // Every DAY+N in these tests is in the past.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-06-01T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
 
   it("pays Dust once per day as a top-up, capped at a full clear", () => {
     expect(trialDustFor(2, 5)).toBe(0);
@@ -92,6 +98,26 @@ describe("trial record (#420)", () => {
     // A day older than the remembered window pays nothing, even unclaimed.
     expect(settleTrialRun(DAY - 9, { score: 7000, rounds: 5, totalRounds: 5 }, true)).toMatchObject({ dust: 0, bonus: null });
     expect(Object.keys(getTrialRecord().claims).length).toBeLessThanOrEqual(7);
+  });
+
+  it("a future-dated claim (clock moved forward, hostile 2079 key) never blocks real days", () => {
+    const today = DAY + 10;
+    // Hostile save: a 2079 claim and a +400-day claim are dropped on load.
+    setTrialRecordFromSnapshot({ claims: { "2079-12-01": 5, [trialDayKey(today + 400)]: 5, [trialDayKey(today)]: 3 } });
+    expect(Object.keys(getTrialRecord().claims)).toEqual([trialDayKey(today)]);
+    resetTrialRecordForTest();
+    // Clock moved forward once: that claim is recorded, but real days still pay.
+    settleTrialRun(today + 400, { score: 7000, rounds: 5, totalRounds: 5 }, true, today + 400);
+    expect(settleTrialRun(today, { score: 7000, rounds: 5, totalRounds: 5 }, true, today).dust).toBe(7);
+    expect(settleTrialRun(today + 1, { score: 7000, rounds: 5, totalRounds: 5 }, true, today + 1).dust).toBe(7);
+  });
+
+  it("replaying an earlier day (clock set back) never resets the streak", () => {
+    settleTrialRun(DAY, { score: 3000, rounds: 3, totalRounds: 5 }, true);
+    expect(settleTrialRun(DAY + 1, { score: 3000, rounds: 3, totalRounds: 5 }, true).streak).toBe(2);
+    settleTrialRun(DAY, { score: 3500, rounds: 3, totalRounds: 5 }, true);
+    expect(getTrialRecord().streak).toBe(2);
+    expect(getTrialRecord().lastShowingDay).toBe(DAY + 1);
   });
 
   it("the bonus roll is seeded by the day: rare tint or a bond bump", () => {

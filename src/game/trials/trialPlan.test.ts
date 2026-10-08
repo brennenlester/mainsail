@@ -129,6 +129,22 @@ describe("trial plan (#420)", () => {
     }
   });
 
+  it("never offers Quickened before a Short Fuse round (finishers are ready anyway)", () => {
+    let checked = 0;
+    for (let d = DAY; d < DAY + 300; d++) {
+      for (const attempt of [0, 3]) {
+        const plan = generateTrialPlan(d, attempt);
+        plan.boonOffers.forEach((offers, i) => {
+          if (plan.rounds[i + 1]!.modifiers.includes("short-fuse")) {
+            checked += 1;
+            expect(offers).not.toContain("quickened");
+          }
+        });
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
   it("offers three different boons after every non-final round", () => {
     const plan = buildTrialPlan(DAY);
     expect(plan.boonOffers).toHaveLength(BOSS_ROUND_INDEX);

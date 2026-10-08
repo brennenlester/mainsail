@@ -65,7 +65,7 @@ describe("Eclipse Trial balance (#420)", () => {
         let wins = 0;
         let runs = 0;
         parties.forEach((party, p) => {
-          for (let i = 0; i < 24; i++) {
+          for (let i = 0; i < 40; i++) {
             wins += simulateTrial({ party, level: REFERENCE_LEVEL, policy: "skilled", day }, day * 97 + p * 13 + i, plan).cleared ? 1 : 0;
             runs += 1;
           }

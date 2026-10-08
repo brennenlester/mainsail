@@ -36,7 +36,7 @@ export const REFERENCE_LEVEL = 9;
 const RUNS_PER_PARTY = 16;
 export const FAIR_MIN = 0.38;
 export const FAIR_MAX = 0.52;
-export const CLASS_MIN = 0.33;
+export const CLASS_MIN = 0.36;
 export const MAX_ATTEMPTS = 16;
 
 export type GateRates = { overall: number; byClass: Record<string, number> };

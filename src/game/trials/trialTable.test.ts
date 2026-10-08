@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import table from "./trialTable.json";
 import { selectTrialAttempt, MAX_ATTEMPTS } from "./trialGate";
 import { TRIAL_TABLE_START, trialAttemptFor } from "./dailyTrial";
-import { parseTrialDayKey, trialDayKey } from "./trialSeed";
+import { FIRST_TRIAL_DAY, FIRST_TRIAL_DAY_KEY, parseTrialDayKey, todayTrialDay, trialDayKey } from "./trialSeed";
 
 /**
  * The committed per-day re-roll table (#420). `npm run trials:table`
@@ -29,6 +29,13 @@ describe("trial table (#420)", () => {
     });
     return;
   }
+
+  it("starts at the first linkable day and still runs a year past today (else: npm run trials:table)", () => {
+    expect(table.start).toBe(FIRST_TRIAL_DAY_KEY);
+    expect(TRIAL_TABLE_START).toBe(FIRST_TRIAL_DAY);
+    const last = TRIAL_TABLE_START + table.attempts.length - 1;
+    expect(last - todayTrialDay(), "extend WINDOW.end and regenerate the table").toBeGreaterThanOrEqual(365);
+  });
 
   it("covers the window with one valid digit per day", () => {
     expect(table.start).toBe(WINDOW.start);

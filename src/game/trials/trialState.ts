@@ -1,4 +1,4 @@
-import { isValidTrialDay, parseTrialDayKey, trialDayKey, trialRng, type TrialDay } from "./trialSeed";
+import { isValidTrialDay, parseTrialDayKey, todayTrialDay, trialDayKey, trialRng, type TrialDay } from "./trialSeed";
 
 /**
  * Eclipse Trial save record (#420): best score per day, streak, daily reward
@@ -88,8 +88,13 @@ function trimBest(best: Record<string, number>): Record<string, number> {
 }
 
 /** Lenient repair of a saved record: every bad part falls back on its own. */
-export function sanitizeTrialRecord(raw: unknown): TrialRecord {
+export function sanitizeTrialRecord(raw: unknown, today: TrialDay = todayTrialDay()): TrialRecord {
   const out = emptyTrialRecord();
+  // Days past tomorrow come from a clock set forward or a hostile save: never trusted.
+  const notFuture = (key: string): boolean => {
+    const day = parseTrialDayKey(key);
+    return day !== null && day <= today + 1;
+  };
   if (!isPlainObject(raw)) {
     return out;
   }
@@ -109,18 +114,21 @@ export function sanitizeTrialRecord(raw: unknown): TrialRecord {
   }
   out.streak = intIn(raw.streak, 0, MAX_STREAK, 0);
   out.lastShowingDay = dayOrNull(raw.lastShowingDay);
+  if (out.lastShowingDay !== null && out.lastShowingDay > today + 1) {
+    out.lastShowingDay = null;
+  }
   out.lastClearedDay = dayOrNull(raw.lastClearedDay);
   if (isPlainObject(raw.claims)) {
     const claims: Record<string, number> = {};
     for (const [key, rounds] of Object.entries(raw.claims)) {
-      if (parseTrialDayKey(key) !== null) {
+      if (notFuture(key)) {
         claims[key] = intIn(rounds, 0, 5, 5);
       }
     }
     out.claims = trimDays(claims, CLAIM_DAYS_KEPT);
   }
   if (Array.isArray(raw.bonusDays)) {
-    const days = [...new Set(raw.bonusDays.filter((k): k is string => parseTrialDayKey(k) !== null))].sort();
+    const days = [...new Set(raw.bonusDays.filter((k): k is string => typeof k === "string" && notFuture(k)))].sort();
     out.bonusDays = days.slice(-CLAIM_DAYS_KEPT);
   }
   if (out.lastShowingDay === null) {
@@ -186,6 +194,7 @@ export function settleTrialRun(
   day: TrialDay,
   run: { score: number; rounds: number; totalRounds: number },
   leadCanGoRare: boolean,
+  today: TrialDay = todayTrialDay(),
 ): TrialSettlement {
   const key = trialDayKey(day);
   const score = Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(run.score)));
@@ -194,7 +203,8 @@ export function settleTrialRun(
   if (newBest) {
     record.best = trimBest({ ...record.best, [key]: score });
   }
-  if (run.rounds >= SHOWING_ROUNDS && record.lastShowingDay !== day) {
+  // Only a later day moves the streak: replaying an earlier day (clock set back) never resets it.
+  if (run.rounds >= SHOWING_ROUNDS && (record.lastShowingDay === null || day > record.lastShowingDay)) {
     record.streak =
       record.lastShowingDay !== null && day - record.lastShowingDay === 1
         ? Math.min(MAX_STREAK, record.streak + 1)
@@ -205,7 +215,10 @@ export function settleTrialRun(
   if (cleared) {
     record.lastClearedDay = day;
   }
-  const known = Object.keys(record.claims).map((k) => parseTrialDayKey(k)!);
+  // Claims dated past tomorrow (clock moved forward once) never count as "newest".
+  const known = Object.keys(record.claims)
+    .map((k) => parseTrialDayKey(k)!)
+    .filter((d) => d <= today + 1);
   const newest = known.length > 0 ? Math.max(...known) : day;
   // A clock set back past the remembered window never pays again.
   const tooOld = day <= newest - CLAIM_DAYS_KEPT;

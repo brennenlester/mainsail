@@ -48,6 +48,10 @@ export function parseTrialDayKey(raw: unknown): TrialDay | null {
   return day;
 }
 
+/** First day with a fairness-gated plan (trialTable.json starts here); links never open earlier days. */
+export const FIRST_TRIAL_DAY_KEY = "2026-10-01";
+export const FIRST_TRIAL_DAY: TrialDay = Date.UTC(2026, 9, 1) / 86_400_000;
+
 /** Links open days up to a year back, never a future day (no scouting tomorrow's lineup). */
 export const TRIAL_LINK_MAX_AGE_DAYS = 366;
 
@@ -69,7 +73,7 @@ export function readTrialDayParam(
     return { status: "absent" };
   }
   const day = parseTrialDayKey(raw);
-  if (day === null || day > today || day < today - TRIAL_LINK_MAX_AGE_DAYS) {
+  if (day === null || day > today || day < today - TRIAL_LINK_MAX_AGE_DAYS || day < FIRST_TRIAL_DAY) {
     return { status: "invalid" };
   }
   return { status: "ok", day };

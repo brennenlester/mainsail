@@ -149,9 +149,18 @@ function pickBoss(day: TrialDay, attempt: number): TrialBossPlan {
   return { formTypes: [first, second] };
 }
 
-function pickBoons(day: TrialDay): BoonId[][] {
+/**
+ * Offers after each round, for the round that follows. A boon the next
+ * round makes pointless is never offered (Quickened before Short Fuse:
+ * finishers are ready anyway).
+ */
+function pickBoons(day: TrialDay, modifiers: readonly ModifierId[][]): BoonId[][] {
   const rng = trialRng(day, "boons");
-  return Array.from({ length: BOSS_ROUND_INDEX }, () => shuffle(BOON_IDS, rng).slice(0, 3));
+  return Array.from({ length: BOSS_ROUND_INDEX }, (_, i) => {
+    const next = modifiers[i + 1] ?? [];
+    const pool = BOON_IDS.filter((id) => !(id === "quickened" && next.includes("short-fuse")));
+    return shuffle(pool, rng).slice(0, 3);
+  });
 }
 
 /** Stream name for a re-roll (attempt 0 keeps the plain name). */
@@ -161,7 +170,7 @@ function salted(stream: string, attempt: number): string {
 
 /**
  * Candidate plan for `day`. `attempt` re-rolls the lineup, modifiers and boss
- * (boon offers stay) — dailyTrial.ts picks the first fair candidate.
+ * (boon offers follow the new modifiers) — trialGate.ts picks the fair one offline.
  */
 export function generateTrialPlan(day: TrialDay, attempt = 0): TrialPlan {
   const lineup = pickLineup(day, attempt);
@@ -173,5 +182,5 @@ export function generateTrialPlan(day: TrialDay, attempt = 0): TrialPlan {
     levelBonus: ROUND_LEVEL_BONUS[index] ?? 0,
     modifiers: modifiers[index]!,
   }));
-  return { day, rounds, boss: pickBoss(day, attempt), boonOffers: pickBoons(day) };
+  return { day, rounds, boss: pickBoss(day, attempt), boonOffers: pickBoons(day, modifiers) };
 }
