@@ -45,6 +45,33 @@ export function preloadStoryArena(scene: Phaser.Scene, variant: ArenaVariant): v
   }
 }
 
+/**
+ * Where the battle layout (#404) put things: BattleScene sets it before
+ * createHud. Defaults reproduce the classic 640 square.
+ */
+export type StoryFrame = {
+  /** Chrome scale (base px -> design px). */
+  ui: number;
+  /** Arena / creature scale. */
+  s: number;
+  banner: { x: number; y: number };
+  viewX: number;
+  viewW: number;
+  intentY: number;
+  /** Ground line the boss embers rise from. */
+  emberY: number;
+};
+
+const CLASSIC_FRAME: StoryFrame = {
+  ui: 1,
+  s: 1,
+  banner: { x: 320, y: 230 },
+  viewX: 0,
+  viewW: 640,
+  intentY: STORY_INTENT_Y,
+  emberY: 470,
+};
+
 /** HpHud-compatible plate, wider, with phase pips. */
 export type StoryHud = {
   name: Phaser.GameObjects.Text;
@@ -54,6 +81,8 @@ export type StoryHud = {
   chipX: number;
   chipY: number;
   barWidth: number;
+  /** Scaled plate; chips are added into it in local coords. */
+  container: Phaser.GameObjects.Container;
 };
 
 export class StoryBattleUi {
@@ -65,12 +94,17 @@ export class StoryBattleUi {
   private warning: Phaser.GameObjects.GameObject[] = [];
   private embers?: Phaser.GameObjects.Particles.ParticleEmitter;
   private burst?: Phaser.GameObjects.Particles.ParticleEmitter;
+  private frame: StoryFrame = CLASSIC_FRAME;
 
   constructor(scene: Phaser.Scene, battle: StoryBattle, fx: BattleFx) {
     this.scene = scene;
     this.battle = battle;
     this.fx = fx;
     ensureFxTextures(scene);
+  }
+
+  setFrame(frame: StoryFrame): void {
+    this.frame = frame;
   }
 
   private get motion(): { particles: boolean; reduced: boolean; fast: boolean } {
@@ -83,7 +117,7 @@ export class StoryBattleUi {
     const art = this.customArt();
     const key = art ?? getCreatureDefinition(this.battle.spriteCreatureId).spriteKey;
     sprite.setTexture(...resolveCreaturePoseTexture(this.scene, key, "battle"));
-    const scale = this.battle.isBoss ? BOSS_SCALE : 1;
+    const scale = (this.battle.isBoss ? BOSS_SCALE : 1) * this.frame.s;
     sprite.setDisplaySize(BATTLE_CREATURE_DISPLAY.width * scale, BATTLE_CREATURE_DISPLAY.height * scale);
     this.applyFoeTint(sprite);
   }
@@ -109,89 +143,108 @@ export class StoryBattleUi {
     }
   }
 
-  /** Wide boss bar with a pip per form threshold ("II" marks the next form). */
-  createHud(): StoryHud {
+  /**
+   * Wide boss bar with a pip per form threshold ("II" marks the next form),
+   * built at base size in `rect` (design px) and scaled by the frame's ui.
+   */
+  createHud(
+    rect: { x: number; y: number; w: number } = { x: BOSS_BAR.x, y: BOSS_BAR.y, w: BOSS_BAR.width },
+  ): StoryHud {
     const s = this.scene;
-    const { x, y, width, barWidth } = BOSS_BAR;
+    const ui = this.frame.ui;
+    const width = rect.w / ui;
+    const barWidth = width - 100;
     const boss = this.battle.isBoss;
-    s.add
-      .rectangle(x, y, width, 62, 0x140c14, 0.88)
-      .setOrigin(0)
-      .setStrokeStyle(2, boss ? 0xff7a3a : 0xd8603c, 0.95)
-      .setDepth(4);
-    const name = s.add
-      .text(x + 12, y + 6, "", { color: "#fff0d8", fontFamily: HUD_FONT, fontSize: "15px", fontStyle: "bold" })
-      .setDepth(5);
-    const barX = x + 12;
-    const barY = y + 34;
-    s.add.rectangle(barX, barY, barWidth, 12, 0x2a1c22, 1).setOrigin(0, 0.5).setStrokeStyle(1, 0x000000, 0.7).setDepth(5);
-    const bar = s.add.rectangle(barX, barY, barWidth, 12, 0xff7a3a, 1).setOrigin(0, 0.5).setDepth(6);
-    const hp = s.add
-      .text(x + width - 12, barY, "", { color: "#ffe8c8", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
-      .setOrigin(1, 0.5)
-      .setDepth(6);
+    const box = s.add.container(rect.x, rect.y).setScale(ui).setDepth(4);
+    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
+      box.add(o);
+      return o;
+    };
+    const plate = add(s.add.graphics());
+    plate.fillStyle(0x140c14, 0.9);
+    plate.fillRoundedRect(0, 0, width, 62, 12);
+    plate.lineStyle(2, boss ? 0xff7a3a : 0xd8603c, 0.95);
+    plate.strokeRoundedRect(0, 0, width, 62, 12);
+    const name = add(
+      s.add.text(12, 6, "", { color: "#fff0d8", fontFamily: HUD_FONT, fontSize: "15px", fontStyle: "bold" }),
+    );
+    const barX = 12;
+    const barY = 34;
+    add(s.add.rectangle(barX, barY, barWidth, 12, 0x2a1c22, 1).setOrigin(0, 0.5).setStrokeStyle(1, 0x000000, 0.7));
+    const bar = add(s.add.rectangle(barX, barY, barWidth, 12, 0xff7a3a, 1).setOrigin(0, 0.5));
+    const hp = add(
+      s.add
+        .text(width - 12, barY, "", { color: "#ffe8c8", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
+        .setOrigin(1, 0.5),
+    );
     this.pips = this.battle.phaseMarks.map((mark, i) => {
       const px = barX + barWidth * mark;
-      s.add.rectangle(px, barY, 3, 18, 0xffe45a, 1).setDepth(7);
-      return s.add
-        .text(px, barY - 14, ["II", "III", "IV"][i] ?? "", {
-          color: "#ffe45a",
-          fontFamily: HUD_FONT,
-          fontSize: "11px",
-          fontStyle: "bold",
-          stroke: "#140c14",
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5)
-        .setDepth(7);
+      add(s.add.rectangle(px, barY, 3, 18, 0xffe45a, 1));
+      return add(
+        s.add
+          .text(px, barY + 15, ["II", "III", "IV"][i] ?? "", {
+            color: "#ffe45a",
+            fontFamily: HUD_FONT,
+            fontSize: "11px",
+            fontStyle: "bold",
+            stroke: "#140c14",
+            strokeThickness: 3,
+          })
+          .setOrigin(0.5),
+      );
     });
     if (boss) {
-      this.phaseLabel = s.add
-        .text(x + width - 12, y + 6, "", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
-        .setOrigin(1, 0)
-        .setDepth(5);
+      this.phaseLabel = add(
+        s.add
+          .text(width - 12, 6, "", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
+          .setOrigin(1, 0),
+      );
     }
     this.syncPhase();
-    this.createWardRow();
-    return { name, hp, bar, chips: [], chipX: x + 12, chipY: y + 52, barWidth };
+    this.createWardRow(box);
+    return { name, hp, bar, chips: [], chipX: 12, chipY: 52, barWidth, container: box };
   }
 
   /**
    * Hearth Ward chip by the boss bar (#399): it changes the foe, so it sits
-   * with the foe's plate, sized to stay >= 11 CSS px on a 360 px phone
-   * (640 design px -> 0.5625x), plus a quiet "tries until it strengthens" line.
+   * with the foe's plate, above it in the bar's scaled box, plus a quiet
+   * "tries until it strengthens" line.
    */
-  private createWardRow(): void {
+  private createWardRow(box: Phaser.GameObjects.Container): void {
     if (this.battle.ward >= 1) {
       return;
     }
     const s = this.scene;
-    const y = BOSS_BAR.y - 18;
+    const y = -16;
+    // Ward sizes were tuned for an unscaled 640 board (x0.5625 on a phone);
+    // inside the ui-scaled bar they come back to base size (still >= 11 CSS px).
+    const k = this.frame.ui > 1 ? 0.65 : 1;
     const chip = s.add
-      .text(BOSS_BAR.x, y, WARD_CHIP_TEXT, {
+      .text(0, y, WARD_CHIP_TEXT, {
         color: "#101820",
         backgroundColor: "#ffd27a",
         fontFamily: HUD_FONT,
-        fontSize: `${WARD_CHIP_FONT_PX}px`,
+        fontSize: `${Math.round(WARD_CHIP_FONT_PX * k)}px`,
         fontStyle: "bold",
         padding: { x: 8, y: 2 },
       })
-      .setOrigin(0, 0.5)
-      .setDepth(6);
+      .setOrigin(0, 0.5);
+    box.add(chip);
     const hint = wardHintText(this.battle.wardNextIn);
     if (hint) {
-      s.add
-        .text(BOSS_BAR.x + chip.width + 10, y, hint, {
-          color: "#ffe8c8",
-          fontFamily: HUD_FONT,
-          fontSize: `${WARD_HINT_FONT_PX}px`,
-          fontStyle: "italic",
-          stroke: "#140c14",
-          strokeThickness: 4,
-        })
-        .setOrigin(0, 0.5)
-        .setAlpha(0.8)
-        .setDepth(6);
+      box.add(
+        s.add
+          .text(chip.width + 10, y, hint, {
+            color: "#ffe8c8",
+            fontFamily: HUD_FONT,
+            fontSize: `${Math.round(WARD_HINT_FONT_PX * k)}px`,
+            fontStyle: "italic",
+            stroke: "#140c14",
+            strokeThickness: 4,
+          })
+          .setOrigin(0, 0.5)
+          .setAlpha(0.8),
+      );
     }
   }
 
@@ -264,8 +317,8 @@ export class StoryBattleUi {
     }
     this.embers = this.scene.add
       .particles(0, 0, FX_TEX.glow, {
-        x: { min: 0, max: 640 },
-        y: 470,
+        x: { min: this.frame.viewX, max: this.frame.viewX + this.frame.viewW },
+        y: this.frame.emberY,
         speedY: { min: -70, max: -30 },
         speedX: { min: -14, max: 14 },
         lifespan: { min: 2600, max: 4200 },
@@ -281,9 +334,13 @@ export class StoryBattleUi {
   /** Big centred banner; fades by itself. */
   private banner(title: string, subtitle: string, color: string, holdMs: number): void {
     const s = this.scene;
-    const band = s.add.rectangle(320, 230, 700, 104, 0x140810, 0.9).setDepth(DEPTH_BANNER).setScale(1, 0);
+    const { x: bx, y: by } = this.frame.banner;
+    const band = s.add
+      .rectangle(bx, by, this.frame.viewW + 80, 104, 0x140810, 0.9)
+      .setDepth(DEPTH_BANNER)
+      .setScale(1, 0);
     const head = s.add
-      .text(320, 210, title, {
+      .text(bx, by - 20, title, {
         fontFamily: "system-ui, sans-serif",
         fontStyle: "bold italic",
         fontSize: "40px",
@@ -295,7 +352,7 @@ export class StoryBattleUi {
       .setDepth(DEPTH_BANNER + 1)
       .setAlpha(0);
     const sub = s.add
-      .text(320, 258, subtitle, {
+      .text(bx, by + 28, subtitle, {
         fontFamily: HUD_FONT,
         fontStyle: "bold",
         fontSize: "15px",
@@ -382,7 +439,7 @@ export class StoryBattleUi {
     }
     const s = this.scene;
     const text = s.add
-      .text(320, STORY_INTENT_Y + 26, "▲ CINDERFALL INCOMING — GUARD TO PARRY AND STAGGER HER ▲", {
+      .text(this.frame.banner.x, this.frame.intentY + 26 * this.frame.ui, "▲ CINDERFALL INCOMING — GUARD TO PARRY AND STAGGER HER ▲", {
         color: "#ffe45a",
         backgroundColor: "#3a0c08e0",
         fontFamily: HUD_FONT,
@@ -392,6 +449,7 @@ export class StoryBattleUi {
       })
       .setOrigin(0.5)
       .setDepth(8);
+    text.setScale(Math.min(this.frame.ui, (this.frame.viewW - 16) / text.width));
     this.warning.push(text);
     if (!this.motion.reduced) {
       s.tweens.add({ targets: text, alpha: { from: 1, to: 0.45 }, duration: 380, yoyo: true, repeat: -1 });
@@ -427,19 +485,20 @@ export class StoryBattleUi {
   playAssist(action: AssistAction): void {
     const s = this.scene;
     const npc = getNpcById(RIVAL_NPC_ID);
-    const y = 372;
-    const card = s.add.rectangle(-170, y, 300, 64, 0x2a1418, 0.94).setStrokeStyle(2, 0xd8603c, 1).setDepth(DEPTH_BANNER - 2).setOrigin(0, 0.5);
+    const y = this.frame.banner.y + 80;
+    const x0 = this.frame.viewX;
+    const card = s.add.rectangle(x0 - 170, y, 300, 64, 0x2a1418, 0.94).setStrokeStyle(2, 0xd8603c, 1).setDepth(DEPTH_BANNER - 2).setOrigin(0, 0.5);
     const parts: Phaser.GameObjects.GameObject[] = [card];
     if (npc) {
-      const portrait = s.add.sprite(-150, y + 30, npc.spriteKey).setOrigin(0.5, 1).setDepth(DEPTH_BANNER - 1);
+      const portrait = s.add.sprite(x0 - 150, y + 30, npc.spriteKey).setOrigin(0.5, 1).setDepth(DEPTH_BANNER - 1);
       applyNpcSprite(s, portrait, npc, { width: NPC_DISPLAY.width * 1.1, height: NPC_DISPLAY.height * 1.1 }, "talk");
       parts.push(portrait);
     }
     const head = s.add
-      .text(-110, y - 18, "WREN ASSISTS", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
+      .text(x0 - 110, y - 18, "WREN ASSISTS", { color: "#ffb070", fontFamily: HUD_FONT, fontSize: "13px", fontStyle: "bold" })
       .setDepth(DEPTH_BANNER - 1);
     const body = s.add
-      .text(-110, y, action.kind === "daze" ? "Lantern Fox: Dazzle" : action.kind === "soak" ? "Brook Nymph: Drench" : action.kind === "cleanse" ? "Rootwalker: Cleanse" : "Rootwalker: Bloom", {
+      .text(x0 - 110, y, action.kind === "daze" ? "Lantern Fox: Dazzle" : action.kind === "soak" ? "Brook Nymph: Drench" : action.kind === "cleanse" ? "Rootwalker: Cleanse" : "Rootwalker: Bloom", {
         color: "#fff0d8",
         fontFamily: HUD_FONT,
         fontSize: "15px",

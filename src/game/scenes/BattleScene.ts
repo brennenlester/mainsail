@@ -13,7 +13,6 @@ import {
 import { describeAssist, StoryBattle } from "../battle/boss/storyBattle";
 import {
   preloadStoryArena,
-  STORY_INTENT_Y,
   storyArenaVariant,
   StoryBattleUi,
 } from "../battle/boss/storyBattleUi";
@@ -34,8 +33,27 @@ import { damageNumberStyle } from "../battle/vfx/damageNumbers";
 import {
   setTouchHitArea,
   showBattleResultPanel,
+  type ResultPanelFrame,
   type ResultPanelOptions,
 } from "../battle/vfx/battleResultPanel";
+import {
+  ARENA_DAIS_LAYER_Y,
+  ARENA_LAYER_SCALE,
+  BASE,
+  battleLayout,
+  type BattleLayout,
+  type Rect,
+} from "../battle/vfx/battleLayout";
+import {
+  addKeycap,
+  addToast,
+  drawCardPanel,
+  MoveCard,
+  showKeyHints,
+} from "../battle/vfx/battleWidgets";
+import { addChip, CARD, CARD_FONT, CardButton, TYPE_CHIP_COLORS } from "../ui/encounterCard";
+import { isDomKeyboardTarget } from "../ui/canvasFocus";
+import { layoutStage } from "../ui/stageLayout";
 import {
   buildVictorySummary,
   type PartySnapshotEntry,
@@ -58,9 +76,16 @@ import { hasWorldTexture, imagineTexture } from "../render/imagineAssets";
 import {
   BATTLE_CREATURE_DISPLAY,
   BATTLE_PLAYER_DISPLAY,
+  ensureTrimmedTexture,
+  fitContainDisplay,
   fitDisplay,
 } from "../render/displaySizes";
-import { bindOverlayPixelRatio, DESIGN_SIZE } from "../render/pixelRatio";
+import {
+  DESIGN_SIZE,
+  OVERLAY_LETTERBOX_COLOR,
+  RENDER_DPR,
+  resizeGameForDisplay,
+} from "../render/pixelRatio";
 import { ensurePlayerAnims } from "../render/playerAnims";
 import type {
   BattleCombatant,
@@ -178,23 +203,15 @@ const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
   immune: "#6a6a6a",
 };
 
-const INTENT_MIN_LEFT = 268;
+// Sprites are bottom-anchored (breathing / squash read from the ground); homes,
+// plates, log and move cards all come from the full-stage layout (#404).
 
-/** Feet positions (sprites are bottom-anchored so breathing / squash read from the ground). */
-// Stage fills the upper ~70% (#361): dais centre at y=300, arena scaled 1.18x;
-// homes are the dais spots scaled with it; log + moves sit below the dais.
-const ARENA_STAGE = { y: 300, scale: 1.18 };
-const WILD_HOME = { x: DESIGN_SIZE / 2 + 137, y: 266 };
-const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 142, y: 370 };
-const LOG_Y = 440;
-
-// Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
-/** Befriend breakdown tip: capped width, and on touch it lapses fast (#388). */
-const BEFRIEND_TIP_MAX_WIDTH = 440;
+/** Befriend breakdown tip: on touch it lapses fast (#388). */
 const BEFRIEND_TIP_TOUCH_MS = 2500;
-const HUD_FONT ='"Source Sans 3", system-ui, sans-serif';
-const HP_BAR_WIDTH = 176;
-const HUD_PLATE_WIDTH = 236;
+// Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
+const HUD_FONT = CARD_FONT;
+/** Space on a plate right of the HP bar for "34/34". */
+const PLATE_HP_TEXT_W = 58;
 
 type HpHud = {
   name: Phaser.GameObjects.Text;
@@ -203,8 +220,11 @@ type HpHud = {
   chips: Phaser.GameObjects.Text[];
   chipX: number;
   chipY: number;
-  /** Story boss bar is wider than a plate (#385). */
-  barWidth?: number;
+  barWidth: number;
+  /** Scaled plate; name / bar / chips live in it in local base px. */
+  container: Phaser.GameObjects.Container;
+  /** Room for the name line (base px). */
+  nameWidth?: number;
 };
 
 /** Intent shown for the enemy's next action (one turn ahead). */
@@ -214,13 +234,6 @@ type WildIntent = {
   /** Fixed sovereign pattern damage (before guard); undefined = rolled move. */
   fixedDamage?: number;
 };
-
-/** Modal menus draw above the battle HUD plates. */
-function raiseOverlay(objects: Phaser.GameObjects.GameObject[]): void {
-  for (const object of objects) {
-    (object as unknown as Phaser.GameObjects.Components.Depth).setDepth(20);
-  }
-}
 
 export class BattleScene extends Phaser.Scene {
   private wildCreatureId!: string;
@@ -270,7 +283,17 @@ export class BattleScene extends Phaser.Scene {
   private switchMenuObjects: Phaser.GameObjects.GameObject[] = [];
   private wandererFallbackObjects: Phaser.GameObjects.GameObject[] = [];
   /** Story 2 pre-move hunter tip; cleared after the first move selection. */
-  private matchupTeachText: Phaser.GameObjects.Text | null = null;
+  private matchupTeachText: Phaser.GameObjects.Container | null = null;
+  /** Full-stage layout (#404), fixed for the battle; the camera frames `view`. */
+  private layout!: BattleLayout;
+  private stageCss = { w: DESIGN_SIZE, h: DESIGN_SIZE };
+  private logFrame?: Rect;
+  private moveCards: MoveCard[] = [];
+  private switchButton?: CardButton;
+  private befriendButton?: CardButton;
+  /** Switch menu rows by party index (keys 1-6). */
+  private switchRowActions = new Map<number, () => void>();
+  private fallbackActions: { fight?: () => void; retreat?: () => void } = {};
   /** Rival / boss battle (#385): rules in battle/boss/storyBattle, art in storyBattleUi. */
   private story: StoryBattle | null = null;
   private storyUi: StoryBattleUi | null = null;
@@ -341,6 +364,12 @@ export class BattleScene extends Phaser.Scene {
     this.actionButtons = [];
     this.switchMenuObjects = [];
     this.wandererFallbackObjects = [];
+    this.moveCards = [];
+    this.switchButton = undefined;
+    this.befriendButton = undefined;
+    this.switchRowActions = new Map();
+    this.fallbackActions = {};
+    this.matchupTeachText = null;
     this.intent = null;
     this.intentObjects = [];
     this.freeSwitchAvailable = true;
@@ -435,27 +464,27 @@ export class BattleScene extends Phaser.Scene {
       document.body.classList.remove("battle-active");
     });
     this.scene.bringToTop();
-    bindOverlayPixelRatio(this);
+    this.frameStage();
     hideOpeningCaption();
     ensureCreatureTextures(this);
     ensurePlayerAnims(this);
     this.cameras.main.fadeIn(140, 255, 255, 255);
 
     this.drawArena();
-
-    const cx = DESIGN_SIZE / 2;
+    const L = this.layout;
+    const ui = L.ui;
 
     // A warded story battle uses this strip for the Hearth Ward row (#399);
     // its title already ran in the VS banner and the foe bar names the foe.
     if (!this.story || this.story.ward >= 1) {
       this.add
-        .text(cx, 22, this.story?.def.title ?? "Training Spar", {
-          color: this.story ? "#ffd8a8" : "#fff7d8",
-          fontFamily: "system-ui, sans-serif",
-          fontSize: "18px",
+        .text((L.topRow.left + L.topRow.right) / 2, L.topRow.y, this.story?.def.title ?? "Training Spar", {
+          color: this.story ? "#ffd8a8" : CARD.creamCss,
+          fontFamily: HUD_FONT,
+          fontSize: `${Math.round(18 * ui)}px`,
           fontStyle: "bold",
-          stroke: "#1a2430",
-          strokeThickness: 4,
+          stroke: CARD.inkCss,
+          strokeThickness: Math.round(4 * ui),
         })
         .setOrigin(0.5)
         .setDepth(6);
@@ -464,8 +493,8 @@ export class BattleScene extends Phaser.Scene {
     this.wildSprite = fitDisplay(
       this.add
         .sprite(
-          WILD_HOME.x,
-          WILD_HOME.y,
+          L.wildHome.x,
+          L.wildHome.y,
           ...resolveCreaturePoseTexture(
             this,
             getCreatureDefinition(this.wildCreatureId).spriteKey,
@@ -474,11 +503,11 @@ export class BattleScene extends Phaser.Scene {
         )
         .setOrigin(0.5, 1)
         .setDepth(2),
-      BATTLE_CREATURE_DISPLAY,
+      this.scaledDisplay(BATTLE_CREATURE_DISPLAY),
     ) as Phaser.GameObjects.Sprite;
     this.playerSprite = fitDisplay(
       this.add
-        .sprite(PLAYER_HOME.x, PLAYER_HOME.y, ...this.getPlayerSpriteTexture())
+        .sprite(L.playerHome.x, L.playerHome.y, ...this.getPlayerSpriteTexture())
         .setOrigin(0.5, 1)
         .setDepth(2),
       this.getPlayerBattleDisplay(),
@@ -495,8 +524,18 @@ export class BattleScene extends Phaser.Scene {
             : this.wildSprite.clearTint()
           : this.syncPlayerPresenceTint(),
     );
+    this.fx.setFraming({ zoom: () => this.frameZoom(), banner: L.banner, width: L.view.w });
     if (this.story) {
       this.storyUi = new StoryBattleUi(this, this.story, this.fx);
+      this.storyUi.setFrame({
+        ui,
+        s: L.cs,
+        banner: L.banner,
+        viewX: L.view.x,
+        viewW: L.view.w,
+        intentY: L.intent.y,
+        emberY: L.dais.y + 120 * L.s,
+      });
       this.storyUi.decorateFoe(this.wildSprite);
       setBattleTheme(this.story.def.theme, this);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -504,28 +543,14 @@ export class BattleScene extends Phaser.Scene {
         setBattleTheme(undefined);
       });
     }
-    this.fx.setHome("wild", WILD_HOME.x, WILD_HOME.y);
-    this.fx.setHome("player", PLAYER_HOME.x, PLAYER_HOME.y);
+    this.fx.setHome("wild", L.wildHome.x, L.wildHome.y);
+    this.fx.setHome("player", L.playerHome.x, L.playerHome.y);
     this.addFastToggle();
 
-    // Opponent plate top-left, player plate mid-right (clear of both sprites).
-    this.wildHud = this.storyUi?.createHud() ?? this.createHpHud(24, 48);
-    this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 304);
-
-    this.add
-      .rectangle(cx, LOG_Y, 580, 40, 0x101820, 0.78)
-      .setStrokeStyle(1, 0x6eb8a8, 0.6)
-      .setDepth(4);
-    this.logText = this.add
-      .text(cx, LOG_Y, "", {
-        color: "#f4ecd8",
-        fontFamily: HUD_FONT,
-        fontSize: "14px",
-        align: "center",
-        wordWrap: { width: 560 },
-      })
-      .setOrigin(0.5)
-      .setDepth(5);
+    // Plates up top, each on its creature's side (#404); a story foe gets the wide bar.
+    this.wildHud = this.storyUi?.createHud(L.foePlate) ?? this.createHpHud(L.foePlate, true);
+    this.playerHud = this.createHpHud(L.playerPlate);
+    this.drawSheet();
 
     this.refreshHp();
     this.refreshIntent();
@@ -556,10 +581,151 @@ export class BattleScene extends Phaser.Scene {
       }
     });
     this.input.keyboard?.on("keydown", this.onGodSparKillCheatKeyDown);
+    this.input.keyboard?.on("keydown", this.onBattleKey);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.keyboard?.off("keydown", this.onGodSparKillCheatKeyDown);
+      this.input.keyboard?.off("keydown", this.onBattleKey);
     });
   }
+
+  // --- Full-stage framing (#404) ---------------------------------------------
+
+  /**
+   * Battles own the whole viewport: the (inert) dock steps aside via the
+   * battle-active class, the stage is re-measured, and the layout is fitted
+   * to the stage's real aspect so nothing is letterboxed.
+   */
+  private frameStage(): void {
+    const stage = layoutStage();
+    resizeGameForDisplay(this, stage.width, stage.height);
+    this.stageCss = { w: this.scale.width / RENDER_DPR, h: this.scale.height / RENDER_DPR };
+    this.layout = this.computeLayout(this.player.moves.length);
+    this.frameCamera();
+    // ponytail: layout is fixed per battle; a mid-battle resize / rotation
+    // re-fits the same view (navy bars) instead of reflowing every widget.
+    const v = this.layout.view;
+    const reach = 8000;
+    for (const [x, y, w, h] of [
+      [v.x - reach, v.y - reach, reach, v.h + 2 * reach],
+      [v.x + v.w, v.y - reach, reach, v.h + 2 * reach],
+      [v.x, v.y - reach, v.w, reach],
+      [v.x, v.y + v.h, v.w, reach],
+    ] as const) {
+      this.add.rectangle(x, y, w, h, OVERLAY_LETTERBOX_COLOR, 1).setOrigin(0).setDepth(100_000);
+    }
+    const onResize = (): void => this.frameCamera();
+    this.scale.on("resize", onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
+  }
+
+  private computeLayout(moveCount: number): BattleLayout {
+    return battleLayout({
+      stageW: this.stageCss.w,
+      stageH: this.stageCss.h,
+      moveCount,
+      story: this.story !== null,
+    });
+  }
+
+  private frameZoom(): number {
+    const v = this.layout.view;
+    return Math.min(this.scale.width / v.w, this.scale.height / v.h);
+  }
+
+  private frameCamera(): void {
+    const v = this.layout.view;
+    const cam = this.cameras.main;
+    cam.setZoom(this.frameZoom());
+    cam.centerOn(v.x + v.w / 2, v.y + v.h / 2);
+  }
+
+  /** Creature display box scaled with the arena. */
+  private scaledDisplay(size: { width: number; height: number }): { width: number; height: number } {
+    const s = this.layout?.cs ?? 1;
+    return { width: size.width * s, height: size.height * s };
+  }
+
+  /** Navy command sheet behind the log, move cards and buttons; the log itself. */
+  private drawSheet(): void {
+    const L = this.layout;
+    const ui = L.ui;
+    const sh = L.sheet;
+    const g = this.add.graphics().setDepth(3);
+    const r = 22 * ui;
+    if (L.mode === "side") {
+      g.fillStyle(CARD.panel, 0.9);
+      g.fillRoundedRect(sh.x, sh.y - r, sh.w + r, sh.h + 2 * r, r);
+      g.lineStyle(2, CARD.cream, 0.55);
+      g.strokeRoundedRect(sh.x, sh.y - r, sh.w + r, sh.h + 2 * r, r);
+    } else {
+      g.fillStyle(CARD.panel, 0.9);
+      g.fillRoundedRect(sh.x - r, sh.y, sh.w + 2 * r, sh.h + r, r);
+      g.lineStyle(2, CARD.cream, 0.55);
+      g.strokeRoundedRect(sh.x - r, sh.y, sh.w + 2 * r, sh.h + r, r);
+    }
+    const log = L.log;
+    this.logFrame = log;
+    g.fillStyle(CARD.panelDeep, 0.95);
+    g.fillRoundedRect(log.x, log.y, log.w, log.h, 12 * ui);
+    g.lineStyle(1, CARD.line, 1);
+    g.strokeRoundedRect(log.x, log.y, log.w, log.h, 12 * ui);
+    this.logText = this.add
+      .text(log.x + log.w / 2, log.y + log.h / 2, "", {
+        color: CARD.creamCss,
+        fontFamily: HUD_FONT,
+        fontSize: `${Math.round(15 * ui)}px`,
+        align: "center",
+        lineSpacing: 0,
+        wordWrap: { width: log.w - 20 * ui, useAdvancedWrap: true },
+      })
+      .setOrigin(0.5)
+      .setDepth(5);
+  }
+
+  // --- Keyboard (#404): fixed keys, hints on desktop only ---------------------
+
+  /** 1-5 move cards in order, S switch, B befriend; menus take 1-6 / Esc / F. */
+  private onBattleKey = (event: KeyboardEvent): void => {
+    if (
+      event.repeat ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      this.battleEnded ||
+      isDomKeyboardTarget(document.activeElement)
+    ) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    const digit = /^[1-9]$/.test(key) ? Number(key) : 0;
+    if (this.switchMenuOpen) {
+      if (digit > 0) {
+        this.switchRowActions.get(digit - 1)?.();
+      } else if ((key === "escape" || key === "s") && !this.forcedSwitch) {
+        this.hideSwitchMenu();
+      }
+      return;
+    }
+    if (this.wandererFallbackOpen) {
+      if (digit === 1 || key === "enter") {
+        this.fallbackActions.fight?.();
+      } else if (key === "f" || digit === 2) {
+        this.fallbackActions.retreat?.();
+      }
+      return;
+    }
+    if (!this.waitingForPlayer) {
+      return;
+    }
+    if (digit > 0) {
+      this.moveCards[digit - 1]?.activate();
+    } else if (key === "s" && this.switchButton) {
+      this.showSwitchMenu();
+    } else if (key === "b" && this.befriendButton) {
+      // A key press is deliberate: no tap-to-confirm step.
+      this.attemptBefriend();
+    }
+  };
 
   /** Creatures slide/hop in, camera pushes, VS banner for sovereigns. Returns ms until input. */
   private playEntrance(): number {
@@ -578,18 +744,20 @@ export class BattleScene extends Phaser.Scene {
 
   /** "Fast" toggle: skips lunges, particles, pauses (#365). */
   private addFastToggle(): void {
+    const L = this.layout;
+    const ui = L.ui;
     const btn = this.add
-      .text(DESIGN_SIZE - 12, 22, fastBattleLabel(fastBattleEnabled()), {
-        color: "#fff7d8",
-        backgroundColor: "#101820b0",
+      .text(L.topRow.right, L.topRow.y, fastBattleLabel(fastBattleEnabled()), {
+        color: CARD.creamCss,
+        backgroundColor: "#0e1b2cd8",
         fontFamily: HUD_FONT,
-        fontSize: "12px",
+        fontSize: `${Math.round(13 * ui)}px`,
         fontStyle: "bold",
-        padding: { x: 7, y: 3 },
+        padding: { x: Math.round(8 * ui), y: Math.round(3 * ui) },
       })
       .setOrigin(1, 0.5)
       .setDepth(6);
-    setTouchHitArea(btn);
+    setTouchHitArea(btn, 44 / L.unit);
     btn.on("pointerdown", () => {
       const next = !fastBattleEnabled();
       setFastBattleEnabled(next);
@@ -606,23 +774,16 @@ export class BattleScene extends Phaser.Scene {
       this.player.folkloreType,
       this.wild.folkloreType,
     );
-    if (this.matchupTeachText) {
-      this.matchupTeachText.setText(tip);
-      return;
-    }
-    const cx = DESIGN_SIZE / 2;
-    this.matchupTeachText = this.add
-      .text(cx, LOG_Y + 26, tip, {
-        color: "#ffe6a8",
-        backgroundColor: "#101820cc",
-        fontFamily: HUD_FONT,
-        fontSize: "13px",
-        align: "center",
-        padding: { x: 8, y: 3 },
-        wordWrap: { width: 540 },
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(5);
+    this.matchupTeachText?.destroy();
+    const L = this.layout;
+    this.matchupTeachText = addToast(this, L.tip.x, L.tip.y, tip, {
+      ui: L.ui,
+      maxW: Math.min(L.arenaRegion.w - 24 * L.ui, 560 * L.ui),
+      originY: 0,
+      color: CARD.goldCss,
+      fontPx: 14,
+      depth: 5,
+    });
   }
 
   private clearHunterMatchupTeach(): void {
@@ -631,27 +792,31 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private drawArena(): void {
-    const w = DESIGN_SIZE;
-    const h = DESIGN_SIZE;
+    const L = this.layout;
+    const v = L.view;
     // Zone / night variant (#361); hills + dais scale around the dais centre
-    // (design y=240 in the layer) so the stage fills the frame.
+    // (design y=240 in the layer). The sky covers the whole stage (#404).
     const variant = this.story ? storyArenaVariant(this.story) : undefined;
     const layers = resolveArenaLayers((key) => hasWorldTexture(this, key), variant);
     if (layers) {
-      const s = ARENA_STAGE.scale;
-      const stageY = ARENA_STAGE.y + (h / 2 - 240) * s;
+      const a = ARENA_LAYER_SCALE * L.s;
+      const stageY = L.dais.y + (DESIGN_SIZE / 2 - ARENA_DAIS_LAYER_Y) * a;
+      // Wide stages: stretch the ground sideways a touch so no sky shows past its ends.
+      const groundW = Math.max(DESIGN_SIZE * a, v.w + 40);
+      const groundX = Phaser.Math.Clamp(L.dais.x, v.x + groundW / 2 - 20, v.x + v.w - groundW / 2 + 20);
+      const sky = Math.max(v.w, v.h) + 8;
       const images = [
         this.add
-          .image(w / 2, h / 2, ...imagineTexture(this, layers.sky))
-          .setDisplaySize(w, h)
+          .image(v.x + v.w / 2, v.y + v.h / 2, ...imagineTexture(this, layers.sky))
+          .setDisplaySize(sky, sky)
           .setDepth(-12),
         this.add
-          .image(w / 2, stageY, ...imagineTexture(this, layers.hills))
-          .setDisplaySize(w * s, h * s)
+          .image(groundX, stageY, ...imagineTexture(this, layers.hills))
+          .setDisplaySize(groundW, DESIGN_SIZE * a)
           .setDepth(-11),
         this.add
-          .image(w / 2, stageY, ...imagineTexture(this, layers.platform))
-          .setDisplaySize(w * s, h * s)
+          .image(groundX, stageY, ...imagineTexture(this, layers.platform))
+          .setDisplaySize(groundW, DESIGN_SIZE * a)
           .setDepth(-10),
       ];
       if (variant === "ember" && !layers.sky.startsWith("arena-ember")) {
@@ -663,22 +828,18 @@ export class BattleScene extends Phaser.Scene {
 
     // Procedural fallback when Imagine arena layers are missing.
     const g = this.add.graphics().setDepth(-10);
+    const { x: dx, y: dy } = L.dais;
+    const s = L.s;
     g.fillStyle(0x5da9c8, 1);
-    g.fillRect(0, 0, w, h);
-    g.fillStyle(0xffeaa0, 0.72);
-    g.fillCircle(w * 0.74, 70, 48);
-    g.fillStyle(0xd6f5e0, 0.48);
-    g.fillEllipse(w * 0.3, 92, 150, 34);
+    g.fillRect(v.x, v.y, v.w, v.h);
     g.fillStyle(0x4f9a6e, 1);
-    for (let x = -40; x < w + 50; x += 54) {
-      g.fillTriangle(x, 300, x + 28, 190 + ((x / 54) % 2) * 22, x + 56, 300);
-    }
+    g.fillRect(v.x, dy - 20 * s, v.w, v.y + v.h - dy + 20 * s);
     g.fillStyle(0xa5d87d, 0.9);
-    g.fillEllipse(w / 2, 244, w * 0.82, 82);
+    g.fillEllipse(dx, dy, 520 * s, 120 * s);
     g.fillStyle(0xe5f1ad, 0.75);
-    g.fillEllipse(w / 2, 244, w * 0.58, 44);
+    g.fillEllipse(dx, dy, 370 * s, 64 * s);
     g.lineStyle(3, 0x3d8b76, 0.55);
-    g.strokeEllipse(w / 2, 244, w * 0.74, 62);
+    g.strokeEllipse(dx, dy, 470 * s, 92 * s);
   }
 
   private getPlayerSpriteTexture(): [string, string | undefined] {
@@ -714,9 +875,9 @@ export class BattleScene extends Phaser.Scene {
     width: number;
     height: number;
   } {
-    return this.resolvePartyIndex() < 0
-      ? BATTLE_PLAYER_DISPLAY
-      : BATTLE_CREATURE_DISPLAY;
+    return this.scaledDisplay(
+      this.resolvePartyIndex() < 0 ? BATTLE_PLAYER_DISPLAY : BATTLE_CREATURE_DISPLAY,
+    );
   }
 
   private combatantFromPartyIndex(index: number): BattleCombatant {
@@ -790,46 +951,129 @@ export class BattleScene extends Phaser.Scene {
       button.destroy();
     }
     this.actionButtons = [];
+    this.moveCards = [];
+    this.switchButton = undefined;
+    this.befriendButton = undefined;
     this.hideBefriendTip();
   }
 
+  /** A turn is resolving: fade the cards and ignore their input until rebuilt. */
+  private dimActionButtons(): void {
+    for (const button of this.actionButtons) {
+      (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
+    }
+    for (const card of this.moveCards) {
+      card.setDimmed(true);
+    }
+  }
+
+  /** Move cards (fixed keys 1-5 in order) plus Switch (S) / Befriend (B) buttons. */
   private buildActionButtons(): void {
     this.clearActionButtons();
     this.hideSwitchMenu();
     this.hideWandererFallbackMenu();
 
-    const cx = DESIGN_SIZE / 2;
-    // 2-column move grid below the log (and the Story 2 hunter tip).
-    const top = LOG_Y + 72;
-    const colOffset = 146;
-    const rowStep = 54;
-    let buttonY = top;
-
+    const L = this.layout;
+    const keys = showKeyHints();
     if (!this.forcedSwitch) {
+      const rects = this.computeLayout(this.player.moves.length).moves;
       this.player.moves.forEach((move, i) => {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const x = this.player.moves.length === 1 ? cx : cx + (col === 0 ? -colOffset : colOffset);
-        this.actionButtons.push(...this.addMoveButton(x, top + row * rowStep, move));
+        const rect = rects[i];
+        if (!rect) {
+          return;
+        }
+        const card = this.addMoveCard(rect, move, keys ? String(i + 1) : undefined);
+        this.moveCards.push(card);
+        this.actionButtons.push(card.container);
       });
-      buttonY = top + Math.ceil(this.player.moves.length / 2) * rowStep;
     }
 
     const canSwitch = this.hasSwitchablePartyMembers();
     const canBefriend = !this.forcedSwitch && this.canBefriendInBattle();
-    const pairOffset = canSwitch && canBefriend ? colOffset : 0;
+    const [first, second] = canSwitch && canBefriend ? L.aux : [L.auxSingle, L.auxSingle];
     if (canSwitch) {
-      const label =
-        this.freeSwitchAvailable && !this.forcedSwitch
-          ? "Switch (free this battle)"
-          : "Switch";
-      this.actionButtons.push(
-        this.addActionButton(cx - pairOffset, buttonY - 4, label, () => this.showSwitchMenu()),
+      const free = this.freeSwitchAvailable && !this.forcedSwitch;
+      this.switchButton = this.addActionButton(first, free ? "Switch · free" : "Switch", "secondary", keys ? "S" : undefined, () =>
+        this.showSwitchMenu(),
       );
     }
     if (canBefriend) {
-      this.actionButtons.push(this.addBefriendButton(cx + pairOffset, buttonY - 4));
+      this.befriendButton = this.addBefriendButton(canSwitch ? second : first, keys);
     }
+  }
+
+  /** Rounded encounter-card button sized to a layout rect (base px x ui). */
+  private addActionButton(
+    rect: Rect,
+    label: string,
+    tone: "primary" | "secondary" | "ghost",
+    key: string | undefined,
+    onActivate: () => void,
+  ): CardButton {
+    const ui = this.layout.ui;
+    const button = new CardButton(this, rect.x + rect.w / 2, rect.y + rect.h / 2, {
+      width: rect.w / ui,
+      height: rect.h / ui,
+      label,
+      tone,
+      key,
+      onActivate,
+    }).setUiScale(ui);
+    button.container.setDepth(6);
+    this.actionButtons.push(button.container);
+    return button;
+  }
+
+  private addMoveCard(rect: Rect, move: MoveDefinition, key: string | undefined): MoveCard {
+    const role = moveRole(move);
+    const style = ROLE_STYLE[role];
+    const cooldown = getCooldown(this.player, move.id);
+    const ready = cooldown <= 0;
+    const matchup = move.power > 0 ? getMatchup(move, this.wild) : "neutral";
+    const details = [style.label, move.type];
+    if (move.power > 0) {
+      const accuracy = effectiveAccuracy(this.player, move);
+      if (accuracy < 100) {
+        details.push(`${accuracy}%`);
+      }
+    }
+    if (move.inflicts) {
+      details.push(`→ ${STATUS_DEFS[move.inflicts].label}`);
+    }
+    if (role === "finisher") {
+      details.push(`×${FINISHER_STATUS_BONUS} vs status`);
+    }
+    if (role === "guard") {
+      // Every sovereign beat is telegraphed, so a guard always parries it.
+      details.push(
+        this.hasSovereignPattern()
+          ? "parries every beat"
+          : `other hits −${Math.round((1 - GUARD_DAMAGE_TAKEN) * 100)}%`,
+      );
+    }
+    if (!ready) {
+      details.unshift(`ready in ${cooldown}`);
+    }
+    return new MoveCard(
+      this,
+      rect,
+      this.layout.ui,
+      {
+        title: move.name,
+        effect: this.formatMoveEffect(move),
+        effectColor: MATCHUP_COLOR[matchup],
+        sub: details.join(" · "),
+        roleColor: style.color,
+        ready,
+        key,
+      },
+      () => {
+        if (!this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
+          return;
+        }
+        this.playerTurn(move);
+      },
+    );
   }
 
   // --- Befriend mid-spar (#366) ---------------------------------------------
@@ -862,25 +1106,25 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  private addBefriendButton(x: number, y: number): Phaser.GameObjects.Text {
+  private addBefriendButton(rect: Rect, keys: boolean): CardButton {
     const assured = isStory1BefriendGuaranteed(this.wildCreatureId);
     const odds = this.befriendOdds();
     const offering = assured ? "none" : currentOffering(this.wildCreatureId);
     // The cost rides on the label so touch players see it without a hover.
     const tag = offering === "folk-seal" ? " · Seal" : offering === "favorite-bait" ? " · Bait" : "";
     const btn = this.addActionButton(
-      x,
-      y,
+      rect,
       assured ? ASSURED_BEFRIEND_LABEL : `${formatBefriendOddsLabel(odds.chance)}${tag}`,
-      () => this.onBefriendPressed(btn, assured ? null : odds),
+      "primary",
+      keys ? "B" : undefined,
+      () => this.onBefriendPressed(assured ? null : odds),
     );
-    btn.setBackgroundColor("#ffe2ec");
-    btn.on("pointerover", () => {
+    btn.container.on("pointerover", () => {
       if (!this.coarsePointer()) {
-        this.showBefriendTip(btn, assured ? null : odds);
+        this.showBefriendTip(assured ? null : odds);
       }
     });
-    btn.on("pointerout", () => {
+    btn.container.on("pointerout", () => {
       if (!this.coarsePointer()) {
         this.hideBefriendTip();
       }
@@ -893,23 +1137,19 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** Touch: first tap shows the breakdown + cost, the second commits. Mouse: one click. */
-  private onBefriendPressed(btn: Phaser.GameObjects.Text, odds: BefriendOdds | null): void {
+  private onBefriendPressed(odds: BefriendOdds | null): void {
     if (!this.waitingForPlayer) {
       return;
     }
     if (this.coarsePointer() && this.befriendTip.length === 0) {
-      this.showBefriendTip(btn, odds, true);
+      this.showBefriendTip(odds, true);
       return;
     }
     this.attemptBefriend();
   }
 
-  /** Breakdown above the button: "Base 28% · Weakened +20% · Rooted +12%". */
-  private showBefriendTip(
-    anchor: Phaser.GameObjects.Text,
-    odds: BefriendOdds | null,
-    confirm = false,
-  ): void {
+  /** Breakdown toast over the arena: "Base 28% · Weakened +20% · Rooted +12%". */
+  private showBefriendTip(odds: BefriendOdds | null, confirm = false): void {
     this.hideBefriendTip();
     const offering = currentOffering(this.wildCreatureId);
     const lines = odds
@@ -923,20 +1163,14 @@ export class BattleScene extends Phaser.Scene {
     ]
       .filter(Boolean)
       .join(" · ");
-    // 20px design ≈ 10.5 CSS px at 360 wide.
-    const text = this.add
-      .text(DESIGN_SIZE / 2, anchor.y - 30, footer ? `${lines}\n${footer}` : lines, {
-        color: "#fff7e0",
-        backgroundColor: "#101820f2",
-        fontFamily: HUD_FONT,
-        fontSize: "20px",
-        align: "center",
-        padding: { x: 12, y: 8 },
-        wordWrap: { width: BEFRIEND_TIP_MAX_WIDTH, useAdvancedWrap: true },
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(12);
-    this.befriendTip.push(text);
+    const L = this.layout;
+    const tip = addToast(this, L.tip.x, L.tip.y, footer ? `${lines}\n${footer}` : lines, {
+      ui: L.ui,
+      maxW: Math.min(L.arenaRegion.w - 24 * L.ui, 480 * L.ui),
+      originY: 0,
+      depth: 13,
+    });
+    this.befriendTip.push(tip);
     if (confirm) {
       // Touch tip must not sit over the move cards; a second tap after it
       // lapses just shows it again.
@@ -969,9 +1203,7 @@ export class BattleScene extends Phaser.Scene {
     this.clearHunterMatchupTeach();
     this.hideBefriendTip();
     this.waitingForPlayer = false;
-    for (const button of this.actionButtons) {
-      (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
-    }
+    this.dimActionButtons();
     const assured = isStory1BefriendGuaranteed(this.wildCreatureId);
     const odds = this.befriendOdds();
     // The Story 1 guarantee never eats an offering.
@@ -1028,125 +1260,11 @@ export class BattleScene extends Phaser.Scene {
     addToParty(this.wildCreatureId, this.wildLevel);
     const line = `${this.wild.name} joined you!`;
     this.log(line);
-    this.fx.confettiBurst(DESIGN_SIZE / 2, 90);
+    this.fx.confettiBurst(this.layout.banner.x, this.layout.arenaRegion.y + 40);
     this.finishBattle(
       { tone: "special", title: "New friend!", line: `${line} (Lv ${this.wildLevel})` },
       null,
     );
-  }
-
-  private addActionButton(
-    x: number,
-    y: number,
-    label: string,
-    onClick: () => void,
-  ): Phaser.GameObjects.Text {
-    const btn = this.add
-      .text(x, y, label, {
-        color: "#1a3040",
-        backgroundColor: "#dff4ec",
-        fontFamily: HUD_FONT,
-        fontSize: "16px",
-        fontStyle: "bold",
-        padding: { x: 18, y: 9 },
-      })
-      .setOrigin(0.5)
-      .setDepth(6)
-      .setInteractive({ useHandCursor: true });
-
-    btn.on("pointerover", () => btn.setAlpha(0.88));
-    btn.on("pointerout", () => btn.setAlpha(1));
-    btn.on("pointerdown", onClick);
-    return btn;
-  }
-
-  /** Two-line move card: name + effect on top, role · type · matchup · cooldown below. */
-  private addMoveButton(
-    x: number,
-    y: number,
-    move: MoveDefinition,
-  ): Phaser.GameObjects.GameObject[] {
-    const role = moveRole(move);
-    const style = ROLE_STYLE[role];
-    const cooldown = getCooldown(this.player, move.id);
-    const ready = cooldown <= 0;
-    const width = 280;
-    const height = 46;
-
-    const bg = this.add
-      .rectangle(x, y, width, height, ready ? 0xf3fbf6 : 0xb9c2c6, 1)
-      .setStrokeStyle(2, ready ? style.color : 0x8a959a)
-      .setDepth(6);
-    const stripe = this.add
-      .rectangle(x - width / 2 + 3, y, 6, height - 4, ready ? style.color : 0x8a959a)
-      .setDepth(7);
-
-    const matchup = move.power > 0 ? getMatchup(move, this.wild) : "neutral";
-    const effect = this.formatMoveEffect(move);
-    const title = this.add
-      .text(x - width / 2 + 14, y - 11, move.name, {
-        color: ready ? "#1a3040" : "#5a6468",
-        fontFamily: HUD_FONT,
-        fontSize: "15px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(7);
-    const effectText = this.add
-      .text(x + width / 2 - 10, y - 11, effect, {
-        color: ready ? MATCHUP_COLOR[matchup] : "#5a6468",
-        fontFamily: HUD_FONT,
-        fontSize: "14px",
-        fontStyle: "bold",
-      })
-      .setOrigin(1, 0.5)
-      .setDepth(7);
-
-    const details = [style.label, move.type];
-    if (move.power > 0) {
-      const accuracy = effectiveAccuracy(this.player, move);
-      if (accuracy < 100) {
-        details.push(`${accuracy}%`);
-      }
-    }
-    if (move.inflicts) {
-      details.push(`→ ${STATUS_DEFS[move.inflicts].label}`);
-    }
-    if (role === "finisher") {
-      details.push(`×${FINISHER_STATUS_BONUS} vs status`);
-    }
-    if (role === "guard") {
-      // Every sovereign beat is telegraphed, so a guard always parries it.
-      details.push(
-        this.hasSovereignPattern()
-          ? "parries every beat"
-          : `other hits −${Math.round((1 - GUARD_DAMAGE_TAKEN) * 100)}%`,
-      );
-    }
-    if (!ready) {
-      details.push(`ready in ${cooldown}`);
-    }
-    const sub = this.add
-      .text(x - width / 2 + 14, y + 11, details.join(" · "), {
-        color: ready ? "#4a6070" : "#5a6468",
-        fontFamily: HUD_FONT,
-        fontSize: "11px",
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(7);
-
-    if (ready) {
-      bg.setInteractive({ useHandCursor: true });
-      bg.on("pointerover", () => bg.setFillStyle(0xdff4ec));
-      bg.on("pointerout", () => bg.setFillStyle(0xf3fbf6));
-      bg.on("pointerdown", () => {
-        if (!this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
-          return;
-        }
-        this.playerTurn(move);
-      });
-    }
-    return [bg, stripe, title, effectText, sub];
   }
 
   /** Top-right of a move card: "−12", "Guard +4 HP", "immune". */
@@ -1172,83 +1290,226 @@ export class BattleScene extends Phaser.Scene {
     return `−${calcDamage(this.player, move, this.wild)}${badge ? `  ${badge}` : ""}`;
   }
 
+  /** Veil + scaled card container for a modal menu; returns the container. */
+  private openModal(
+    objects: Phaser.GameObjects.GameObject[],
+    width: number,
+    height: number,
+  ): Phaser.GameObjects.Container {
+    const L = this.layout;
+    const scale = Math.min(L.ui, L.modal.maxW / width, L.modal.maxH / height);
+    // Blocks taps on the cards below; the veil itself does nothing.
+    const veil = this.add
+      .rectangle(L.modal.x, L.modal.y, 8000, 8000, CARD.veil, 0.55)
+      .setInteractive()
+      .setDepth(19);
+    const box = this.add.container(L.modal.x, L.modal.y).setScale(scale).setDepth(20);
+    const panel = this.add.graphics();
+    drawCardPanel(panel, -width / 2, -height / 2, width, height, 26);
+    box.add(panel);
+    objects.push(veil, box);
+    return box;
+  }
+
+  /** Party picker: creature cards with art, HP, level / type chips, statuses (#404). */
   private showSwitchMenu(): void {
     if (!this.waitingForPlayer || this.switchMenuOpen) {
       return;
     }
-
     this.switchMenuOpen = true;
-    const cx = DESIGN_SIZE / 2;
-    const panelY = DESIGN_SIZE / 2;
-
-    const panel = this.add
-      .rectangle(cx, panelY, 320, 280, 0xfff8ec, 0.98)
-      .setStrokeStyle(3, 0x6eb8a8);
-    this.switchMenuObjects.push(panel);
-
-    const title = this.add
-      .text(cx, panelY - 120, "Choose a creature", {
-        color: "#2a4050",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
-        fontSize: "16px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    this.switchMenuObjects.push(title);
-
-    let rowY = panelY - 85;
+    this.hideBefriendTip();
+    const keys = showKeyHints();
     const actives = getActiveCreatures();
     const currentIndex = this.resolvePartyIndex();
-    for (let index = 0; index < actives.length; index++) {
-      const creature = actives[index];
-      const def = getCreatureDefinition(creature.definitionId);
-      const isActive = index === currentIndex;
-      const fainted = creature.currentHp <= 0;
-      const maxHp = getEffectiveMaxHp(creature);
-      const label = fainted
-        ? `${def.name} Lv.${creature.level} (fainted)`
-        : isActive
-          ? `${def.name} Lv.${creature.level} (active)`
-          : `${def.name} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)`;
+    const W = 480;
+    const rowH = 76;
+    const rowGap = 8;
+    const head = 92;
+    const foot = this.forcedSwitch ? 22 : 86;
+    const H = head + actives.length * (rowH + rowGap) - rowGap + foot;
+    const box = this.openModal(this.switchMenuObjects, W, H);
+    const top = -H / 2;
 
-      const btn = this.add
-        .text(cx, rowY, label, {
-          color: fainted || isActive ? "#7a8890" : "#1a3040",
-          backgroundColor: fainted || isActive ? "#d8e0e4" : "#c8efe0",
-          fontFamily: "Source Sans 3, system-ui, sans-serif",
-          fontSize: "13px",
-          padding: { x: 10, y: 4 },
+    box.add(
+      this.add
+        .text(0, top + 36, this.forcedSwitch ? "Who steps in?" : "Choose a creature", {
+          fontFamily: HUD_FONT,
+          fontSize: "26px",
+          fontStyle: "bold",
+          color: CARD.creamCss,
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5),
+    );
+    const note = this.forcedSwitch
+      ? "Pick who goes next."
+      : this.freeSwitchAvailable
+        ? "First switch is free — no turn spent."
+        : "Switching uses your turn — the foe still strikes.";
+    box.add(
+      this.add
+        .text(0, top + 66, note, {
+          fontFamily: HUD_FONT,
+          fontSize: "16px",
+          fontStyle: "bold",
+          color: this.freeSwitchAvailable && !this.forcedSwitch ? CARD.goldCss : CARD.mutedCss,
+        })
+        .setOrigin(0.5),
+    );
 
-      if (!fainted && !isActive) {
-        btn.setInteractive({ useHandCursor: true });
-        btn.on("pointerdown", () => this.switchToPartyIndex(index));
+    this.switchRowActions = new Map();
+    actives.forEach((creature, index) => {
+      const def = getCreatureDefinition(creature.definitionId);
+      const active = index === currentIndex;
+      const fainted = creature.currentHp <= 0;
+      const pickable = !active && !fainted;
+      const rowW = W - 40;
+      const rowX = -rowW / 2;
+      const rowY = top + head + index * (rowH + rowGap);
+      const row = this.add.container(0, rowY + rowH / 2);
+      const bg = this.add.graphics();
+      const draw = (hover: boolean): void => {
+        bg.clear();
+        bg.fillStyle(active ? 0x183048 : fainted ? 0x151f2e : hover ? 0x26405f : 0x1d3250, 1);
+        bg.fillRoundedRect(rowX, -rowH / 2, rowW, rowH, 14);
+        bg.lineStyle(2, active ? 0xffd98a : hover ? CARD.cream : 0x6e8db0, active ? 0.9 : fainted ? 0.35 : 0.85);
+        bg.strokeRoundedRect(rowX, -rowH / 2, rowW, rowH, 14);
+      };
+      draw(false);
+      row.add(bg);
+
+      // Portrait on a little lit disc.
+      const disc = this.add.graphics();
+      disc.fillStyle(CARD.panelDeep, 1);
+      disc.fillCircle(rowX + 40, 0, 30);
+      row.add(disc);
+      const art = this.add.image(
+        rowX + 40,
+        0,
+        ...ensureTrimmedTexture(this, ...resolveCreaturePoseTexture(this, def.spriteKey, "battle")),
+      );
+      fitContainDisplay(art, { width: 56, height: 56 });
+      if (fainted) {
+        art.setTint(0x6a7a8c).setAlpha(0.6);
+      }
+      row.add(art);
+
+      const nameX = rowX + 82;
+      const name = this.add
+        .text(nameX, -rowH / 2 + 10, creature.nickname ?? def.name, {
+          fontFamily: HUD_FONT,
+          fontSize: "19px",
+          fontStyle: "bold",
+          color: fainted ? CARD.mutedCss : CARD.creamCss,
+        })
+        .setOrigin(0, 0);
+      row.add(name);
+      let chipX = nameX + name.width + 8;
+      for (const [label, fill, color] of [
+        [`Lv ${creature.level}`, 0x2a4462, CARD.creamCss],
+        [def.folkloreType.toUpperCase(), TYPE_CHIP_COLORS[def.folkloreType], CARD.inkCss],
+      ] as const) {
+        const chip = addChip(this, 0, -rowH / 2 + 22, label, fill, color, 12);
+        chip.setX(chipX + chip.width / 2);
+        if (fainted) {
+          chip.setAlpha(0.5);
+        }
+        row.add(chip);
+        chipX += chip.width + 6;
       }
 
-      this.switchMenuObjects.push(btn);
-      rowY += 30;
-    }
-
-    const cancel = this.add
-      .text(cx, panelY + 120, "Cancel", {
-        color: "#1a3040",
-        backgroundColor: "#f0d8a8",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
-        fontSize: "14px",
-        padding: { x: 10, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
-    cancel.on("pointerdown", () => {
-      if (this.forcedSwitch) {
-        return;
+      // HP bar + numbers.
+      const maxHp = getEffectiveMaxHp(creature);
+      const ratio = Math.max(0, Math.min(1, creature.currentHp / maxHp));
+      const barX = nameX;
+      const barY = 14;
+      const barW = rowW - 82 - 128;
+      row.add(this.add.rectangle(barX, barY, barW, 10, CARD.panelDeep, 1).setOrigin(0, 0.5).setStrokeStyle(1, CARD.line, 1));
+      if (ratio > 0) {
+        row.add(
+          this.add
+            .rectangle(barX, barY, barW * ratio, 10, ratio > 0.5 ? 0x6cd86a : ratio > 0.25 ? 0xf2c94c : 0xeb5757, 1)
+            .setOrigin(0, 0.5),
+        );
       }
-      this.hideSwitchMenu();
+      row.add(
+        this.add
+          .text(barX + barW + 8, barY, `${creature.currentHp}/${maxHp}`, {
+            fontFamily: HUD_FONT,
+            fontSize: "14px",
+            fontStyle: "bold",
+            color: CARD.mutedCss,
+          })
+          .setOrigin(0, 0.5),
+      );
+
+      // Battle statuses carried on the bench (or on the active creature).
+      const statuses = active
+        ? this.player.statuses
+        : this.benchState.get(creature.instanceId)?.statuses;
+      let statusX = rowX + rowW - 14;
+      const rightLabel = active ? "IN BATTLE" : fainted ? "FAINTED" : null;
+      if (rightLabel) {
+        const label = this.add
+          .text(statusX, -rowH / 2 + 22, rightLabel, {
+            fontFamily: HUD_FONT,
+            fontSize: "13px",
+            fontStyle: "bold",
+            color: active ? CARD.goldCss : CARD.mutedCss,
+          })
+          .setOrigin(1, 0.5);
+        row.add(label);
+        statusX -= label.width + 8;
+      } else if (keys) {
+        const cap = addKeycap(this, 0, -rowH / 2 + 22, String(index + 1), true);
+        cap.setX(statusX - cap.width / 2);
+        row.add(cap);
+        statusX -= cap.width + 8;
+      }
+      for (const status of (statuses ?? []).filter((st) => st.turns > 0)) {
+        const chip = this.add
+          .text(statusX, barY, formatStatusChip(status.id, status.turns), {
+            color: CARD.inkCss,
+            backgroundColor: STATUS_DEFS[status.id].color,
+            fontFamily: HUD_FONT,
+            fontSize: "11px",
+            fontStyle: "bold",
+            padding: { x: 4, y: 1 },
+          })
+          .setOrigin(1, 0.5);
+        row.add(chip);
+        statusX -= chip.width + 4;
+      }
+
+      if (pickable) {
+        const pick = (): void => this.switchToPartyIndex(index);
+        this.switchRowActions.set(index, pick);
+        row.setSize(rowW, rowH);
+        row.setInteractive(new Phaser.Geom.Rectangle(0, -rowGap / 2, rowW, rowH + rowGap), Phaser.Geom.Rectangle.Contains);
+        if (row.input) {
+          row.input.cursor = "pointer";
+        }
+        row.on("pointerover", () => draw(true));
+        row.on("pointerout", () => draw(false));
+        row.on("pointerup", pick);
+      }
+      box.add(row);
     });
-    this.switchMenuObjects.push(cancel);
-    raiseOverlay(this.switchMenuObjects);
+
+    if (!this.forcedSwitch) {
+      const cancel = new CardButton(this, 0, H / 2 - 44, {
+        width: 200,
+        height: 50,
+        label: "Cancel",
+        tone: "ghost",
+        key: keys ? "Esc" : undefined,
+        onActivate: () => {
+          if (!this.forcedSwitch) {
+            this.hideSwitchMenu();
+          }
+        },
+      });
+      box.add(cancel.container);
+    }
   }
 
   private hideSwitchMenu(): void {
@@ -1256,6 +1517,7 @@ export class BattleScene extends Phaser.Scene {
       object.destroy();
     }
     this.switchMenuObjects = [];
+    this.switchRowActions = new Map();
     this.switchMenuOpen = false;
   }
 
@@ -1265,71 +1527,60 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.wandererFallbackOpen = true;
-    const cx = DESIGN_SIZE / 2;
-    const panelY = DESIGN_SIZE / 2;
+    const keys = showKeyHints();
     const weaponId = getBestWeaponId();
     const armed = weaponId ? buildArmedWanderer(weaponId) : undefined;
+    const W = 440;
+    const H = 250;
+    const box = this.openModal(this.wandererFallbackObjects, W, H);
 
-    const panel = this.add
-      .rectangle(cx, panelY, 340, 180, 0xfff8ec, 0.98)
-      .setStrokeStyle(3, 0x6eb8a8);
-    this.wandererFallbackObjects.push(panel);
-
-    const title = this.add
-      .text(cx, panelY - 50, "Your party has fainted!", {
-        color: "#2a4050",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
-        fontSize: "16px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    this.wandererFallbackObjects.push(title);
-
-    const subtitle = this.add
-      .text(
-        cx,
-        panelY - 20,
-        armed ? `Fight as ${armed.name}?` : "No weapon available.",
-        {
-          color: "#5a7888",
-          fontFamily: "Source Sans 3, system-ui, sans-serif",
-          fontSize: "14px",
-          align: "center",
-          wordWrap: { width: 300 },
-        },
-      )
-      .setOrigin(0.5);
-    this.wandererFallbackObjects.push(subtitle);
-
-    if (armed) {
-      const fight = this.add
-        .text(cx, panelY + 30, "Fight as Wanderer", {
-          color: "#1a3040",
-          backgroundColor: "#7ec8e8",
-          fontFamily: "Source Sans 3, system-ui, sans-serif",
-          fontSize: "16px",
+    box.add(
+      this.add
+        .text(0, -H / 2 + 42, "Your party has fainted!", {
+          fontFamily: HUD_FONT,
+          fontSize: "26px",
           fontStyle: "bold",
-          padding: { x: 16, y: 8 },
+          color: CARD.creamCss,
         })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-      fight.on("pointerdown", () => this.switchToArmedWanderer());
-      this.wandererFallbackObjects.push(fight);
-    }
+        .setOrigin(0.5),
+    );
+    box.add(
+      this.add
+        .text(0, -H / 2 + 80, armed ? `Fight on as ${armed.name}?` : "No weapon available.", {
+          fontFamily: HUD_FONT,
+          fontSize: "17px",
+          color: CARD.mutedCss,
+          align: "center",
+          wordWrap: { width: W - 60, useAdvancedWrap: true },
+        })
+        .setOrigin(0.5),
+    );
 
-    const retreat = this.add
-      .text(cx, panelY + 70, "Retreat", {
-        color: "#1a3040",
-        backgroundColor: "#f0d8a8",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
-        fontSize: "14px",
-        padding: { x: 12, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    retreat.on("pointerdown", () => this.endBattle(false));
-    this.wandererFallbackObjects.push(retreat);
-    raiseOverlay(this.wandererFallbackObjects);
+    const retreat = (): void => this.endBattle(false);
+    const fight = armed ? (): void => this.switchToArmedWanderer() : undefined;
+    this.fallbackActions = { fight, retreat };
+    const buttons: { label: string; tone: "secondary" | "ghost"; key: string; run: () => void }[] = [];
+    if (fight) {
+      buttons.push({ label: "Fight", tone: "secondary", key: "1", run: fight });
+    }
+    buttons.push({ label: "Retreat", tone: "ghost", key: "F", run: retreat });
+    const bw = 180;
+    const gap = 16;
+    const total = buttons.length * bw + (buttons.length - 1) * gap;
+    buttons.forEach((b, i) => {
+      const button = new CardButton(this, -total / 2 + bw / 2 + i * (bw + gap), H / 2 - 62, {
+        width: bw,
+        height: 56,
+        label: b.label,
+        tone: b.tone,
+        key: keys ? b.key : undefined,
+        onActivate: b.run,
+      });
+      if (i === 0) {
+        button.setFocused(true);
+      }
+      box.add(button.container);
+    });
   }
 
   private hideWandererFallbackMenu(): void {
@@ -1337,6 +1588,7 @@ export class BattleScene extends Phaser.Scene {
       object.destroy();
     }
     this.wandererFallbackObjects = [];
+    this.fallbackActions = {};
     this.wandererFallbackOpen = false;
   }
 
@@ -1374,7 +1626,7 @@ export class BattleScene extends Phaser.Scene {
     fitDisplay(this.playerSprite, this.getPlayerBattleDisplay());
     this.syncPlayerBattleFacing();
     this.syncPlayerPresenceTint();
-    this.fx.setHome("player", PLAYER_HOME.x, PLAYER_HOME.y);
+    this.fx.setHome("player", this.layout.playerHome.x, this.layout.playerHome.y);
     this.fx.syncStatuses("player", this.player);
     this.fx.enter("player");
   }
@@ -1432,9 +1684,7 @@ export class BattleScene extends Phaser.Scene {
     playMoveTypeSfx(this, move.type);
     this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
-    for (const button of this.actionButtons) {
-      (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
-    }
+    this.dimActionButtons();
     const result = executeMove(this.player, move, this.wild, this.rng);
     // A boss form threshold clamps the hit and the boss transforms (her turn).
     const transformed = this.story?.checkTransform() ?? null;
@@ -1616,9 +1866,9 @@ export class BattleScene extends Phaser.Scene {
       this.fainted.delete("wild");
       this.fx.resetPose("wild");
       this.tweens.killTweensOf(this.wildSprite);
-      fitDisplay(this.wildSprite, BATTLE_CREATURE_DISPLAY);
+      fitDisplay(this.wildSprite, this.scaledDisplay(BATTLE_CREATURE_DISPLAY));
       this.storyUi?.decorateFoe(this.wildSprite);
-      this.fx.setHome("wild", WILD_HOME.x, WILD_HOME.y);
+      this.fx.setHome("wild", this.layout.wildHome.x, this.layout.wildHome.y);
       this.fx.enter("wild");
       this.storyUi?.announceNextFoe(next.name);
       this.log(`Wren sends out ${next.name}!`);
@@ -1800,51 +2050,51 @@ export class BattleScene extends Phaser.Scene {
       this.storyUi.setSignatureWarning(note === "signature");
     }
 
-    const y = this.storyUi ? STORY_INTENT_Y : 62;
+    const L = this.layout;
+    const ui = L.ui;
+    const y = L.intent.y;
     const badge = this.add
       .text(0, y, style.label, {
-        color: "#101820",
+        color: CARD.inkCss,
         backgroundColor: style.css,
         fontFamily: HUD_FONT,
-        fontSize: "11px",
+        fontSize: `${Math.round(12 * ui)}px`,
         fontStyle: "bold",
-        padding: { x: 5, y: 2 },
+        padding: { x: Math.round(5 * ui), y: Math.round(2 * ui) },
       })
       .setOrigin(0, 0.5)
       .setDepth(8);
     const text = this.add
       .text(0, y, `Next: ${move.name}  ${detail}`, {
-        color: "#fff7e0",
+        color: CARD.creamCss,
         fontFamily: HUD_FONT,
-        fontSize: "13px",
+        fontSize: `${Math.round(14 * ui)}px`,
         fontStyle: "bold",
       })
       .setOrigin(0, 0.5)
       .setDepth(8);
-    const gap = 6;
-    // Room between the foe's HP plate (ends at x≈260) and the right edge. A long
-    // detail line shrinks to fit instead of running off the screen (#391).
-    // Story spars (#385) keep the foe plate elsewhere, so the banner may start further left.
-    const intentLeft = this.storyUi ? 8 : INTENT_MIN_LEFT;
-    const room = DESIGN_SIZE - 16 - (intentLeft + 8) - 16;
-    let fontSize = 13;
-    while (badge.width + gap + text.width > room && fontSize > 10) {
+    const gap = 6 * ui;
+    // The intent row spans the arena column; a long detail line shrinks to fit
+    // instead of running off the screen (#391).
+    const room = L.intent.right - L.intent.left - 16 * ui;
+    let fontSize = Math.round(14 * ui);
+    while (badge.width + gap + text.width > room && fontSize > Math.round(10 * ui)) {
       fontSize -= 1;
       text.setFontSize(fontSize);
     }
     const contentWidth = badge.width + gap + text.width;
-    const minCenter = intentLeft + contentWidth / 2 + 8;
+    const minCenter = L.intent.left + contentWidth / 2 + 8 * ui;
     const centerX = Phaser.Math.Clamp(
       this.wildSprite.x,
       minCenter,
-      Math.max(minCenter, DESIGN_SIZE - contentWidth / 2 - 16),
+      Math.max(minCenter, L.intent.right - contentWidth / 2 - 8 * ui),
     );
     const left = centerX - contentWidth / 2;
     badge.setX(left);
     text.setX(left + badge.width + gap);
     const plate = this.add
-      .rectangle(centerX, y, contentWidth + 16, 26, 0x101820, 0.86)
-      .setStrokeStyle(role === "finisher" ? 2 : 1, style.color, 0.9)
+      .rectangle(centerX, y, contentWidth + 16 * ui, 28 * ui, CARD.panelDeep, 0.9)
+      .setStrokeStyle((role === "finisher" ? 2 : 1) * ui, style.color, 0.9)
       .setDepth(7);
     this.intentObjects.push(plate, badge, text);
 
@@ -1859,39 +2109,42 @@ export class BattleScene extends Phaser.Scene {
 
   // --- HP / status plates ---------------------------------------------------
 
-  private createHpHud(x: number, y: number): HpHud {
-    this.add
-      .rectangle(x, y, HUD_PLATE_WIDTH, 66, 0x101820, 0.82)
-      .setOrigin(0)
-      .setStrokeStyle(1, 0x6eb8a8, 0.7)
-      .setDepth(4);
-    const name = this.add
-      .text(x + 10, y + 6, "", {
-        color: "#fff7e0",
+  /** Rounded navy plate: name · level · type, HP bar, status chips; scaled by ui. */
+  private createHpHud(rect: Rect, foe = false): HpHud {
+    const ui = this.layout.ui;
+    const w = rect.w / ui;
+    const h = BASE.plate.h;
+    const box = this.add.container(rect.x, rect.y).setScale(ui).setDepth(4);
+    const g = this.add.graphics();
+    g.fillStyle(0x000000, 0.28);
+    g.fillRoundedRect(1, 3, w, h, 12);
+    g.fillStyle(CARD.panel, 0.92);
+    g.fillRoundedRect(0, 0, w, h, 12);
+    // Foe plate rims warm, yours cool, so the two read apart at a glance.
+    g.lineStyle(2, foe ? 0xffb38a : 0x8fd3f0, 0.8);
+    g.strokeRoundedRect(0, 0, w, h, 12);
+    const name = this.add.text(12, 6, "", {
+      color: CARD.creamCss,
+      fontFamily: HUD_FONT,
+      fontSize: "15px",
+      fontStyle: "bold",
+    });
+    const barWidth = w - 24 - PLATE_HP_TEXT_W;
+    const track = this.add
+      .rectangle(12, 33, barWidth, 10, CARD.panelDeep, 1)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x000000, 0.6);
+    const bar = this.add.rectangle(12, 33, barWidth, 10, 0x6cd86a, 1).setOrigin(0, 0.5);
+    const hp = this.add
+      .text(w - 12, 33, "", {
+        color: CARD.creamCss,
         fontFamily: HUD_FONT,
         fontSize: "14px",
         fontStyle: "bold",
       })
-      .setDepth(5);
-    this.add
-      .rectangle(x + 10, y + 34, HP_BAR_WIDTH, 10, 0x2a343c, 1)
-      .setOrigin(0, 0.5)
-      .setStrokeStyle(1, 0x000000, 0.6)
-      .setDepth(5);
-    const bar = this.add
-      .rectangle(x + 10, y + 34, HP_BAR_WIDTH, 10, 0x6cd86a, 1)
-      .setOrigin(0, 0.5)
-      .setDepth(6);
-    const hp = this.add
-      .text(x + HUD_PLATE_WIDTH - 10, y + 34, "", {
-        color: "#f0e6d2",
-        fontFamily: HUD_FONT,
-        fontSize: "12px",
-        fontStyle: "bold",
-      })
-      .setOrigin(1, 0.5)
-      .setDepth(5);
-    return { name, hp, bar, chips: [], chipX: x + 10, chipY: y + 54 };
+      .setOrigin(1, 0.5);
+    box.add([g, name, track, bar, hp]);
+    return { name, hp, bar, chips: [], chipX: 12, chipY: 50, barWidth, container: box, nameWidth: w - 24 };
   }
 
   private syncHpHud(hud: HpHud, who: BattleCombatant, level: number | null): void {
@@ -1900,8 +2153,17 @@ export class BattleScene extends Phaser.Scene {
     hud.name.setText(
       `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${shownType}`,
     );
+    if (hud.nameWidth) {
+      // Narrow phone plates: shrink a long name line rather than overrun the plate.
+      let size = 15;
+      hud.name.setFontSize(size);
+      while (hud.name.width > hud.nameWidth && size > 11) {
+        size -= 1;
+        hud.name.setFontSize(size);
+      }
+    }
     const ratio = Math.max(0, who.currentHp / who.maxHp);
-    const width = (hud.barWidth ?? HP_BAR_WIDTH) * ratio;
+    const width = hud.barWidth * ratio;
     this.tweens.killTweensOf(hud.bar);
     if (this.fx && !this.fx.mode().fast && Math.abs(hud.bar.width - width) > 0.5) {
       this.tweens.add({ targets: hud.bar, width, duration: 360, ease: "Cubic.easeOut" });
@@ -1926,15 +2188,15 @@ export class BattleScene extends Phaser.Scene {
     for (const chip of chips) {
       const t = this.add
         .text(x, hud.chipY, chip.text, {
-          color: "#101820",
+          color: CARD.inkCss,
           backgroundColor: chip.color,
           fontFamily: HUD_FONT,
-          fontSize: "10px",
+          fontSize: "11px",
           fontStyle: "bold",
           padding: { x: 4, y: 1 },
         })
-        .setOrigin(0, 0.5)
-        .setDepth(6);
+        .setOrigin(0, 0.5);
+      hud.container.add(t);
       hud.chips.push(t);
       x += t.width + 4;
     }
@@ -1990,8 +2252,16 @@ export class BattleScene extends Phaser.Scene {
     );
   }
 
+  /** Log line in the sheet; long lines step the font down to stay inside the box. */
   private log(message: string): void {
-    this.logText.setText(message);
+    const ui = this.layout.ui;
+    const room = (this.logFrame?.h ?? 40 * ui) - 6 * ui;
+    let size = Math.round(15 * ui);
+    this.logText.setFontSize(size).setText(message);
+    while (this.logText.height > room && size > Math.round(11 * ui)) {
+      size -= 1;
+      this.logText.setFontSize(size);
+    }
   }
 
   /** Shared end-of-spar teardown; true when this call ended the battle. */
@@ -2018,8 +2288,13 @@ export class BattleScene extends Phaser.Scene {
     }
     notifyWorldChanged();
     const show = (): void =>
-      showBattleResultPanel(this, panel, this.fx.mode(), this.fx.timings().xpFill, () =>
-        this.exitBattle(),
+      showBattleResultPanel(
+        this,
+        panel,
+        this.fx.mode(),
+        this.fx.timings().xpFill,
+        () => this.exitBattle(),
+        this.resultFrame(),
       );
     if (faintSide) {
       this.fx.faint(faintSide, show);
@@ -2113,7 +2388,7 @@ export class BattleScene extends Phaser.Scene {
     const showPanel = (): void => {
       if (playerWon) {
         playBattleWinSfx(this);
-        this.fx.confettiBurst(DESIGN_SIZE / 2, 90);
+        this.fx.confettiBurst(this.layout.banner.x, this.layout.arenaRegion.y + 40);
       }
       showBattleResultPanel(
         this,
@@ -2121,6 +2396,7 @@ export class BattleScene extends Phaser.Scene {
         this.fx.mode(),
         this.fx.timings().xpFill,
         () => this.exitBattle(),
+        this.resultFrame(),
       );
     };
     const loser: Side = playerWon ? "wild" : "player";
@@ -2130,6 +2406,11 @@ export class BattleScene extends Phaser.Scene {
       this.fainted.add(loser);
       this.fx.faint(loser, showPanel);
     }
+  }
+
+  private resultFrame(): ResultPanelFrame {
+    const { modal, ui } = this.layout;
+    return { x: modal.x, y: modal.y, ui, maxW: modal.maxW, maxH: modal.maxH };
   }
 
   private exitBattle(): void {

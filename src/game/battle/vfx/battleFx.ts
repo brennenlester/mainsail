@@ -194,6 +194,14 @@ export function creatureAnimKey(poseKey: string, anim: "idle" | "attack" | "hurt
   return `${poseKey}__${anim}`;
 }
 
+/** Camera zoom + banner placement supplied by the battle layout (#404). */
+export type BattleFraming = {
+  zoom: () => number;
+  banner: { x: number; y: number };
+  /** Visible design width (banners span it). */
+  width: number;
+};
+
 export class BattleFx {
   private readonly scene: Phaser.Scene;
   private readonly sprites: () => Record<Side, Sprite>;
@@ -299,7 +307,7 @@ export class BattleFx {
       );
     }
     this.screenFlash = s.add
-      .rectangle(320, 320, 2000, 2000, 0xffffff, 1)
+      .rectangle(320, 320, 8000, 8000, 0xffffff, 1)
       .setDepth(NUMBER_DEPTH - 2)
       .setAlpha(0)
       .setVisible(false);
@@ -531,10 +539,23 @@ export class BattleFx {
     });
   }
 
-  /** The overlay framing zoom (same formula as applyOverlayPixelRatio), read fresh after resizes. */
+  /**
+   * Camera framing + banner placement from the battle layout (#404). The
+   * default is the classic 640 overlay square (applyOverlayPixelRatio).
+   */
+  private framing: BattleFraming = {
+    zoom: () => Math.min(this.scene.scale.width / 640, this.scene.scale.height / 640),
+    banner: { x: 320, y: 300 },
+    width: 640,
+  };
+
+  setFraming(framing: BattleFraming): void {
+    this.framing = framing;
+  }
+
+  /** The framing zoom, read fresh after resizes. */
   private frameZoom(): number {
-    const { width, height } = this.scene.scale;
-    return Math.min(width / 640, height / 640);
+    return this.framing.zoom();
   }
 
   /** "VS" banner for sovereign / boss spars. */
@@ -544,11 +565,13 @@ export class BattleFx {
       return 0;
     }
     const s = this.scene;
-    const band = s.add.rectangle(320, 300, 700, 96, 0x101820, 0.88).setDepth(NUMBER_DEPTH - 3).setScale(1, 0);
-    const stripeA = s.add.rectangle(320, 254, 700, 4, 0xff7a5c, 1).setDepth(NUMBER_DEPTH - 3).setScale(0, 1);
-    const stripeB = s.add.rectangle(320, 346, 700, 4, 0x7ec8e8, 1).setDepth(NUMBER_DEPTH - 3).setScale(0, 1);
+    const { x: cx, y: cy } = this.framing.banner;
+    const bandW = this.framing.width + 80;
+    const band = s.add.rectangle(cx, cy, bandW, 96, 0x101820, 0.88).setDepth(NUMBER_DEPTH - 3).setScale(1, 0);
+    const stripeA = s.add.rectangle(cx, cy - 46, bandW, 4, 0xff7a5c, 1).setDepth(NUMBER_DEPTH - 3).setScale(0, 1);
+    const stripeB = s.add.rectangle(cx, cy + 46, bandW, 4, 0x7ec8e8, 1).setDepth(NUMBER_DEPTH - 3).setScale(0, 1);
     const vs = s.add
-      .text(320, 300, "VS", {
+      .text(cx, cy, "VS", {
         fontFamily: "system-ui, sans-serif",
         fontStyle: "bold italic",
         fontSize: "58px",
@@ -568,13 +591,14 @@ export class BattleFx {
       stroke: "#101820",
       strokeThickness: 4,
     };
-    const l = s.add.text(-200, 300, left, nameStyle).setOrigin(1, 0.5).setDepth(NUMBER_DEPTH - 2);
-    const r = s.add.text(840, 300, right, nameStyle).setOrigin(0, 0.5).setDepth(NUMBER_DEPTH - 2);
+    const edge = this.framing.width / 2 + 200;
+    const l = s.add.text(cx - edge, cy, left, nameStyle).setOrigin(1, 0.5).setDepth(NUMBER_DEPTH - 2);
+    const r = s.add.text(cx + edge, cy, right, nameStyle).setOrigin(0, 0.5).setDepth(NUMBER_DEPTH - 2);
     const parts = [band, stripeA, stripeB, vs, l, r];
     s.tweens.add({ targets: band, scaleY: 1, duration: 160, ease: "Quad.easeOut" });
     s.tweens.add({ targets: [stripeA, stripeB], scaleX: 1, duration: 260, ease: "Quad.easeOut" });
-    s.tweens.add({ targets: l, x: 270, duration: 300, delay: 100, ease: "Back.easeOut" });
-    s.tweens.add({ targets: r, x: 370, duration: 300, delay: 100, ease: "Back.easeOut" });
+    s.tweens.add({ targets: l, x: cx - 50, duration: 300, delay: 100, ease: "Back.easeOut" });
+    s.tweens.add({ targets: r, x: cx + 50, duration: 300, delay: 100, ease: "Back.easeOut" });
     s.tweens.add({
       targets: vs,
       scale: 1,
@@ -587,7 +611,7 @@ export class BattleFx {
           s.cameras.main.shake(140, 0.006);
         }
         if (this.mode().particles) {
-          this.bursts.storm.explode(18, 320, 300);
+          this.bursts.storm.explode(18, cx, cy);
         }
       },
     });
