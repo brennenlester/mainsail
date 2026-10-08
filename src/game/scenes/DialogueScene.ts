@@ -10,6 +10,7 @@ import {
 } from "../world/npcState";
 import type { StorySparId } from "../story/questTypes";
 import { refreshPartyStatusLine } from "../ui/statusPanel";
+import { setTouchControlsEnabled } from "../ui/touchControls";
 import {
   beginStorySpar,
   forfeitStorySpar,
@@ -224,8 +225,20 @@ export class DialogueScene extends Phaser.Scene {
       const launched = launchStorySparRound(this, () => {
         iso.events.once("resume", () => {
           // Let the world finish its resume fade + layout before pausing it
-          // again, or the frame freezes mid-fade (grey) behind the dialogue.
+          // again (or the frame freezes mid-fade, grey), but take input away
+          // for that gap so nobody walks or interacts between rounds.
+          const keyboard = iso.input.keyboard;
+          keyboard?.resetKeys();
+          if (keyboard) {
+            keyboard.enabled = false;
+          }
+          iso.input.enabled = false;
+          setTouchControlsEnabled(false);
           iso.time.delayedCall(260, () => {
+            if (keyboard) {
+              keyboard.enabled = true;
+            }
+            iso.input.enabled = true;
             iso.scene.pause();
             iso.scene.launch("DialogueScene", { npcId });
           });

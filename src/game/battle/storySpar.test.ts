@@ -19,7 +19,14 @@ import {
 import { QUEST_ORDER } from "../story/quests";
 import type { QuestId, QuestStatus } from "../story/questTypes";
 import { STORY_SPARS } from "../story/storySpars";
-import { setSparWinsBySpecies } from "../world/sparWins";
+import { getSparWinsForSpecies, setSparWinsBySpecies } from "../world/sparWins";
+import { drainBondTierUps } from "../companions/bond";
+import {
+  loadHostSave,
+  persistHostSave,
+  restoreHostSave,
+} from "../world/worldSave";
+import { flushPendingHostSave } from "../world/worldSaveSchedule";
 import { grantSparRewards } from "./sparRewards";
 import { setVisitorMode } from "../world/worldSession";
 import {
@@ -273,5 +280,63 @@ describe("launchStorySparRound (BattleScene adapter)", () => {
     const fake = fakeScene();
     expect(launchStorySparRound(fake.scene, () => undefined)).toBe(false);
     expect(fake.launches).toEqual([]);
+  });
+});
+
+describe("no farming through side effects or reloads (#369 review)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    drainBondTierUps();
+  });
+
+  it("rolls back bond, tier-ups, and spar-win counts on a rematch forfeit", () => {
+    restoreQuestProgress(progressAt("reach-mistwood"));
+    const bondBefore = playerParty.creatures.map((c) => c.bond ?? 0);
+    beginStorySpar("rival-wren");
+    // Round 1 won through the real reward path (XP, Dust, bond, spar wins).
+    grantSparRewards("lantern-fox", 0, () => 0.99);
+    expect(playerParty.creatures[0]!.bond ?? 0).toBeGreaterThan(bondBefore[0]!);
+    expect(getSparWinsForSpecies("lantern-fox")).toBe(1);
+    resolveStorySparRound(true);
+    forfeitStorySpar();
+    expect(playerParty.creatures.map((c) => c.bond ?? 0)).toEqual(bondBefore);
+    expect(getSparWinsForSpecies("lantern-fox")).toBe(0);
+    expect(getMaterialCount("folklore-dust")).toBe(0);
+    expect(drainBondTierUps()).toEqual([]);
+  });
+
+  it("keeps the pre-spar save when the tab closes mid-spar, then reloads", () => {
+    restoreQuestProgress(progressAt("reach-mistwood"));
+    persistHostSave();
+    beginStorySpar("rival-wren");
+    grantSparRewards("lantern-fox", 0, () => 0.99);
+    resolveStorySparRound(true);
+    // BattleScene notifies at round end; pagehide flushes — neither may write.
+    flushPendingHostSave();
+    persistHostSave();
+
+    resetStorySparForTest(); // reload: module state is gone
+    const saved = loadHostSave();
+    expect(saved).not.toBeNull();
+    expect(saved!.materials["folklore-dust"] ?? 0).toBe(0);
+    expect(saved!.party.map((c) => c.xp)).toEqual([0, 0]);
+    expect(saved!.sparWinsBySpecies?.["lantern-fox"] ?? 0).toBe(0);
+    restoreHostSave(saved!);
+    expect(getMaterialCount("folklore-dust")).toBe(0);
+  });
+
+  it("remembers a healed loss across reloads (one heal per beat)", () => {
+    beginStorySpar("rival-wren");
+    resolveStorySparRound(false);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(true);
+    persistHostSave();
+
+    resetStorySparForTest();
+    restoreHostSave(loadHostSave()!);
+    for (const creature of playerParty.creatures) creature.currentHp = 2;
+    beginStorySpar("rival-wren");
+    resolveStorySparRound(false);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(false);
+    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([2, 2]);
   });
 });
