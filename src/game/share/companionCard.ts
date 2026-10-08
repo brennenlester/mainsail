@@ -79,6 +79,11 @@ function creatureName(id: string): string {
   }
 }
 
+/** Nickname when the card is made locally; links carry species only. */
+function cardName(creature: ShareCreature): string {
+  return creature.nickname || creatureName(creature.id);
+}
+
 function makeCanvas(w: number, h: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(w));
@@ -379,7 +384,7 @@ function drawHero(ctx: CanvasRenderingContext2D, creature: ShareCreature, lookup
   ctx.font = `700 22px ${SANS}`;
   ctx.fillText("LEAD COMPANION", tx, y + 76);
   ctx.fillStyle = CREAM;
-  const name = creatureName(creature.id);
+  const name = cardName(creature);
   let size = 56;
   do {
     ctx.font = `700 ${size}px ${SERIF}`;
@@ -425,7 +430,7 @@ function drawSlot(
     ctx.font = `600 22px ${SERIF}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("an open path", x + w / 2, y + h / 2);
+    ctx.fillText("Room for more", x + w / 2, y + h / 2);
     return;
   }
   drawPanel(ctx, x, y, w, h, creature.rare);
@@ -435,7 +440,7 @@ function drawSlot(
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = CREAM;
   ctx.font = `700 28px ${SERIF}`;
-  ctx.fillText(fitText(ctx, creatureName(creature.id), w - 28), cx, y + 188);
+  ctx.fillText(fitText(ctx, cardName(creature), w - 28), cx, y + 188);
   // "Lv 9  ♥♥♡♡♡" on one line keeps room for tags below.
   ctx.font = `700 22px ${SANS}`;
   const lv = `Lv ${creature.level}`;
@@ -496,14 +501,17 @@ export function renderCompanionCard(
     drawHero(ctx, lead, lookup, rng);
   }
 
-  // Six follower slots (3×2); empty ones read as "an open path".
+  // Follower slots (3×2): only real followers plus one "Room for more" (#401).
   const cols = 3;
   const gap = 20;
   const gx = 64;
-  const gy = 650;
   const cw = (CARD_WIDTH - 128 - gap * (cols - 1)) / cols;
   const cellH = 278;
-  for (let i = 0; i < cols * 2; i += 1) {
+  const shown = Math.min(cols * 2, rest.length + 1);
+  const rows = Math.ceil(shown / cols);
+  // A single row sits centred in the follower area instead of hugging the hero.
+  const gy = 650 + (rows === 1 ? (cellH + gap) / 2 : 0);
+  for (let i = 0; i < shown; i += 1) {
     const col = i % cols;
     const row = Math.floor(i / cols);
     drawSlot(ctx, rest[i], lookup, gx + col * (cw + gap), gy + row * (cellH + gap), cw, cellH, rng);

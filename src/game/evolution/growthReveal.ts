@@ -24,6 +24,8 @@ export type GrowthStatLine = { label: string; before: number; after: number };
 export type GrowthReveal = {
   kind: GrowthKind;
   instanceId: string;
+  /** Player-given name; the headline keeps species names so growth stays visible. */
+  nickname?: string;
   level: number;
   before: GrowthSide;
   after: GrowthSide;
@@ -64,6 +66,7 @@ export function isFirstEvolution(
 export function buildGrowthReveal(input: {
   kind: GrowthKind;
   instanceId: string;
+  nickname?: string;
   level: number;
   before: GrowthSide;
   after: GrowthSide;
@@ -79,6 +82,7 @@ export function buildGrowthReveal(input: {
   return {
     kind: input.kind,
     instanceId: input.instanceId,
+    nickname: input.nickname,
     level: input.level,
     before,
     after,
@@ -98,9 +102,11 @@ export function growthHeadline(reveal: GrowthReveal): string {
 }
 
 export function growthSubtitle(reveal: GrowthReveal): string {
-  return reveal.kind === "evolution"
-    ? "grew at the Moon Shrine"
-    : "found a new presence in the world";
+  const what =
+    reveal.kind === "evolution"
+      ? "grew at the Moon Shrine"
+      : "found a new presence in the world";
+  return reveal.nickname ? `${reveal.nickname} ${what}` : what;
 }
 
 /** "Unlocked" summary rows, short enough for a phone-width panel. */

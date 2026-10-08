@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { findGatherPropNearPlayer } from "./gatherNodes";
 import {
+  adaptInteractLabel,
   INTERACT_PROMPT_PRIORITY,
   overlayAction,
   pickInteractPrompt,
@@ -96,5 +97,17 @@ describe("overlayAction", () => {
     expect(overlayAction(true, "Press E — Moon Shrine")).toBe("update");
     expect(overlayAction(true, "Press E — Weaver's Cottage")).toBe("update");
     expect(overlayAction(true, undefined)).toBe("destroy");
+  });
+});
+
+describe("adaptInteractLabel", () => {
+  it("swaps the keyboard verb for Tap on touch layouts only", () => {
+    expect(adaptInteractLabel("Press E — Pip: ford the shallows", true)).toBe(
+      "Tap E — Pip: ford the shallows",
+    );
+    expect(adaptInteractLabel("Press E — Pip: ford the shallows", false)).toBe(
+      "Press E — Pip: ford the shallows",
+    );
+    expect(adaptInteractLabel("Regrowing (3s)", true)).toBe("Regrowing (3s)");
   });
 });

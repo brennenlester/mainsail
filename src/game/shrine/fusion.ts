@@ -1,3 +1,4 @@
+import { displayName } from "../creatures/displayName";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
   getCreatureInstance,
@@ -88,6 +89,7 @@ export function applyShrineFusion(
   const growth = buildGrowthReveal({
     kind: effect.effectType === "evolution" ? "evolution" : "presence",
     instanceId: creature.instanceId,
+    nickname: creature.nickname,
     level: creature.level,
     before,
     after: captureGrowthSide(creature),
@@ -109,21 +111,19 @@ function applyEffect(
       creature.attackBonus = (creature.attackBonus ?? 0) + (effect.attackBonus ?? 0);
       creature.secondaryElement = effect.secondaryElement;
       creature.secondaryMove = effect.secondaryMove;
-      const def = getCreatureDefinition(creature.definitionId);
-      return `${def.name} gained ${effect.secondaryMove?.name ?? "a new attack"}!`;
+      return `${displayName(creature)} gained ${effect.secondaryMove?.name ?? "a new attack"}!`;
     }
     case "health-buff": {
       const bonus = effect.hpBonus ?? 0;
       creature.hpBonus = (creature.hpBonus ?? 0) + bonus;
       creature.currentHp += bonus;
-      const def = getCreatureDefinition(creature.definitionId);
-      return `${def.name} gained +${bonus} max HP!`;
+      return `${displayName(creature)} gained +${bonus} max HP!`;
     }
     case "evolution": {
       if (!effect.evolvesTo) {
         return "Evolution failed.";
       }
-      const prevName = getCreatureDefinition(creature.definitionId).name;
+      const prevName = displayName(creature);
       const newDef = getCreatureDefinition(effect.evolvesTo);
       const oldMax = getEffectiveMaxHp(creature);
       const hpRatio = creature.currentHp / oldMax;
@@ -140,8 +140,7 @@ function applyEffect(
     }
     case "presence": {
       applyPresenceStatBoost(creature);
-      const def = getCreatureDefinition(creature.definitionId);
-      return `${def.name} shows a new presence in the world! (+${PRESENCE_ATTACK_BONUS} ATK, +${PRESENCE_HP_BONUS} HP)`;
+      return `${displayName(creature)} shows a new presence in the world! (+${PRESENCE_ATTACK_BONUS} ATK, +${PRESENCE_HP_BONUS} HP)`;
     }
   }
 }
@@ -160,7 +159,6 @@ export function getEligibleCreaturesForItem(itemId: string): {
 
   return playerParty.creatures
     .map((creature) => {
-      const def = getCreatureDefinition(creature.definitionId);
       const effect = effects.find((e) => e.creatureId === creature.definitionId);
       if (!effect) {
         return null;
@@ -169,7 +167,7 @@ export function getEligibleCreaturesForItem(itemId: string): {
       if (hasAppliedEffect(creature, key)) {
         return {
           instanceId: creature.instanceId,
-          name: def.name,
+          name: displayName(creature),
           level: creature.level,
           eligible: false,
           reason: "Already applied",
@@ -178,7 +176,7 @@ export function getEligibleCreaturesForItem(itemId: string): {
       if (creature.level < effect.minLevel) {
         return {
           instanceId: creature.instanceId,
-          name: def.name,
+          name: displayName(creature),
           level: creature.level,
           eligible: false,
           reason: `Need Lv.${effect.minLevel}`,
@@ -186,7 +184,7 @@ export function getEligibleCreaturesForItem(itemId: string): {
       }
       return {
         instanceId: creature.instanceId,
-        name: def.name,
+        name: displayName(creature),
         level: creature.level,
         eligible: true,
       };

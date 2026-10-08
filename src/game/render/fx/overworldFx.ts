@@ -65,6 +65,8 @@ type ActiveEmote = {
 
 /** Share of idle follower moments that speak a personality bark (#367). */
 const BARK_CHANCE = 0.55;
+/** Bubbles ride above the player's name plate so a close follower never overprints it (#401). */
+const BUBBLE_LIFT_PX = 20;
 
 /** Session clock shared across zone loads so time keeps flowing. */
 const SESSION_START_MS = typeof performance !== "undefined" ? performance.now() : 0;
@@ -650,7 +652,7 @@ export class OverworldFx {
         this.emote.image.destroy();
         this.emote = undefined;
       } else {
-        this.emote.image.setPosition(sprite.x + 8, sprite.y - sprite.displayHeight - 2);
+        this.emote.image.setPosition(sprite.x + 8, sprite.y - sprite.displayHeight - BUBBLE_LIFT_PX);
       }
       return;
     }
@@ -682,7 +684,7 @@ export class OverworldFx {
     }
     this.emote?.image.destroy();
     const bubble = this.scene.add
-      .text(sprite.x + 8, sprite.y - sprite.displayHeight - 2, text, {
+      .text(sprite.x + 8, sprite.y - sprite.displayHeight - BUBBLE_LIFT_PX, text, {
         color: "#2a3a48",
         backgroundColor: "#fffaf0",
         fontFamily: "Source Sans 3, system-ui, sans-serif",
@@ -777,7 +779,7 @@ export class OverworldFx {
     }
     this.emote?.image.destroy();
     const image = this.scene.add
-      .image(sprite.x + 8, sprite.y - sprite.displayHeight - 2, emoteTextureKey(kind))
+      .image(sprite.x + 8, sprite.y - sprite.displayHeight - BUBBLE_LIFT_PX, emoteTextureKey(kind))
       .setOrigin(0.5, 1)
       .setDepth(this.fxDepth + 0.1)
       .setScale(0);

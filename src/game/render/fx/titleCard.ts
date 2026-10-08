@@ -22,6 +22,8 @@ export function showZoneTitleCard(name: string, subtitle: string): void {
       '<span class="zone-title-card__name"></span>' +
       '<span class="zone-title-card__rule"></span>' +
       '<span class="zone-title-card__sub"></span>';
+    // Fade-out ends the animation: the card is then no longer "showing" (#401).
+    card.addEventListener("animationend", () => card?.classList.remove("is-showing"));
     host.appendChild(card);
   }
   card.querySelector(".zone-title-card__name")!.textContent = name;
@@ -34,4 +36,9 @@ export function showZoneTitleCard(name: string, subtitle: string): void {
 
 export function hideZoneTitleCard(): void {
   document.getElementById(CARD_ID)?.classList.remove("is-showing");
+}
+
+/** True while the card is on screen; toasts wait their turn instead of overlapping it (#401). */
+export function isZoneTitleCardShowing(): boolean {
+  return document.getElementById(CARD_ID)?.classList.contains("is-showing") ?? false;
 }
