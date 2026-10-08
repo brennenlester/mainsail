@@ -10,6 +10,7 @@ import {
 } from "./game/opening/bootRoute";
 import { startOpeningBeat } from "./game/opening/openingCaption";
 import { initStatusPanelControls } from "./game/ui/statusPanel";
+import { initCanvasFocusReturn } from "./game/ui/canvasFocus";
 import { shouldResetHostSave } from "./game/world/bootParams";
 import {
   clearJoinParamAndReload,
@@ -135,6 +136,7 @@ if (inviteResult.status === "invalid") {
     (window as unknown as { __game?: Phaser.Game }).__game = game;
   }
   initStatusPanelControls();
+  initCanvasFocusReturn();
   initShareControls(game);
   bindCreatureArt(game);
   initHudLock();

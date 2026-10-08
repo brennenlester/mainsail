@@ -86,6 +86,7 @@ export class ShrineScene extends Phaser.Scene {
   private selectedItemId: string | null = null;
   private shrineMode: CraftContext = "altar";
   private statusText!: Phaser.GameObjects.Text;
+  private arrivalNotice = "";
   private contentContainer!: Phaser.GameObjects.Container;
   private tabButtons: Phaser.GameObjects.Text[] = [];
   private panelCenter = { x: 0, y: 0 };
@@ -105,8 +106,15 @@ export class ShrineScene extends Phaser.Scene {
     super({ key: "ShrineScene" });
   }
 
-  init(data?: { mode?: CraftContext; tab?: Tab; itemId?: string }): void {
+  init(data?: {
+    mode?: CraftContext;
+    tab?: Tab;
+    itemId?: string;
+    /** Altar arrival line (free heal / story bundle, #390). */
+    notice?: string;
+  }): void {
     this.closing = false;
+    this.arrivalNotice = data?.notice ?? "";
     this.shrineMode = data?.mode === "portable" ? "portable" : "altar";
     const requestedTab = data?.tab;
     const fusionAllowed =
@@ -153,19 +161,21 @@ export class ShrineScene extends Phaser.Scene {
       .text(
         cx,
         cy - 148,
-        this.shrineMode === "portable"
-          ? "Craft relics or use tonics — fusion stays at the altar"
-          : "Craft relics, use tonics, or fuse with companions",
+        // Altar arrival notice (#390) takes the subtitle; the status line sits under the craft HUD.
+        this.arrivalNotice ||
+          (this.shrineMode === "portable"
+            ? "Craft relics or use tonics — fusion stays at the altar"
+            : "Craft relics, use tonics, or fuse with companions"),
         {
-          color: MOON_MUTED,
+          color: this.arrivalNotice ? MOON_TEXT : MOON_MUTED,
           fontFamily: "system-ui, sans-serif",
-          fontSize: "14px",
-          letterSpacing: 1.5,
+          fontSize: this.arrivalNotice ? "13px" : "14px",
+          letterSpacing: this.arrivalNotice ? 0 : 1.5,
           align: "center",
-          wordWrap: { width: 420 },
+          wordWrap: { width: this.arrivalNotice ? 480 : 420 },
         },
       )
-      .setOrigin(0.5);
+      .setOrigin(0.5, this.arrivalNotice ? 0.4 : 0.5);
 
     if (isVisitorMode()) {
       this.add

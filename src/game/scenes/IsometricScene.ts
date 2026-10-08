@@ -94,6 +94,9 @@ import {
   type PendingGodLandEncounter,
 } from "../encounters/godLand";
 import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters";
+import { overworldEncounterPacer } from "../encounters/encounterPacing";
+import { visitShrineAltar, wakeStrandedParty } from "../world/shrineHeal";
+import { isDomKeyboardTarget } from "../ui/canvasFocus";
 import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
@@ -272,6 +275,18 @@ export class IsometricScene extends Phaser.Scene {
   private unlockKey!: Phaser.Input.Keyboard.Key;
   private inviteKey!: Phaser.Input.Keyboard.Key;
   private interactKey!: Phaser.Input.Keyboard.Key;
+  /** E pressed since the last frame; survives a tap shorter than one frame (#390). */
+  private interactTapped = false;
+  /** Hand captured keys (arrows, WASD, E) back to a focused DOM control (#390). */
+  private onDomFocusChange = (): void => {
+    window.setTimeout(() => {
+      const keyboard = this.input?.keyboard;
+      if (keyboard) {
+        keyboard.manager.preventDefault =
+          hasPlayerName() && !isDomKeyboardTarget(document.activeElement);
+      }
+    }, 0);
+  };
   private travelSinceEncounter = 0;
   /** Successful walk distance used to consume the first-step WASD ghost. */
   private walkHintTravel = 0;
@@ -380,7 +395,15 @@ export class IsometricScene extends Phaser.Scene {
     this.unlockKey = this.input.keyboard!.addKey("U");
     this.inviteKey = this.input.keyboard!.addKey("I");
     this.interactKey = this.input.keyboard!.addKey("E");
+    this.input.keyboard!.on("keydown-E", (event: KeyboardEvent) => {
+      // Typing an "e" into a DOM field (e.g. the nickname prompt) is not an interact.
+      if (!event.repeat && !isDomKeyboardTarget(event.target as Element | null)) {
+        this.interactTapped = true;
+      }
+    });
     this.input.keyboard!.on("keydown", this.onGodCheatKeyDown);
+    document.addEventListener("focusin", this.onDomFocusChange);
+    document.addEventListener("focusout", this.onDomFocusChange);
     initTouchControls();
     initMuteControl(this);
     setCopyInviteHandler(() => this.tryCopyInvite());
@@ -395,6 +418,7 @@ export class IsometricScene extends Phaser.Scene {
     this.loadZone(this.currentZoneId);
 
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.wakeStrandedPartyIfNeeded();
     this.unbindPlayerName = onPlayerNameChange(() => {
       this.refreshNameTag();
       this.syncKeyboardGate();
@@ -410,6 +434,7 @@ export class IsometricScene extends Phaser.Scene {
         this.pendingGodLandEncounter
       ) {
         grantEncounterImmunity(this.time.now);
+        overworldEncounterPacer.onEncounterEnd();
       }
       const fromShrine = this.inShrine;
       this.inEncounter = false;
@@ -432,6 +457,7 @@ export class IsometricScene extends Phaser.Scene {
       this.syncPlayerToGrid();
       this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
       this.celebrateResume(fromShrine);
+      this.wakeStrandedPartyIfNeeded();
     });
     this.events.on("minigame-closed", () => {
       this.inMinigame = false;
@@ -460,6 +486,8 @@ export class IsometricScene extends Phaser.Scene {
     window.removeEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
     setCopyInviteHandler(null);
     this.input.keyboard?.off("keydown", this.onGodCheatKeyDown);
+    document.removeEventListener("focusin", this.onDomFocusChange);
+    document.removeEventListener("focusout", this.onDomFocusChange);
     window.removeEventListener("resize", this.onWindowResize);
     window.visualViewport?.removeEventListener("resize", this.onWindowResize);
     window.visualViewport?.removeEventListener("scroll", this.onWindowResize);
@@ -472,6 +500,13 @@ export class IsometricScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // Consume every frame so a press during dialogue/encounters never replays.
+    // A focused text field / slider owns the keyboard: no E, no WASD/arrows (#390).
+    const domKeys = isDomKeyboardTarget(document.activeElement);
+    const interactPressed =
+      (Phaser.Input.Keyboard.JustDown(this.interactKey) || this.interactTapped) &&
+      !domKeys;
+    this.interactTapped = false;
     this.fx?.update(
       delta,
       this.player.x,
@@ -504,10 +539,7 @@ export class IsometricScene extends Phaser.Scene {
     this.updateAchievementToast();
     this.companions?.update();
 
-    if (
-      Phaser.Input.Keyboard.JustDown(this.interactKey) ||
-      consumeTouchInteract()
-    ) {
+    if (interactPressed || consumeTouchInteract()) {
       unlockAudioFromGesture(this);
       if (
         !this.tryShrineInteract() &&
@@ -528,17 +560,20 @@ export class IsometricScene extends Phaser.Scene {
     let dx = 0;
     let dy = 0;
 
-    if (this.cursors.left.isDown || this.wasd.A.isDown) {
-      dx -= 1;
-    }
-    if (this.cursors.right.isDown || this.wasd.D.isDown) {
-      dx += 1;
-    }
-    if (this.cursors.up.isDown || this.wasd.W.isDown) {
-      dy -= 1;
-    }
-    if (this.cursors.down.isDown || this.wasd.S.isDown) {
-      dy += 1;
+    // Keys typed into a DOM control are not movement; touch axes below still are.
+    if (!domKeys) {
+      if (this.cursors.left.isDown || this.wasd.A.isDown) {
+        dx -= 1;
+      }
+      if (this.cursors.right.isDown || this.wasd.D.isDown) {
+        dx += 1;
+      }
+      if (this.cursors.up.isDown || this.wasd.W.isDown) {
+        dy -= 1;
+      }
+      if (this.cursors.down.isDown || this.wasd.S.isDown) {
+        dy += 1;
+      }
     }
 
     const touch = getTouchAxes();
@@ -625,6 +660,7 @@ export class IsometricScene extends Phaser.Scene {
     if (this.inEncounter || this.pendingGodLandEncounter) {
       return;
     }
+    overworldEncounterPacer.walk(step);
     if (isEncounterImmune(this.time.now)) {
       return;
     }
@@ -661,9 +697,16 @@ export class IsometricScene extends Phaser.Scene {
       isVisitorMode(),
       travelled,
     );
+    // Pacing (#390) gates every unscripted roll; opening beats keep their guarantee.
+    if (scripted === null && !overworldEncounterPacer.canRoll()) {
+      return;
+    }
     const guaranteed =
       scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
-    if (!guaranteed && !rollWildTriggerChance(profile)) {
+    if (
+      !guaranteed &&
+      !rollWildTriggerChance(profile, () => overworldEncounterPacer.random())
+    ) {
       return;
     }
 
@@ -2010,6 +2053,22 @@ export class IsometricScene extends Phaser.Scene {
     return `Press E — ${prop.action.prompt}`;
   }
 
+  /** #390: a fully fainted party wakes at the Moon Shrine (free, nothing lost). */
+  private wakeStrandedPartyIfNeeded(): void {
+    const wake = wakeStrandedParty(isSailing());
+    if (!wake) {
+      return;
+    }
+    if (wake.spot) {
+      this.playerGridX = wake.spot.x;
+      this.playerGridY = wake.spot.y;
+      this.loadZone(wake.spot.zoneId);
+      this.syncPlayerToGrid();
+      updateHostPosition(this.currentZoneId, this.playerGridX, this.playerGridY);
+    }
+    this.showGatherToast(wake.message, true, 4500);
+  }
+
   private tryShrineInteract(): boolean {
     if (!this.isNearShrineTile()) {
       return false;
@@ -2021,8 +2080,10 @@ export class IsometricScene extends Phaser.Scene {
       this.shrinePrompt.destroy();
       this.shrinePrompt = undefined;
     }
+    // Soft overworld (#390): the altar always heals for free.
+    const notice = visitShrineAltar() ?? undefined;
     this.scene.pause();
-    this.scene.launch("ShrineScene", { mode: "altar" });
+    this.scene.launch("ShrineScene", { mode: "altar", notice });
     return true;
   }
 
@@ -2203,7 +2264,7 @@ export class IsometricScene extends Phaser.Scene {
     });
   }
 
-  private showGatherToast(message: string, ok: boolean): void {
+  private showGatherToast(message: string, ok: boolean, durationMs = 1800): void {
     this.gatherToast?.destroy();
     this.gatherToast = this.add
       .text(0, 0, message, {
@@ -2218,7 +2279,7 @@ export class IsometricScene extends Phaser.Scene {
       .setDepth(hudDepthAbovePlayer(this.playerDepth));
     placeWorldHudText(this, this.gatherToast, "top", 120);
 
-    this.time.delayedCall(1800, () => {
+    this.time.delayedCall(durationMs, () => {
       this.gatherToast?.destroy();
       this.gatherToast = undefined;
     });

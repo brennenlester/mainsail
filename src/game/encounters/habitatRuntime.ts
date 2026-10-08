@@ -20,6 +20,7 @@ import {
   type HabitatProfile,
 } from "./habitatProfiles";
 import { rollWildCreature, type RollWildOptions } from "./tables";
+import { overworldEncounterPacer } from "./encounterPacing";
 
 /** Session: Flee in overworld remembers this species for the next field roll. */
 let overworldFleeFollowId: string | null = null;
@@ -33,6 +34,7 @@ export function resetHabitatEncounterStateForTest(): void {
   overworldFleeFollowId = null;
   overworldFleeFollowSpent = false;
   emberfenFleeChainId = null;
+  overworldEncounterPacer.reset();
 }
 
 export function getOverworldFleeFollowId(): string | null {
@@ -290,6 +292,7 @@ export function onWildEncounterResolved(
   creatureId: string,
   outcome: "befriend" | "spar" | "flee",
 ): void {
+  overworldEncounterPacer.onEncounterResolved(outcome);
   if (isGodCreature(creatureId)) {
     return;
   }
@@ -321,5 +324,8 @@ export function onZoneEnter(
 ): void {
   if (previousZoneId === "emberfen" && zoneId !== "emberfen") {
     clearEmberfenFleeChain();
+  }
+  if (previousZoneId !== null && previousZoneId !== zoneId) {
+    overworldEncounterPacer.onZoneEnter();
   }
 }
