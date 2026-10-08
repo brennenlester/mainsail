@@ -107,6 +107,19 @@ describe("grantSparRewards XP share", () => {
     expect(getMaterialCount(reward.materialId!)).toBe(1);
   });
 
+  it("names actives whose daily bond allowance is used up (#417)", () => {
+    const today = new Date();
+    const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const a = member({ instanceId: "a", nickname: "Pip", bondToday: { day, points: 60 } });
+    const b = member({ instanceId: "b", definitionId: "ember-wisp", speciesId: "ember-wisp" });
+    setPartyFromSnapshot([a, b], 3, ["a", "b"]);
+    const reward = grantSparRewards("mossling", 0, NO_BONUS);
+    expect(playerParty.creatures[0]!.bond ?? 0).toBe(0);
+    expect(reward.bondFullNames).toEqual(["Pip"]);
+    const none = grantSparRewards("mossling", 1, NO_BONUS);
+    expect(none.bondFullNames).toEqual(["Pip"]);
+  });
+
   it("shares XP across the active party and leaves reserve untouched", () => {
     const a = member({ instanceId: "a", definitionId: "mossling", speciesId: "mossling" });
     const b = member({

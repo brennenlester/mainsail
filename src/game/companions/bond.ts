@@ -51,6 +51,8 @@ export const BOND_GAIN = {
  * Anti-grind (#417): wild-spar gain is halved once a creature is past Close
  * (tier 2), and spar + gift bond per creature is capped per local day.
  * Story wins, evolutions and ability first-claims are exempt: they are one-shots.
+ * The day key is the local date, so changing the system clock restores the
+ * allowance; that is acceptable for a single-player game.
  */
 export const BOND_HALVED_ABOVE_TIER: BondTier = 2;
 export const BOND_DAILY_CAP = 60;

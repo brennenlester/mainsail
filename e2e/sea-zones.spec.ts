@@ -12,7 +12,12 @@ type Iso = {
   playerGridY: number;
   loadZone(zone: string): void;
   streamSprites: Set<unknown>;
-  islandBakes: { size: number; baked: Map<number, { width: number; height: number }> };
+  islandBakes: {
+    size: number;
+    baked: Map<number, { width: number; height: number }>;
+    pool: { width: number; height: number; getData(k: string): string }[];
+    job?: unknown;
+  };
   sys: { sceneUpdate: (this: unknown, time: number, delta: number) => void };
   archipelagoVisualWin: { xMin: number; xMax: number; yMin: number; yMax: number };
   worldOrigin: { x: number; y: number };
@@ -186,6 +191,33 @@ test("sailing bakes islands a frame or two at a time and none is ever missing in
   expect(probe.unbakedInView).toBe(0);
   // Before #417 one bake alone cost 35-120 ms in a single step.
   expect(probe.slowestStepMs).toBeLessThan(40);
+});
+
+test("a resize frees spare island textures of the old size and stays in budget (#417)", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await start(page);
+  await warp(page, "archipelago", 26, 28, 800);
+  const snap = () =>
+    page.evaluate(() => {
+      const iso = (window as Win).__game!.scene.getScene("IsometricScene") as Iso;
+      const b = iso.islandBakes;
+      return {
+        total: b.baked.size + b.pool.length + (b.job ? 1 : 0),
+        poolSizes: [...new Set(b.pool.map((rt) => rt.getData("bakeSize")))],
+      };
+    });
+  const before = await snap();
+  expect(before.poolSizes).toHaveLength(1);
+  // 1x -> 1.5x bake scale: the spare 528x576 textures can never be reused.
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.waitForTimeout(500);
+  await page.keyboard.down("ArrowDown");
+  await page.waitForTimeout(6000);
+  await page.keyboard.up("ArrowDown");
+  const after = await snap();
+  expect(after.total).toBeLessThanOrEqual(12);
+  expect(after.poolSizes.filter((k) => k === before.poolSizes[0])).toEqual([]);
 });
 
 test.describe("DPR 3 phone", () => {

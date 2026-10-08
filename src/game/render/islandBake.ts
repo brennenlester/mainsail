@@ -52,6 +52,8 @@ export class IslandBakes {
   private job: BakeJob | undefined;
   private pool: Phaser.GameObjects.RenderTexture[] = [];
   private zone: ZoneDefinition | undefined;
+  /** Texture size the next bakes use; spares of any other size are freed. */
+  private sizeKey = "";
 
   constructor(scene: Phaser.Scene, origin: () => { x: number; y: number }, scale: () => number = () => 1) {
     this.scene = scene;
@@ -76,6 +78,9 @@ export class IslandBakes {
       index: island.index,
       r: islandBakeRegion(island),
     }));
+    if (islands[0]) {
+      this.useSize(islands[0].r);
+    }
     const have = new Set(this.baked.keys());
     if (this.job) {
       have.add(this.job.index);
@@ -176,17 +181,37 @@ export class IslandBakes {
     if (!r) {
       return;
     }
+    const { w, h } = this.useSize(r);
+    while (this.allocated() < RT_BUDGET) {
+      this.pool.push(this.scene.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setVisible(false).setData("bakeSize", this.sizeKey));
+    }
+  }
+
+  /**
+   * Texture size for a region at the current scale. A resize / DPR change moves
+   * it: spares of the old size can never be reused, so free them now.
+   */
+  private useSize(r: ReturnType<typeof islandBakeRegion>): { w: number; h: number } {
     const s = this.scale();
     const w = Math.ceil((r.x1 - r.x0) * TILE_WIDTH * s);
     const h = Math.ceil((r.y1 - r.y0) * TILE_HEIGHT * s);
-    while (this.allocated() < RT_BUDGET) {
-      this.pool.push(this.scene.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setVisible(false).setData("bakeSize", `${w}x${h}`));
+    const key = `${w}x${h}`;
+    if (key !== this.sizeKey) {
+      this.sizeKey = key;
+      this.pool = this.pool.filter((rt) => {
+        const keep = rt.getData("bakeSize") === key;
+        if (!keep) {
+          rt.destroy();
+        }
+        return keep;
+      });
     }
+    return { w, h };
   }
 
   /** Park a finished-with texture for reuse, or free it when the pool is full. */
   private release(rt: Phaser.GameObjects.RenderTexture): void {
-    if (this.allocated() < RT_BUDGET) {
+    if (this.allocated() < RT_BUDGET && rt.getData("bakeSize") === this.sizeKey) {
       rt.setVisible(false);
       this.pool.push(rt);
     } else {
@@ -208,13 +233,12 @@ export class IslandBakes {
     // Texture px per world px: >1 on zoomed-in HiDPI stages so the stamps
     // stay sharp; the texture is shown at 1/s so it still covers the region.
     const s = this.scale();
-    const w = Math.ceil((r.x1 - r.x0) * TILE_WIDTH * s);
-    const h = Math.ceil((r.y1 - r.y0) * TILE_HEIGHT * s);
-    const pooled = this.pool.findIndex((p) => p.getData("bakeSize") === `${w}x${h}`);
+    const { w, h } = this.useSize(r);
+    const pooled = this.pool.findIndex((p) => p.getData("bakeSize") === this.sizeKey);
     const rt =
       pooled >= 0
         ? this.pool.splice(pooled, 1)[0]!.clear()
-        : this.scene.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setData("bakeSize", `${w}x${h}`);
+        : this.scene.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setData("bakeSize", this.sizeKey);
     rt
       .setPosition(o.x + r.x0 * TILE_WIDTH, o.y + r.y0 * TILE_HEIGHT)
       .setScale(1 / s)

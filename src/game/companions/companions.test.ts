@@ -305,6 +305,13 @@ describe("favorites + gifts", () => {
     expect(giftFavorite(c, 1000 + GIFT_COOLDOWN_MS).ok).toBe(true);
   });
 
+  it("treats a gift stamp from the future (clock set back) as expired", () => {
+    const c = creature({ lastGiftAt: 10_000_000 });
+    playerInventory.materials["wild-fiber"] = GIFT_COST;
+    expect(giftFavorite(c, 1_000).ok).toBe(true);
+    expect(c.lastGiftAt).toBe(1_000);
+  });
+
   it("keeps the gift cooldown on the creature, so a reload cannot skip it (#417)", () => {
     const c = creature();
     playerInventory.materials["wild-fiber"] = GIFT_COST * 3;

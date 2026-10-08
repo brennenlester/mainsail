@@ -75,7 +75,9 @@ export function maxIslandBakePixels(): number {
  * Bake resolution (texture px per world px) for a camera zoom (buffer px per
  * world px): 1 when the zoom is at or under 1, else the zoom rounded up to a
  * half step, never above 2 and never so high that every island at once would
- * pass ISLAND_BAKE_MAX_PIXELS. Phones at DPR 3 and retina laptops zoom past 1.
+ * pass ISLAND_BAKE_MAX_PIXELS. With 12 islands of ~0.3 MPx under a 9 MPx budget
+ * that makes 1.5x the effective ceiling (2x would need 14.6 MPx). Phones at
+ * DPR 3 and retina laptops zoom past 1 and get 1.5x.
  */
 export function islandBakeScale(zoom: number): number {
   const wanted = !Number.isFinite(zoom) || zoom <= 1.05 ? 1 : Math.min(2, Math.ceil(zoom * 2) / 2);

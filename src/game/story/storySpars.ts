@@ -177,10 +177,11 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
     // +1 level, so a duo meets plain x1 scaling: sim pressure (turns x damage
     // multiplier) is ~1.15-1.2x the first fight instead of ~1.35-1.5x, which
     // had dropped a casual duo from 97% to 23-41% (storyBattleBalance.test.ts).
+    // A trio must never find it harder than a duo does (it was 31-44% vs 74-87%).
     rematchChallengerScale: [
       { hp: 1, damage: 1 },
       { hp: 1, damage: 1 },
-      { hp: 1.4, damage: 1.15 },
+      { hp: 1.1, damage: 1.03 },
     ],
     hearthWard: [
       { after: 2, scale: 0.85 },
