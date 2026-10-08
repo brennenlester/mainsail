@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 import { UNARMED_WANDERER } from "../battle/wandererWeapons";
 import {
+  ACTIVE_PARTY_LIMIT,
   addToParty,
   getActiveCreatures,
   getEffectiveMaxHp,
@@ -30,6 +31,13 @@ export function ghostAverageLevel(snapshot: ShareSnapshot): number {
 /** Give a save-less challenger a fair loaner party (sandbox memory only). */
 export function ensureChallengerParty(snapshot: ShareSnapshot): void {
   if (playerParty.creatures.length > 0) {
+    // Reserve-only saves: field the first companions (sandbox memory only;
+    // visitor mode blocks the Party panel, so the player cannot do it).
+    if (playerParty.activeInstanceIds.length === 0) {
+      playerParty.activeInstanceIds = playerParty.creatures
+        .slice(0, ACTIVE_PARTY_LIMIT)
+        .map((c) => c.instanceId);
+    }
     return;
   }
   const level = ghostAverageLevel(snapshot);

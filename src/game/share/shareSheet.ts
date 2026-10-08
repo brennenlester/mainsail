@@ -1,6 +1,10 @@
 import type Phaser from "phaser";
 import "./share.css";
 import { popOverlay, pushOverlay } from "../ui/overlayStack";
+import {
+  isTouchControlsEnabled,
+  setTouchControlsEnabled,
+} from "../ui/touchControls";
 
 /**
  * Minimal DOM builder for the share / preview overlays. All dynamic strings
@@ -111,6 +115,9 @@ export function openShareSheet(options: {
     keyboard.enabled = false;
     resetSceneKeys();
   }
+  // Same for a held touch stick: disabling zeroes the cached axes.
+  const touchWasEnabled = isTouchControlsEnabled();
+  setTouchControlsEnabled(false);
   let closed = false;
   const close = (): void => {
     if (closed) return;
@@ -120,6 +127,9 @@ export function openShareSheet(options: {
     if (keyboard) {
       keyboard.enabled = true;
       resetSceneKeys();
+    }
+    if (touchWasEnabled) {
+      setTouchControlsEnabled(true);
     }
     if (image.src.startsWith("blob:")) {
       URL.revokeObjectURL(image.src);

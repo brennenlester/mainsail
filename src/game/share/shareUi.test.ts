@@ -8,6 +8,7 @@ import { ensureChallengerParty, ghostAverageLevel, LOANER_PARTY } from "./challe
 import { RARE_VARIANT_CHANCE, rareHueShift, rareVariantTint, rollRareVariant } from "./rareVariant";
 import { snapshotFromParty, syncShareButton, setShareDisabled } from "./shareActions";
 import type { ShareSnapshot } from "./shareCode";
+import { isTouchControlsEnabled, setTouchControlsEnabled } from "../ui/touchControls";
 
 const XSS = '<img src=x onerror="window.__pwned=1">';
 
@@ -117,6 +118,7 @@ describe("card preview DOM", () => {
 
   it("mutes the game keyboard and clears held keys while a sheet is open", async () => {
     const { openShareSheet } = await import("./shareSheet");
+    setTouchControlsEnabled(true);
     let reset = 0;
     const keyboard = { enabled: true };
     const game = {
@@ -126,9 +128,11 @@ describe("card preview DOM", () => {
     const sheet = openShareSheet({ id: "kb-test", title: "t", imageAlt: "", buttons: [], game });
     expect(keyboard.enabled).toBe(false);
     expect(reset).toBe(1); // held keys cleared on open
+    expect(isTouchControlsEnabled()).toBe(false);
     sheet.close();
     expect(keyboard.enabled).toBe(true);
     expect(reset).toBe(2);
+    expect(isTouchControlsEnabled()).toBe(true);
   });
 
   it("shows a blocking notice for broken cards", () => {
@@ -164,6 +168,12 @@ describe("ghost challenge sandbox helpers", () => {
     ensureChallengerParty(ghost);
     expect(playerParty.creatures.map((c) => c.definitionId)).toEqual([...LOANER_PARTY]);
     expect(playerParty.creatures.every((c) => c.level === 12)).toBe(true);
+  });
+
+  it("fields reserve-only challengers from their reserve", () => {
+    setPartyFromSnapshot([creature({}), creature({ instanceId: "c-2" })], 3, []);
+    ensureChallengerParty(ghost);
+    expect(playerParty.activeInstanceIds).toEqual(["c-1", "c-2"]);
   });
 
   it("keeps an existing challenger party untouched", () => {
