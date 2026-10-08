@@ -28,4 +28,13 @@ describe("arena layers (#361)", () => {
     expect(resolveArenaLayers(() => false)).toBeNull();
     noteArenaContext("grove", 0);
   });
+
+  it("lets a story battle force the ember arena, falling back to night (#385)", () => {
+    expect(arenaVariantForZone("emberfen", 0.9)).not.toBe("ember");
+    expect(resolveArenaLayers(() => true, "ember")?.sky).toBe("arena-ember-sky");
+    expect(resolveArenaLayers((k) => !k.startsWith("arena-ember"), "ember")?.sky).toBe(
+      "arena-night-sky",
+    );
+    expect(resolveArenaLayers(() => true, "village")?.sky).toBe("arena-village-sky");
+  });
 });

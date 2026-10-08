@@ -44,6 +44,12 @@ const SFX = {
   moveNeutral: "sfx-move-neutral",
 } as const;
 
+/** Story battle sting (#385): compressed like music, loaded only by story battles. */
+const BOSS_STING = {
+  key: "sfx-boss-sting",
+  urls: ["assets/audio/sfx-boss-sting.ogg", "assets/audio/sfx-boss-sting.m4a"],
+} as const;
+
 const STEP_BY_SURFACE: Record<StepSurface, string> = {
   grass: SFX.stepGrass,
   stone: SFX.stepStone,
@@ -83,7 +89,9 @@ export function preloadGameAudio(scene: Phaser.Scene): void {
     scene.load.audio(key, `assets/audio/${key}.wav`);
   }
   for (const cfg of Object.values(MUSIC_TRACKS)) {
-    scene.load.audio(cfg.key, [...cfg.urls]);
+    if (!cfg.lazy) {
+      scene.load.audio(cfg.key, [...cfg.urls]);
+    }
   }
 }
 
@@ -257,6 +265,22 @@ export function playAbilitySfx(scene?: Phaser.Scene): void {
   playSfx(scene ?? hostScene, SFX.ability, 0.45);
 }
 
+/** Story battle VS banner / boss transformation hit (#385). */
+export function playBossStingSfx(scene: Phaser.Scene): void {
+  playSfx(scene, BOSS_STING.key, 0.7);
+}
+
+/** Queue the story battle theme + sting in a scene's preload (no boot cost for everyone). */
+export function preloadStoryAudio(scene: Phaser.Scene, theme: "boss" | "rival"): void {
+  const cfg = MUSIC_TRACKS[theme];
+  if (!scene.cache.audio.exists(cfg.key)) {
+    scene.load.audio(cfg.key, [...cfg.urls]);
+  }
+  if (!scene.cache.audio.exists(BOSS_STING.key)) {
+    scene.load.audio(BOSS_STING.key, [...BOSS_STING.urls]);
+  }
+}
+
 /** Move cast sound by battle type: fire / water / grove / neutral. */
 export function playMoveTypeSfx(scene: Phaser.Scene, type: string): void {
   playSfx(scene, MOVE_BY_CATEGORY[moveSfxCategory(type)], 0.4);
@@ -291,6 +315,15 @@ export function setAudioZone(zoneId: ZoneId): void {
   ctx.zoneId = zoneId;
   if (hostScene && unlocked) {
     ensureMusic(hostScene);
+  }
+}
+
+/** Story battles swap the spar loop for the boss / rival theme; undefined restores it. */
+export function setBattleTheme(theme: "boss" | "rival" | undefined, scene?: Phaser.Scene): void {
+  ctx.battleTheme = theme;
+  const target = scene ?? hostScene;
+  if (target && unlocked) {
+    ensureMusic(target);
   }
 }
 

@@ -153,11 +153,16 @@ export function showBattleResultPanel(
   });
 
   if (loot.length > 0) {
-    add(
+    const header = add(
       scene.add
         .text(cx - 196, y, "Loot", { fontFamily: FONT, fontStyle: "bold", fontSize: "13px", color: "#ffd860" })
         .setOrigin(0, 0.5),
     );
+    if (!mode.fast && !mode.reducedMotion) {
+      // Arrives with its first line, so the header never sits alone.
+      header.setAlpha(0);
+      scene.tweens.add({ targets: header, alpha: 1, delay: 400, duration: 220 });
+    }
     y += 22;
     loot.forEach((line, i) => {
       const t = add(

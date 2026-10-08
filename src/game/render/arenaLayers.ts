@@ -1,7 +1,11 @@
 import type { ZoneId } from "../world/zoneTypes";
 
-/** Rendered spar backdrops (#361). `grove` keeps the legacy unprefixed keys. */
-export type ArenaVariant = "grove" | "village" | "night";
+/**
+ * Rendered spar backdrops (#361). `grove` keeps the legacy unprefixed keys.
+ * `ember` is the Cinder Matriarch's arena (#385): standalone PNGs loaded by
+ * the boss battle only, never chosen by zone.
+ */
+export type ArenaVariant = "grove" | "village" | "night" | "ember";
 
 export type ArenaLayerKeys = { sky: string; hills: string; platform: string };
 
@@ -42,15 +46,22 @@ export function noteArenaContext(zoneId: ZoneId, nightness: number): void {
 }
 
 /**
- * Layer keys for the current spar: the zone/night variant when all three
- * frames exist, else the grove arena, else null (procedural fallback).
+ * Layer keys for the current spar: `override` (story battles) or the
+ * zone/night variant when all three frames exist; a missing ember arena
+ * falls back to night. Else the grove arena, else null (procedural fallback).
  */
-export function resolveArenaLayers(hasTexture: (key: string) => boolean): ArenaLayerKeys | null {
+export function resolveArenaLayers(
+  hasTexture: (key: string) => boolean,
+  override?: ArenaVariant,
+): ArenaLayerKeys | null {
   const has = (keys: ArenaLayerKeys) => hasTexture(keys.sky) && hasTexture(keys.hills) && hasTexture(keys.platform);
-  const wanted = arenaLayerKeys(arenaVariantForZone(context.zoneId, context.nightness));
-  if (has(wanted)) {
-    return wanted;
+  const wanted = override ?? arenaVariantForZone(context.zoneId, context.nightness);
+  const chain: ArenaVariant[] = wanted === "ember" ? ["ember", "night", "grove"] : [wanted, "grove"];
+  for (const variant of chain) {
+    const keys = arenaLayerKeys(variant);
+    if (has(keys)) {
+      return keys;
+    }
   }
-  const grove = arenaLayerKeys("grove");
-  return has(grove) ? grove : null;
+  return null;
 }

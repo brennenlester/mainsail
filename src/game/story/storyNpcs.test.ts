@@ -5,8 +5,11 @@ import { setInventoryFromSnapshot } from "../inventory/playerInventory";
 import {
   beginStorySpar,
   resetStorySparForTest,
-  resolveStorySparRound,
+  resolveStorySpar,
 } from "../battle/storySpar";
+import { playerParty } from "../creatures/party";
+import { FINALE_HATCHLING } from "./storySpars";
+import { FINALE_COMPLETE_EVENT } from "./finaleScene";
 import { isTileWalkable } from "../world/collision";
 import { beginConversation } from "../world/npcState";
 import { getNpcById, getZoneNpcs } from "../world/npcs";
@@ -124,25 +127,25 @@ describe("rival conversation", () => {
       label: "Spar Wren",
     });
 
+    expect(intro.lines.join(" ")).toMatch(/Lantern Fox \(Lv 3\), then Rootwalker \(Lv 4\)/);
+
     beginStorySpar("rival-wren");
-    resolveStorySparRound(false);
+    resolveStorySpar(false);
     const loss = talkTo(RIVAL_NPC_ID);
     expect(loss.lines.join(" ")).toMatch(/Told you/);
     expect(loss.prompt.kind).toBe("advance");
 
     beginStorySpar("rival-wren");
-    resolveStorySparRound(true);
-    const interlude = talkTo(RIVAL_NPC_ID);
-    expect(interlude.prompt).toMatchObject({ label: "Next round" });
-    expect(interlude.lines.join(" ")).toMatch(/Round 2\/2: Rootwalker/);
-
-    resolveStorySparRound(true);
+    resolveStorySpar(true);
     const win = talkTo(RIVAL_NPC_ID);
     expect(win.lines.join(" ")).toMatch(/Mistwood path is open/);
     expect(win.lines.join(" ")).toMatch(/Brook Tonic×2/);
+    expect(win.lines.join(" ")).toMatch(/take Pip the Brook Nymph/);
 
     const rematch = talkTo(RIVAL_NPC_ID);
     expect(rematch.prompt).toMatchObject({ kind: "challenge", label: "Rematch" });
+    // Rematch escalation: a third creature and higher levels.
+    expect(rematch.lines.join(" ")).toMatch(/Thunder Finch \(Lv 4\)/);
   });
 
   it("will not spar a fully fainted party (no free heal)", () => {
@@ -161,13 +164,46 @@ describe("rival conversation", () => {
     const tip = talkTo(RIVAL_NPC_ID);
     expect(tip.prompt.kind).toBe("advance");
     expect(tip.lines.join(" ")).toMatch(/telegraphs/);
+    expect(tip.lines.join(" ")).toMatch(/GUARD/);
+    // An older save with no water companion gets Pip from Wren's tip, once.
+    expect(tip.lines.join(" ")).toMatch(/Take Pip the Brook Nymph/);
+    expect(talkTo(RIVAL_NPC_ID).lines.join(" ")).not.toMatch(/Take Pip/);
   });
 
-  it("plays the finale at the shrine and completes the main story", () => {
+  it("plays the finale at the shrine: the egg hatches, then the voyage hook (#385)", () => {
     restoreQuestProgress(progressAt("shrine-finale"));
     const finale = talkTo(RIVAL_NPC_ID);
     expect(finale.lines.join(" ")).toMatch(/Eclipse/);
+    expect(finale.cues).toContain("hatch");
+    expect(finale.cues).toHaveLength(finale.lines.length);
+    // The hatch line comes before the voyage hook.
+    const hatch = finale.cues!.indexOf("hatch");
+    const sea = finale.cues!.indexOf("sea");
+    expect(hatch).toBeGreaterThan(-1);
+    expect(sea).toBeGreaterThan(hatch);
     expect(getActiveQuestId()).toBeNull();
+    expect(finale.endEvent).toBe(FINALE_COMPLETE_EVENT);
+    const hatchlings = playerParty.creatures.filter(
+      (c) => c.nickname === FINALE_HATCHLING.nickname,
+    );
+    expect(hatchlings).toHaveLength(1);
+    expect(hatchlings[0]).toMatchObject({
+      definitionId: "cinder-toad",
+      rare: true,
+      trait: { kind: "damage-buff", moveId: "ember-spit" },
+    });
+
+    // Talking again (story complete) never hatches a second one.
+    talkTo(RIVAL_NPC_ID);
+    expect(playerParty.creatures.filter((c) => c.nickname === FINALE_HATCHLING.nickname)).toHaveLength(1);
+  });
+
+  it("never hatches for visitors", () => {
+    restoreQuestProgress(progressAt("shrine-finale"));
+    setVisitorMode(true);
+    talkTo(RIVAL_NPC_ID);
+    expect(playerParty.creatures.some((c) => c.nickname === FINALE_HATCHLING.nickname)).toBe(false);
+    expect(getActiveQuestId()).toBe("shrine-finale");
   });
 
   it("only idles for visitors", () => {
@@ -179,20 +215,23 @@ describe("rival conversation", () => {
 });
 
 describe("boss conversation", () => {
-  it("telegraphs each form before it rises", () => {
+  it("telegraphs her forms and signature, then sends you to the shrine with the egg", () => {
     restoreQuestProgress(progressAt("cinder-matriarch"));
     const intro = talkTo(BOSS_NPC_ID);
     expect(intro.prompt).toMatchObject({ kind: "challenge", sparId: "cinder-matriarch" });
     expect(intro.lines.join(" ")).toMatch(/Mire form \(fen\)/);
+    expect(intro.lines.join(" ")).toMatch(/Cinder form/);
+    expect(intro.lines.join(" ")).toMatch(/Guard/);
 
     beginStorySpar("cinder-matriarch");
-    resolveStorySparRound(true);
-    const phaseTwo = talkTo(BOSS_NPC_ID);
-    expect(phaseTwo.lines.join(" ")).toMatch(/Cinder form \(ember\)/);
-    expect(phaseTwo.prompt).toMatchObject({ label: "Face her" });
+    resolveStorySpar(false);
+    const loss = talkTo(BOSS_NPC_ID);
+    expect(loss.lines.join(" ")).toMatch(/patches everyone up/);
 
-    resolveStorySparRound(true);
+    beginStorySpar("cinder-matriarch");
+    resolveStorySpar(true);
     const victory = talkTo(BOSS_NPC_ID);
+    expect(victory.lines.join(" ")).toMatch(/ember egg/);
     expect(victory.lines.join(" ")).toMatch(/Moon Shrine/);
     expect(getActiveQuestId()).toBe("shrine-finale");
   });

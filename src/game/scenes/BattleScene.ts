@@ -6,8 +6,23 @@ import {
   playHitPlayerSfx,
   playHitWildSfx,
   playMoveTypeSfx,
+  preloadStoryAudio,
+  setBattleTheme,
   STRONG_HIT_DAMAGE,
 } from "../audio/gameAudio";
+import { describeAssist, StoryBattle } from "../battle/boss/storyBattle";
+import {
+  preloadStoryArena,
+  STORY_INTENT_Y,
+  storyArenaVariant,
+  StoryBattleUi,
+} from "../battle/boss/storyBattleUi";
+import { reportStoryBattleResult, type StoryBattleInit } from "../battle/storySpar";
+import type { BossForm } from "../story/storySpars";
+import { getStorySpar } from "../story/storySpars";
+import { getActiveQuestId } from "../story/questProgress";
+import { MAX_LEVEL } from "../progression/leveling";
+import { hideOpeningCaption } from "../opening/openingCaption";
 import { BattleFx, type Side } from "../battle/vfx/battleFx";
 import {
   fastBattleEnabled,
@@ -188,6 +203,8 @@ type HpHud = {
   chips: Phaser.GameObjects.Text[];
   chipX: number;
   chipY: number;
+  /** Story boss bar is wider than a plate (#385). */
+  barWidth?: number;
 };
 
 /** Intent shown for the enemy's next action (one turn ahead). */
@@ -254,6 +271,9 @@ export class BattleScene extends Phaser.Scene {
   private wandererFallbackObjects: Phaser.GameObjects.GameObject[] = [];
   /** Story 2 pre-move hunter tip; cleared after the first move selection. */
   private matchupTeachText: Phaser.GameObjects.Text | null = null;
+  /** Rival / boss battle (#385): rules in battle/boss/storyBattle, art in storyBattleUi. */
+  private story: StoryBattle | null = null;
+  private storyUi: StoryBattleUi | null = null;
   // ponytail: temporary god-spar kill cheat
   private onGodSparKillCheatKeyDown = (event: KeyboardEvent) => {
     const result = appendGodSparKillCheatKey(
@@ -287,8 +307,20 @@ export class BattleScene extends Phaser.Scene {
     wildOpens?: boolean;
     /** Only wild-encounter spars (and the dev ?spar= preview) opt in to Befriend. */
     allowBefriend?: boolean;
+    /** Rival / boss battle (#385). Never befriendable. */
+    story?: StoryBattleInit;
   }): void {
-    this.allowBefriend = data.allowBefriend === true;
+    this.story = data.story
+      ? new StoryBattle(getStorySpar(data.story.sparId), {
+          partyAverage: getPartyAverageLevel(),
+          partySize: getActiveCreatures().filter((c) => c.currentHp > 0).length,
+          rematch: data.story.rematch,
+          ward: data.story.ward,
+          maxLevel: MAX_LEVEL,
+        })
+      : null;
+    this.storyUi = null;
+    this.allowBefriend = data.allowBefriend === true && !this.story;
     this.wildCreatureId = data.wildCreatureId;
     this.zoneId = data.zoneId;
     this.befriendMisses = data.befriendMisses ?? 0;
@@ -312,7 +344,7 @@ export class BattleScene extends Phaser.Scene {
     this.intentObjects = [];
     this.freeSwitchAvailable = true;
     this.rng = Math.random;
-    this.tutorialSpar = isHunterMatchupTeachActive();
+    this.tutorialSpar = !this.story && isHunterMatchupTeachActive();
     this.benchState = new Map();
     this.fainted = new Set();
 
@@ -339,6 +371,12 @@ export class BattleScene extends Phaser.Scene {
         ? 1
         : outleveledWildBulk(getPartyAverageLevel(), wildLevel),
     });
+    if (this.story) {
+      // Launch data names the story's first foe; the controller owns its stats.
+      this.wildCreatureId = this.story.spriteCreatureId;
+      this.wild = this.story.foe;
+      this.wildLevel = this.story.foeLevel;
+    }
 
     const actives = getActiveCreatures();
     const activeIndex = actives.findIndex((c) => c.currentHp > 0);
@@ -380,6 +418,13 @@ export class BattleScene extends Phaser.Scene {
     };
   }
 
+  preload(): void {
+    if (this.story) {
+      preloadStoryArena(this, storyArenaVariant(this.story));
+      preloadStoryAudio(this, this.story.def.theme);
+    }
+  }
+
   create(): void {
     setPartyEditLocked(true);
     // Quest card sits over the top-right of the board; hide it during spars.
@@ -390,6 +435,7 @@ export class BattleScene extends Phaser.Scene {
     });
     this.scene.bringToTop();
     bindOverlayPixelRatio(this);
+    hideOpeningCaption();
     ensureCreatureTextures(this);
     ensurePlayerAnims(this);
     this.cameras.main.fadeIn(140, 255, 255, 255);
@@ -399,8 +445,8 @@ export class BattleScene extends Phaser.Scene {
     const cx = DESIGN_SIZE / 2;
 
     this.add
-      .text(cx, 22, "Training Spar", {
-        color: "#fff7d8",
+      .text(cx, 22, this.story?.def.title ?? "Training Spar", {
+        color: this.story ? "#ffd8a8" : "#fff7d8",
         fontFamily: "system-ui, sans-serif",
         fontSize: "18px",
         fontStyle: "bold",
@@ -437,14 +483,28 @@ export class BattleScene extends Phaser.Scene {
     this.fx = new BattleFx(
       this,
       () => ({ wild: this.wildSprite, player: this.playerSprite }),
-      (side) => (side === "wild" ? this.wildSprite.clearTint() : this.syncPlayerPresenceTint()),
+      (side) =>
+        side === "wild"
+          ? this.storyUi
+            ? this.storyUi.applyFoeTint(this.wildSprite)
+            : this.wildSprite.clearTint()
+          : this.syncPlayerPresenceTint(),
     );
+    if (this.story) {
+      this.storyUi = new StoryBattleUi(this, this.story, this.fx);
+      this.storyUi.decorateFoe(this.wildSprite);
+      setBattleTheme(this.story.def.theme, this);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.storyUi?.destroy();
+        setBattleTheme(undefined);
+      });
+    }
     this.fx.setHome("wild", WILD_HOME.x, WILD_HOME.y);
     this.fx.setHome("player", PLAYER_HOME.x, PLAYER_HOME.y);
     this.addFastToggle();
 
     // Opponent plate top-left, player plate mid-right (clear of both sprites).
-    this.wildHud = this.createHpHud(24, 48);
+    this.wildHud = this.storyUi?.createHud() ?? this.createHpHud(24, 48);
     this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 304);
 
     this.add
@@ -467,9 +527,14 @@ export class BattleScene extends Phaser.Scene {
     // #336: SPAR_WILD_OPENING_TURNS 0 waits for the player's first strike.
     const wildOpens = SPAR_WILD_OPENING_TURNS > 0 || this.wildOpens;
     this.log(
-      wildOpens
-        ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
-        : `A training spar with ${this.wild.name} begins.`,
+      this.story
+        ? (this.story.isBoss
+            ? `The ${this.wild.name} rises from the smoking peat — ${this.story.form?.label ?? ""}!`
+            : `Wren sends out ${this.wild.name}! (${this.story.remainingFoes + 1} to beat)`) +
+          (this.story.ward < 1 ? " The shrine's warmth steadies you." : "")
+        : wildOpens
+          ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
+          : `A training spar with ${this.wild.name} begins.`,
     );
     this.showHunterMatchupTeachIfNeeded();
     this.buildActionButtons();
@@ -500,6 +565,8 @@ export class BattleScene extends Phaser.Scene {
     let ready = t.entrance + t.entranceStagger;
     if (isGodCreature(this.wildCreatureId)) {
       ready = Math.max(ready, this.fx.vsBanner(this.player.name, this.wild.name));
+    } else if (this.storyUi) {
+      ready = Math.max(ready, this.storyUi.playIntro(this.player.name));
     }
     return ready;
   }
@@ -563,22 +630,29 @@ export class BattleScene extends Phaser.Scene {
     const h = DESIGN_SIZE;
     // Zone / night variant (#361); hills + dais scale around the dais centre
     // (design y=240 in the layer) so the stage fills the frame.
-    const layers = resolveArenaLayers((key) => hasWorldTexture(this, key));
+    const variant = this.story ? storyArenaVariant(this.story) : undefined;
+    const layers = resolveArenaLayers((key) => hasWorldTexture(this, key), variant);
     if (layers) {
       const s = ARENA_STAGE.scale;
       const stageY = ARENA_STAGE.y + (h / 2 - 240) * s;
-      this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, layers.sky))
-        .setDisplaySize(w, h)
-        .setDepth(-12);
-      this.add
-        .image(w / 2, stageY, ...imagineTexture(this, layers.hills))
-        .setDisplaySize(w * s, h * s)
-        .setDepth(-11);
-      this.add
-        .image(w / 2, stageY, ...imagineTexture(this, layers.platform))
-        .setDisplaySize(w * s, h * s)
-        .setDepth(-10);
+      const images = [
+        this.add
+          .image(w / 2, h / 2, ...imagineTexture(this, layers.sky))
+          .setDisplaySize(w, h)
+          .setDepth(-12),
+        this.add
+          .image(w / 2, stageY, ...imagineTexture(this, layers.hills))
+          .setDisplaySize(w * s, h * s)
+          .setDepth(-11),
+        this.add
+          .image(w / 2, stageY, ...imagineTexture(this, layers.platform))
+          .setDisplaySize(w * s, h * s)
+          .setDepth(-10),
+      ];
+      if (variant === "ember" && !layers.sky.startsWith("arena-ember")) {
+        // Ember PNGs missing: warm the fallback arena instead.
+        images.forEach((image) => image.setTint(0xffa080));
+      }
       return;
     }
 
@@ -1357,6 +1431,8 @@ export class BattleScene extends Phaser.Scene {
       (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
     }
     const result = executeMove(this.player, move, this.wild, this.rng);
+    // A boss form threshold clamps the hit and the boss transforms (her turn).
+    const transformed = this.story?.checkTransform() ?? null;
     // Rules resolved above; the lunge / projectile lands, then we present it.
     this.fx.attack("player", move, moveRole(move), () => {
       if (this.battleEnded) {
@@ -1366,7 +1442,9 @@ export class BattleScene extends Phaser.Scene {
       if (isFainted(this.wild)) {
         this.refreshHp();
         this.log(message);
-        this.endBattle(true);
+        if (!this.sendNextStoryFoe()) {
+          this.endBattle(true);
+        }
         return;
       }
       message += this.tickEndOfTurn(this.player, "player");
@@ -1375,6 +1453,10 @@ export class BattleScene extends Phaser.Scene {
       this.buildActionButtons();
       this.renderIntent();
 
+      if (transformed) {
+        this.playStoryTransform(transformed);
+        return;
+      }
       if (isFainted(this.player)) {
         this.handlePlayerFainted();
         return;
@@ -1420,8 +1502,17 @@ export class BattleScene extends Phaser.Scene {
         };
       }
     } else {
+      const guarded = this.player.guarding === true;
       const result = executeMove(this.wild, intent.move, this.player, this.rng);
-      present = () => this.describeMove(this.wild, this.player, result, "player");
+      const parried = this.story?.onFoeActed(intent.move, guarded, result).parried ?? false;
+      present = () => {
+        const line = this.describeMove(this.wild, this.player, result, "player");
+        if (!parried) {
+          return line;
+        }
+        this.storyUi?.playParry(this.wildSprite);
+        return `${line} ${this.wild.name} staggers — she loses her next turn!`;
+      };
     }
     this.fx.attack("wild", intent.move, intent.role, () => this.finishWildTurn(present));
   }
@@ -1434,11 +1525,26 @@ export class BattleScene extends Phaser.Scene {
     // A guard lasts until the guarding creature's next turn.
     this.player.guarding = false;
     message += this.tickEndOfTurn(this.wild, "wild");
+    // Burn can carry the boss across a form threshold too.
+    const transformed = this.story?.checkTransform() ?? null;
+    if (!isFainted(this.player) && !isFainted(this.wild)) {
+      const assist = this.story?.assistTick(this.player);
+      if (assist && this.story?.def.assist) {
+        message += ` ${describeAssist(assist, this.story.def.assist.name, this.player.name, this.wild.name)}`;
+        this.storyUi?.playAssist(assist);
+      }
+    }
     this.log(message);
     this.refreshHp();
 
     if (isFainted(this.wild)) {
-      this.endBattle(true);
+      if (!this.sendNextStoryFoe()) {
+        this.endBattle(true);
+      }
+      return;
+    }
+    if (transformed) {
+      this.playStoryTransform(transformed);
       return;
     }
     if (isFainted(this.player)) {
@@ -1472,7 +1578,7 @@ export class BattleScene extends Phaser.Scene {
       this.showSwitchMenu();
       return;
     }
-    if (!this.usingArmedWanderer && hasCraftedWeapon()) {
+    if (!this.story && !this.usingArmedWanderer && hasCraftedWeapon()) {
       this.forcedSwitch = true;
       this.waitingForPlayer = true;
       this.log(`${this.player.name} fainted!`);
@@ -1481,6 +1587,62 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     this.endBattle(false);
+  }
+
+  // --- Story battles (#385) -------------------------------------------------
+
+  /** Rival: Wren's next creature replaces the fainted one. False when she has none left. */
+  private sendNextStoryFoe(): boolean {
+    const next = this.story?.nextFoe();
+    if (!this.story || !next) {
+      return false;
+    }
+    const story = this.story;
+    this.waitingForPlayer = false;
+    this.clearIntent();
+    this.fainted.add("wild");
+    this.fx.faint("wild", () => {
+      if (this.battleEnded) {
+        return;
+      }
+      this.wild = next;
+      this.wildCreatureId = story.spriteCreatureId;
+      this.wildLevel = story.foeLevel;
+      this.fainted.delete("wild");
+      this.fx.resetPose("wild");
+      this.tweens.killTweensOf(this.wildSprite);
+      fitDisplay(this.wildSprite, BATTLE_CREATURE_DISPLAY);
+      this.storyUi?.decorateFoe(this.wildSprite);
+      this.fx.setHome("wild", WILD_HOME.x, WILD_HOME.y);
+      this.fx.enter("wild");
+      this.storyUi?.announceNextFoe(next.name);
+      this.log(`Wren sends out ${next.name}!`);
+      this.refreshHp();
+      this.refreshIntent();
+      this.buildActionButtons();
+      this.waitingForPlayer = true;
+    });
+    return true;
+  }
+
+  /** The boss changed form: play it out, then the new form telegraphs. */
+  private playStoryTransform(form: BossForm): void {
+    this.waitingForPlayer = false;
+    this.clearIntent();
+    this.log(`${this.wild.name} sheds her shape — ${form.label}! ${form.telegraph}`);
+    this.refreshHp();
+    this.storyUi?.playTransform(form, this.wildSprite, () => {
+      if (this.battleEnded) {
+        return;
+      }
+      if (isFainted(this.player)) {
+        this.handlePlayerFainted();
+        return;
+      }
+      this.refreshIntent();
+      this.buildActionButtons();
+      this.waitingForPlayer = true;
+    });
   }
 
   /** One log sentence for a resolved move; also spawns hit / heal floats. */
@@ -1556,6 +1718,9 @@ export class BattleScene extends Phaser.Scene {
   // --- Enemy intent (telegraphed one turn ahead) ---------------------------
 
   private pickIntent(): WildIntent {
+    if (this.story) {
+      return this.story.intentFor(this.player, this.rng);
+    }
     const pattern =
       this.wildCreatureId === TIDE_SOVEREIGN_ID
         ? getTideSovereignAttack(this.tideSovereignTurnIndex)
@@ -1590,6 +1755,7 @@ export class BattleScene extends Phaser.Scene {
 
   private clearIntent(): void {
     this.fx?.clearIntentGlow();
+    this.storyUi?.setSignatureWarning(false);
     for (const object of this.intentObjects) {
       object.destroy();
     }
@@ -1623,8 +1789,13 @@ export class BattleScene extends Phaser.Scene {
         detail += ` → ${STATUS_DEFS[move.inflicts].label}`;
       }
     }
+    const note = this.story?.intentNote(move) ?? null;
+    if (this.storyUi) {
+      detail = this.storyUi.intentDetail(note, detail);
+      this.storyUi.setSignatureWarning(note === "signature");
+    }
 
-    const y = 62;
+    const y = this.storyUi ? STORY_INTENT_Y : 62;
     const badge = this.add
       .text(0, y, style.label, {
         color: "#101820",
@@ -1648,7 +1819,7 @@ export class BattleScene extends Phaser.Scene {
     const gap = 6;
     const contentWidth = badge.width + gap + text.width;
     // Keep clear of the foe's HP plate (ends at x≈260) and the right edge.
-    const minCenter = INTENT_MIN_LEFT + contentWidth / 2 + 8;
+    const minCenter = (this.storyUi ? 8 : INTENT_MIN_LEFT) + contentWidth / 2 + 8;
     const centerX = Phaser.Math.Clamp(
       this.wildSprite.x,
       minCenter,
@@ -1710,11 +1881,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private syncHpHud(hud: HpHud, who: BattleCombatant, level: number | null): void {
+    // A doused boss keeps her form's type on the bar; the chip says Doused.
+    const shownType = (hud === this.wildHud && this.story?.form?.type) || who.folkloreType;
     hud.name.setText(
-      `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${who.folkloreType}`,
+      `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${shownType}`,
     );
     const ratio = Math.max(0, who.currentHp / who.maxHp);
-    const width = HP_BAR_WIDTH * ratio;
+    const width = (hud.barWidth ?? HP_BAR_WIDTH) * ratio;
     this.tweens.killTweensOf(hud.bar);
     if (this.fx && !this.fx.mode().fast && Math.abs(hud.bar.width - width) > 0.5) {
       this.tweens.add({ targets: hud.bar, width, duration: 360, ease: "Cubic.easeOut" });
@@ -1735,6 +1908,7 @@ export class BattleScene extends Phaser.Scene {
     if (who.guarding) {
       chips.push({ text: "GUARD", color: ROLE_STYLE.guard.css });
     }
+    chips.push(...(this.storyUi?.extraChips(hud === this.wildHud ? "wild" : "player") ?? []));
     for (const chip of chips) {
       const t = this.add
         .text(x, hud.chipY, chip.text, {
@@ -1876,7 +2050,20 @@ export class BattleScene extends Phaser.Scene {
         : `${this.wild.name} yields.`;
       this.log(line);
       panel = { tone: "special", title: "Victory!", line };
+    } else if (this.story && (!playerWon || getActiveQuestId() !== this.story.def.id)) {
+      // Story loss or rematch win: storySpar rolls rewards back either way.
+      reportStoryBattleResult(this.story.def.id, playerWon);
+      const line = playerWon
+        ? `${this.story.def.name} yields. Bragging rights only on a rematch.`
+        : this.story.isBoss
+          ? "The Matriarch's heat drives you back. Wren hauls everyone clear."
+          : "Wren takes this one. Nobody's hurt — just pride.";
+      this.log(line);
+      panel = playerWon ? { tone: "special", title: "Victory!", line } : { tone: "defeat", line };
     } else if (playerWon) {
+      if (this.story) {
+        reportStoryBattleResult(this.story.def.id, true);
+      }
       const before: PartySnapshotEntry[] = getActiveCreatures().map((c) => ({
         instanceId: c.instanceId,
         definitionId: c.definitionId,
@@ -1887,13 +2074,18 @@ export class BattleScene extends Phaser.Scene {
         this.wildCreatureId,
         this.resolvePartyIndex(),
       );
-      this.log(formatRewardMessage(reward));
+      this.log(this.story ? `${this.story.def.title} — victory!` : formatRewardMessage(reward));
       panel = {
         tone: "victory",
         summary: buildVictorySummary(before, getActiveCreatures(), reward, {
           definition: getCreatureDefinition,
           materialName: getMaterialName,
         }),
+        extraLine: this.story
+          ? this.story.isBoss
+            ? "The Cinder Matriarch is calmed. The fen exhales."
+            : "You beat Wren, the Rival!"
+          : undefined,
       };
     } else {
       this.log("You lost the training spar...");
