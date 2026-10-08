@@ -40,6 +40,10 @@ export const worldState = {
   brynGroveStartersGifted: [] as string[],
   /** The altar's one-time Story 4 relic material top-up was given (#390). */
   storyRelicBundleGiven: false,
+  /** The finale credits card (#393) was shown once for this save (#399). */
+  storyFinaleCardShown: false,
+  /** The first evolution's share nudge was offered (#399; persisted, not party-derived). */
+  firstEvolutionCelebrated: false,
   /** Sovereign Plate toggle: suppress wild encounters while owned + active (#289). */
   sovereignPlateActive: false,
 };
