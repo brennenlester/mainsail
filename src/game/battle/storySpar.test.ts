@@ -36,6 +36,7 @@ import { setVisitorMode } from "../world/worldSession";
 import {
   beginStorySpar,
   consumeStorySparOutcome,
+  giftNickname,
   describeStorySparLineup,
   forfeitStorySpar,
   getActiveStorySpar,
@@ -481,5 +482,14 @@ describe("no farming through side effects or reloads (#369 review)", () => {
     resolveStorySpar(false);
     expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(false);
     expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([2, 2]);
+  });
+});
+
+describe("giftNickname (#401)", () => {
+  it("keeps the preferred nickname unless the player already uses it", () => {
+    expect(giftNickname("Pip", "Sam")).toBe("Pip");
+    expect(giftNickname("Pip", null)).toBe("Pip");
+    expect(giftNickname("Pip", "pip")).toBe("Rill");
+    expect(giftNickname("Pip", " Pip ")).toBe("Rill");
   });
 });

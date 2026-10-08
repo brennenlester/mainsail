@@ -38,6 +38,7 @@ import {
   resumeHostPersist,
   suspendHostPersist,
 } from "../world/worldSaveSchedule";
+import { getPlayerName } from "../world/playerName";
 import { markCreatureDiscovered } from "../world/worldState";
 import { isVisitorMode } from "../world/worldSession";
 import { setSparWinsBySpecies, sparWinsBySpecies } from "../world/sparWins";
@@ -304,8 +305,18 @@ export function grantCoverageGift(id: StorySparId): string | null {
     return null;
   }
   const creature = addToParty(gift.creatureId, getPartyAverageLevel());
-  creature.nickname = gift.nickname;
-  return `${gift.nickname} the ${getCreatureDefinition(gift.creatureId).name}`;
+  const nickname = giftNickname(gift.nickname, getPlayerName());
+  creature.nickname = nickname;
+  return `${nickname} the ${getCreatureDefinition(gift.creatureId).name}`;
+}
+
+const GIFT_NICKNAME_FALLBACK = "Rill";
+
+/** A gift never shares the player's own name (#401): a player named Pip would collide. */
+export function giftNickname(preferred: string, playerName: string | null): string {
+  return playerName?.trim().toLowerCase() === preferred.toLowerCase()
+    ? GIFT_NICKNAME_FALLBACK
+    : preferred;
 }
 
 function finishLoss(spar: ActiveStorySpar, forfeit: boolean): void {

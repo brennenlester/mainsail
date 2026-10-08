@@ -28,6 +28,11 @@ export function pickInteractPrompt(
   return undefined;
 }
 
+/** Touch layouts have no keyboard: "Press E — X" becomes "Tap E — X" (#401). */
+export function adaptInteractLabel(label: string, touch: boolean): string {
+  return touch ? label.replace(/^Press E\b/, "Tap E") : label;
+}
+
 export type OverlayAction = "idle" | "create" | "update" | "destroy";
 
 export function overlayAction(

@@ -1,4 +1,4 @@
-import { getCreatureDefinition } from "../creatures/catalog";
+import { displayName } from "../creatures/displayName";
 import {
   getCreatureInstance,
   getEffectiveMaxHp,
@@ -88,7 +88,6 @@ export function applyConsumable(
     return { ok: false, message: "Creature not found." };
   }
 
-  const def = getCreatureDefinition(creature.definitionId);
   const maxHp = getEffectiveMaxHp(creature);
   if (!canUseConsumableOn(creature, consumable, maxHp)) {
     if (consumable.effectType === "heal") {
@@ -102,7 +101,7 @@ export function applyConsumable(
     }
     return {
       ok: false,
-      message: `${def.name} is already at max level ${MAX_LEVEL}.`,
+      message: `${displayName(creature)} is already at max level ${MAX_LEVEL}.`,
     };
   }
 
@@ -121,7 +120,7 @@ export function applyConsumable(
     refreshPartyStatusLine();
     return {
       ok: true,
-      message: `${def.name} reached Lv.${creature.level}.`,
+      message: `${displayName(creature)} reached Lv.${creature.level}.`,
     };
   }
 
@@ -134,7 +133,7 @@ export function applyConsumable(
     refreshPartyStatusLine();
     return {
       ok: true,
-      message: `${def.name} recovered ${gained} HP (${creature.currentHp}/${maxHp}).`,
+      message: `${displayName(creature)} recovered ${gained} HP (${creature.currentHp}/${maxHp}).`,
     };
   }
 
@@ -142,7 +141,7 @@ export function applyConsumable(
   refreshPartyStatusLine();
   return {
     ok: true,
-    message: `${def.name} was revived (${creature.currentHp}/${maxHp} HP).`,
+    message: `${displayName(creature)} was revived (${creature.currentHp}/${maxHp} HP).`,
   };
 }
 
@@ -161,7 +160,6 @@ export function getEligibleCreaturesForConsumable(itemId: string): {
   }
 
   return playerParty.creatures.map((creature) => {
-    const def = getCreatureDefinition(creature.definitionId);
     const maxHp = getEffectiveMaxHp(creature);
     const eligible = canUseConsumableOn(creature, consumable, maxHp);
     let reason: string | undefined;
@@ -181,7 +179,7 @@ export function getEligibleCreaturesForConsumable(itemId: string): {
     }
     return {
       instanceId: creature.instanceId,
-      name: def.name,
+      name: displayName(creature),
       level: creature.level,
       currentHp: creature.currentHp,
       maxHp,
