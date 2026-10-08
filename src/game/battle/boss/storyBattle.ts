@@ -141,6 +141,26 @@ export class StoryBattle {
       .filter((v): v is number => v !== undefined);
   }
 
+  /**
+   * Boss bar view of one form's slice of the shared HP pool (#401): Mire
+   * form reads max..threshold as its own full bar, Cinder form threshold..0,
+   * so the transform reads as "a fresh bar" instead of a 207 -> 176 jump.
+   * Same thresholds as `checkTransform`; null for the rival.
+   */
+  formHp(formIndex = this.stage): { current: number; max: number } | null {
+    const forms = this.def.boss?.forms;
+    if (!forms) {
+      return null;
+    }
+    const i = Math.max(0, Math.min(formIndex, forms.length - 1));
+    const at = (share: number | undefined): number =>
+      share === undefined ? 0 : Math.round(this.foe.maxHp * share);
+    const top = i === 0 ? this.foe.maxHp : at(forms[i - 1]!.transformAt);
+    const bottom = at(forms[i]!.transformAt);
+    const max = Math.max(1, top - bottom);
+    return { current: Math.max(0, Math.min(max, this.foe.currentHp - bottom)), max };
+  }
+
   /** Rival: creatures still to come after the current one. */
   get remainingFoes(): number {
     return this.isBoss ? 0 : this.roster.length - 1 - this.stage;

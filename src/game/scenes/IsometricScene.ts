@@ -101,6 +101,7 @@ import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
   getActiveQuestId,
+  questProgress,
   recordQuestEvent,
 } from "../story/questProgress";
 import { QUEST_ORDER } from "../story/quests";
@@ -173,6 +174,7 @@ import {
   getZoneProps,
   isGatePropOpen,
   resolvePropTextureKey,
+  type PropKind,
 } from "../world/zoneProps";
 import { findNpcNearPlayer, getZoneNpcs, nearestNpcDistance } from "../world/npcs";
 import {
@@ -503,6 +505,15 @@ export class IsometricScene extends Phaser.Scene {
       OPEN_PORTABLE_SHRINE_EVENT,
       this.onPortableShrineOpen,
     );
+    // Reloaded mid-finale (#401): the quest completes when the shrine scene
+    // starts but the card is claimed when it closes — show it once now.
+    if (
+      questProgress["shrine-finale"] === "complete" &&
+      !worldState.storyFinaleCardShown &&
+      !isVisitorMode()
+    ) {
+      this.time.delayedCall(700, this.onFinaleComplete);
+    }
   }
 
   shutdown(): void {
@@ -1423,6 +1434,25 @@ export class IsometricScene extends Phaser.Scene {
       this.worldOrigin.x,
       this.worldOrigin.y,
     );
+  }
+
+  /**
+   * Where a prop of this zone sits on the stage, in CSS px, plus CSS px per
+   * world px — so overlay cutscenes (the finale hatch, #401) stage on the
+   * real altar instead of fixed design-square coordinates. Null if absent.
+   */
+  propStagePoint(kind: PropKind): { x: number; y: number; scale: number } | null {
+    const prop = getZoneProps(this.currentZoneId).find((p) => p.kind === kind);
+    if (!prop) {
+      return null;
+    }
+    const cam = this.cameras.main;
+    const world = this.toScreen(prop.x, prop.y);
+    return {
+      x: ((world.x - cam.worldView.x) * cam.zoom + cam.x) / RENDER_DPR,
+      y: ((world.y - cam.worldView.y) * cam.zoom + cam.y) / RENDER_DPR,
+      scale: cam.zoom / RENDER_DPR,
+    };
   }
 
   private onResize(): void {

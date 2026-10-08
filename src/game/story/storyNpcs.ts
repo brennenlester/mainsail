@@ -35,6 +35,8 @@ export type StoryConversation = {
   cues?: (StoryCue | undefined)[];
   /** Game event emitted when the dialogue closes (scripted scene end). */
   endEvent?: string;
+  /** Per-line narrator flag: shown without the NPC's name (#401). */
+  narration?: boolean[];
 };
 
 const RIVAL: Omit<NpcDefinition, "x" | "y"> = {
@@ -117,18 +119,33 @@ export function isStoryNpcId(npcId: string): boolean {
   return npcId === RIVAL_NPC_ID || npcId === BOSS_NPC_ID;
 }
 
+/** A spoken line, or a narrator line (no speaker label, #401). */
+type Line = string | { text: string; narration: true };
+
+const narrate = (text: string): Line => ({ text, narration: true });
+
 function talk(
-  lines: string[],
+  lines: Line[],
   prompt: StoryConversationPrompt = { kind: "advance" },
   cues?: (StoryCue | undefined)[],
 ): StoryConversation {
-  return cues ? { lines, prompt, cues } : { lines, prompt };
+  const conversation: StoryConversation = {
+    lines: lines.map((line) => (typeof line === "string" ? line : line.text)),
+    prompt,
+  };
+  if (cues) {
+    conversation.cues = cues;
+  }
+  if (lines.some((line) => typeof line !== "string")) {
+    conversation.narration = lines.map((line) => typeof line !== "string");
+  }
+  return conversation;
 }
 
 /** Kind note when the Hearth Ward is on for the next attempt (never a shame label). */
-function wardLine(id: StorySparId): string[] {
+function wardLine(id: StorySparId): Line[] {
   return getHearthWard(id) < 1
-    ? ["The shrine's warmth steadies you. (Hearth Ward: the next fight is a little gentler.)"]
+    ? [narrate("The shrine's warmth steadies you. (Hearth Ward: the next fight is a little gentler.)")]
     : [];
 }
 
@@ -212,7 +229,7 @@ function shrineFinale(): StoryConversation {
   recordQuestEvent({ type: "story_finale" });
   return {
     ...talk(
-      SHRINE_FINALE.map((line) => line.text),
+      SHRINE_FINALE.map((line) => (line.narration ? narrate(line.text) : line.text)),
       { kind: "advance" },
       SHRINE_FINALE.map((line) => line.cue),
     ),
@@ -221,6 +238,7 @@ function shrineFinale(): StoryConversation {
   };
 }
 
+/** The Matriarch never speaks: every line at her is narration (#401). */
 function bossConversation(): StoryConversation {
   const outcome = consumeStorySparOutcome("cinder-matriarch");
   if (outcome?.result === "won") {
@@ -229,7 +247,7 @@ function bossConversation(): StoryConversation {
       "Where she sank, something glows in the cooling ash — a warm ember egg. It hums against your palm.",
       outcome.rewardText ? `Beside it: ${outcome.rewardText}.` : "The fen is quiet.",
       "Wren will want to see this. She said she'd wait at the Moon Shrine.",
-    ]);
+    ].map(narrate));
   }
   if (outcome?.result === "lost") {
     return talk([
@@ -237,20 +255,22 @@ function bossConversation(): StoryConversation {
       outcome.healed
         ? "Wren hauls your party clear and patches everyone up. Watch for the wind-up, Guard the Cinderfall, then try again."
         : "Wren hauls your party clear. Rest them before you try again.",
-    ]);
+    ].map(narrate));
   }
   if (!canBeginStorySpar()) {
     return talk([
-      "The Matriarch's heat rolls over you. Your companions can't stand against her like this — rest them first.",
+      narrate("The Matriarch's heat rolls over you. Your companions can't stand against her like this — rest them first."),
     ]);
   }
   const boss = STORY_SPARS["cinder-matriarch"].boss;
   return talk(
     [
-      "A great toad of ash and peat rises from the fen — the Cinder Matriarch. Her shape will not hold still.",
-      `She fights in ${boss?.forms.length ?? 2} forms in one battle. ${boss?.forms[0]?.telegraph ?? ""}`,
-      "At half strength she splits into Cinder form. Cinderfall comes after she gathers — Guard THAT turn. A parried Cinderfall staggers her.",
-      "She swells to meet every companion you bring. Wren stands at your shoulder.",
+      ...[
+        "A great toad of ash and peat rises from the fen — the Cinder Matriarch. Her shape will not hold still.",
+        `She fights in ${boss?.forms.length ?? 2} forms in one battle. ${boss?.forms[0]?.telegraph ?? ""}`,
+        "At half strength she splits into Cinder form. Cinderfall comes after she gathers — Guard THAT turn. A parried Cinderfall staggers her.",
+        "She swells to meet every companion you bring. Wren stands at your shoulder.",
+      ].map(narrate),
       ...wardLine("cinder-matriarch"),
     ],
     { kind: "challenge", sparId: "cinder-matriarch", label: "Challenge" },
@@ -260,7 +280,8 @@ function bossConversation(): StoryConversation {
 /** Conversation for Wren / the boss; idle-only for visitors. */
 export function storyNpcConversation(npc: NpcDefinition): StoryConversation {
   if (isVisitorMode()) {
-    return talk([npc.idleLines[0] ?? "..."]);
+    // Both idles describe the character ("Wren is stretching..."), not speech.
+    return talk([narrate(npc.idleLines[0] ?? "...")]);
   }
   if (npc.id === RIVAL_NPC_ID) {
     return rivalConversation();
