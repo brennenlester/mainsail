@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { isTileWalkable } from "./collision";
 import {
+  archipelagoCameraZoom,
+  SAIL_MIN_VIEW_COLS,
+  SAIL_SHORT_FIT_ROWS,
+  SAIL_ZOOM_BOOST,
   ARCHIPELAGO,
   ARCHIPELAGO_ENTRY,
   ARCHIPELAGO_HEIGHT,
@@ -423,5 +427,40 @@ describe("island template caching (#194)", () => {
     expect(narrow).not.toBe(wide);
     expect(narrow.length).toBeLessThan(wide.length);
     expect(listIslandTemplates(30)).toBe(narrow);
+  });
+});
+
+describe("sailing camera zoom (#418)", () => {
+  const sizes = [
+    [1280, 800],
+    [390, 844],
+    [844, 390],
+    [3440, 1440],
+  ] as const;
+
+  it("zooms in while sailing, never below the on-foot fit (no pop-in)", () => {
+    for (const [w, h] of sizes) {
+      const foot = archipelagoCameraZoom(w, h, false);
+      const sail = archipelagoCameraZoom(w, h, true);
+      expect(sail, `${w}x${h}`).toBeGreaterThanOrEqual(foot);
+      // Tall stages: a modest boost only (the short-stage floor is off).
+      if (h > 520) expect(sail, `${w}x${h}`).toBeLessThanOrEqual(foot * SAIL_ZOOM_BOOST + 1e-9);
+    }
+    expect(archipelagoCameraZoom(1280, 800, true)).toBeCloseTo(archipelagoCameraZoom(1280, 800, false) * SAIL_ZOOM_BOOST);
+  });
+
+  it("short stages zoom further, up to the short-fit rows, still wide enough to steer", () => {
+    // 844x390 render px (the canvas beside the landscape dock is ~520 wide).
+    const sail = archipelagoCameraZoom(520, 390, true);
+    const foot = archipelagoCameraZoom(520, 390, false);
+    expect(sail).toBeGreaterThan(foot * SAIL_ZOOM_BOOST);
+    expect(390 / sail / 48).toBeGreaterThanOrEqual(SAIL_SHORT_FIT_ROWS - 1e-9);
+    expect(520 / sail / 48).toBeGreaterThanOrEqual(SAIL_MIN_VIEW_COLS - 1e-9);
+    for (const [w, h] of sizes) {
+      const z = archipelagoCameraZoom(w, h, true);
+      const f = archipelagoCameraZoom(w, h, false);
+      // Beyond the boost, the floor never squeezes below the width cap.
+      expect(z <= f * SAIL_ZOOM_BOOST + 1e-9 || w / z / 48 >= SAIL_MIN_VIEW_COLS - 1e-9, `${w}x${h}`).toBe(true);
+    }
   });
 });

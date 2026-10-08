@@ -119,6 +119,11 @@ export class StoryBattleUi {
     ensureFxTextures(scene);
   }
 
+  /** A rebuilt UI (mid-battle reflow, #418) starts on the live form, not form 0. */
+  syncShownForm(): void {
+    this.shownForm = this.battle.formIndex;
+  }
+
   setFrame(frame: StoryFrame): void {
     this.frame = frame;
   }

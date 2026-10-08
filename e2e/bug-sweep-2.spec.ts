@@ -29,7 +29,13 @@ async function waitForBattleTurn(page: Page): Promise<void> {
         page.evaluate(() => {
           const g = (window as unknown as { __game?: { scene: { getScene(k: string): any } } }).__game;
           const scene = g?.scene.getScene("BattleScene");
-          return Boolean(scene?.sys.isActive() && scene.waitingForPlayer && scene.moveCards?.length);
+          // Hotkeys arm a beat after the battle opens (#418): wait for that too.
+          return Boolean(
+            scene?.sys.isActive() &&
+              scene.waitingForPlayer &&
+              scene.moveCards?.length &&
+              scene.data.get("hotkeysArmed") === true,
+          );
         }),
       { timeout: 25_000 },
     )
@@ -51,6 +57,18 @@ async function startSpar(page: Page): Promise<void> {
 
 const battle = (page: Page, fn: string) =>
   page.evaluate(`(() => { const s = window.__game.scene.getScene("BattleScene"); return (${fn})(s); })()`);
+
+/**
+ * "Can't do that" feedback is throttled to one per 250ms of scene time (#409).
+ * Wait until the throttle is open again (scene time, not wall time: a loaded
+ * machine renders few frames) so the next refused key is never dropped (#418).
+ */
+async function waitFeedbackThrottle(page: Page): Promise<number> {
+  await expect
+    .poll(() => battle(page, `(s) => s.time.now - s.lastBlockedAt >= 300`), { timeout: 5000 })
+    .toBe(true);
+  return (await battle(page, `(s) => s.lastBlockedAt`)) as number;
+}
 
 test("a broken ?card= link shows the clean error screen and never boots the world", async ({ page }) => {
   for (const code of [
@@ -108,7 +126,6 @@ test("the player's creature starts fully on screen on phones", async ({ page }) 
 
 test("a cooling-down move shakes, toasts 'ready in N' and logs, by key and tap", async ({ page }) => {
   await startSpar(page);
-  await page.waitForTimeout(1200);
   const idx = (await battle(page, `(s) => s.moveCards.findIndex((c) => !c.ready)`)) as number;
   expect(idx).toBeGreaterThanOrEqual(0);
   const restX = (await battle(page, `(s) => s.moveCards[${idx}].container.x`)) as number;
@@ -129,30 +146,29 @@ test("a cooling-down move shakes, toasts 'ready in N' and logs, by key and tap",
   expect(await battle(page, `(s) => s.waitingForPlayer`)).toBe(true);
   await expect.poll(() => battle(page, `(s) => s.moveCards[${idx}].container.x`), { timeout: 8000 }).toBe(restX);
 
-  // Tap the dimmed card.
+  // Tap the dimmed card: a fresh feedback (not the key's lingering toast).
   const point = (await battle(
     page,
     `(s) => { const g = window.__game; const cam = s.cameras.main; const r = g.canvas.getBoundingClientRect(); const k = (cam.zoom * r.width) / g.scale.width; const c = s.moveCards[${idx}].container; return { x: r.left + (c.x - cam.worldView.x) * k, y: r.top + (c.y - cam.worldView.y) * k }; }`,
   )) as { x: number; y: number };
-  await page.waitForTimeout(1200);
+  const beforeTap = await waitFeedbackThrottle(page);
   await page.mouse.click(point.x, point.y);
   await expect
-    .poll(() => battle(page, `(s) => Boolean(s.blockedToast && s.blockedToast.active)`))
+    .poll(() => battle(page, `(s) => s.lastBlockedAt > ${beforeTap} && Boolean(s.blockedToast && s.blockedToast.active)`))
     .toBe(true);
   expect(await battle(page, `(s) => s.waitingForPlayer`)).toBe(true);
 
   // Unavailable actions answer too (no Befriend in a plain spar, no bench to switch to).
+  await waitFeedbackThrottle(page);
   await page.keyboard.press("b");
   await expect.poll(() => battle(page, `(s) => s.logText.text`)).toBe("Can't befriend this foe");
-  // The feedback is throttled to ~250ms, so give it room before the next key.
-  await page.waitForTimeout(350);
+  await waitFeedbackThrottle(page);
   await page.keyboard.press("s");
   await expect.poll(() => battle(page, `(s) => s.logText.text`)).toBe("No one to switch to");
 });
 
 test("mashing a cooling card never drifts it sideways and throttles the feedback", async ({ page }) => {
   await startSpar(page);
-  await page.waitForTimeout(1200);
   const idx = (await battle(page, `(s) => s.moveCards.findIndex((c) => !c.ready)`)) as number;
   const restX = (await battle(page, `(s) => s.moveCards[${idx}].container.x`)) as number;
   for (let i = 0; i < 20; i += 1) {

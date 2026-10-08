@@ -59,24 +59,18 @@
   border: 1.5px solid #1a2a22;
 }
 
+/* Fainted: a struck-through hollow ring. A boxed X read as a missing glyph (#418). */
 .hp-pip--fainted {
-  border-radius: 1px;
-  background:
-    linear-gradient(
-      135deg,
-      transparent 42%,
-      #1a2a22 42%,
-      #1a2a22 58%,
-      transparent 58%
-    ),
-    linear-gradient(
-      45deg,
-      transparent 42%,
-      #1a2a22 42%,
-      #1a2a22 58%,
-      transparent 58%
-    );
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    transparent 44%,
+    #1a2a22 44%,
+    #1a2a22 56%,
+    transparent 56%
+  );
   border: 1.5px solid #1a2a22;
+  opacity: 0.55;
 }
 
 .party-hp-reserve,

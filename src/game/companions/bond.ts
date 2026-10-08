@@ -25,16 +25,26 @@ export const BOND_TIER_NAMES: readonly string[] = [
   "Kindred",
 ];
 
-/** Base points per source before personality multipliers. */
+/**
+ * Base points per source before personality multipliers (#418 tuning: a
+ * typical ~20 minute arc ends Close on the lead, Friendly on the rest; see
+ * the "typical arc" test in companions.test.ts and the README table).
+ * Anti-farm: story wins and evolutions are one-shot (story rematches roll
+ * back), abilities pay on first claim only, gifts cost materials + cooldown.
+ */
 export const BOND_GAIN = {
   /** Fighter in a won spar. */
-  battleFighter: 3,
+  battleFighter: 5,
   /** Active bench member in a won spar. */
-  battleBench: 1,
+  battleBench: 2,
   /** Favorite material gift. */
   gift: 8,
-  /** Overworld ability use. */
-  ability: 4,
+  /** Overworld ability use (first claim of a site only). */
+  ability: 6,
+  /** Every active companion, on the first win of a rival / boss beat. */
+  storyWin: 10,
+  /** The companion that evolves (once per evolution). */
+  evolution: 12,
 } as const;
 
 /** Outgoing damage multiplier per tier (small: flavor, not a power spike). */
@@ -158,6 +168,13 @@ export function tickBattleBond(
       "battle",
     );
   });
+}
+
+/** First win of a story beat (rival / boss): every active companion shares it. */
+export function tickStoryWinBond(actives: readonly CreatureInstance[]): void {
+  for (const creature of actives) {
+    addBond(creature, BOND_GAIN.storyWin, "battle");
+  }
 }
 
 /** Drain queued tier-ups (overworld celebrates them on resume/next frame). */

@@ -47,6 +47,8 @@ import {
   type BattleLayout,
   type Rect,
 } from "../battle/vfx/battleLayout";
+import { HotkeyGuard } from "../input/hotkeyGuard";
+import { pulseWhenHotkeysArmed } from "../ui/hotkeyReadyPulse";
 import {
   addKeycap,
   addToast,
@@ -291,7 +293,7 @@ export class BattleScene extends Phaser.Scene {
   private wandererFallbackObjects: Phaser.GameObjects.GameObject[] = [];
   /** Story 2 pre-move hunter tip; cleared after the first move selection. */
   private matchupTeachText: Phaser.GameObjects.Container | null = null;
-  /** Full-stage layout (#404), fixed for the battle; the camera frames `view`. */
+  /** Full-stage layout (#404); re-run on a resize / rotation (#418). The camera frames `view`. */
   private layout!: BattleLayout;
   private stageCss = { w: DESIGN_SIZE, h: DESIGN_SIZE };
   private logFrame?: Rect;
@@ -305,7 +307,11 @@ export class BattleScene extends Phaser.Scene {
   private story: StoryBattle | null = null;
   private titleOverride: string | undefined;
   private blockedToast?: Phaser.GameObjects.Container;
+  /** Movement keys (S / arrows) held as the battle opens never fire hotkeys (#418). */
+  private hotkeys = new HotkeyGuard();
   private lastBlockedAt = -Infinity;
+  /** The stage changed shape mid-battle; reflow at the next idle turn (#418). */
+  private reflowPending = false;
   private storyUi: StoryBattleUi | null = null;
   // ponytail: temporary god-spar kill cheat
   private onGodSparKillCheatKeyDown = (event: KeyboardEvent) => {
@@ -494,6 +500,57 @@ export class BattleScene extends Phaser.Scene {
     ensurePlayerAnims(this);
     this.cameras.main.fadeIn(140, 255, 255, 255);
 
+    this.buildVisuals();
+    this.refreshIntent();
+    if (this.story) {
+      setBattleTheme(this.story.def.theme, this);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.storyUi?.destroy();
+        setBattleTheme(undefined);
+      });
+    }
+    // #336: SPAR_WILD_OPENING_TURNS 0 waits for the player's first strike.
+    const wildOpens = SPAR_WILD_OPENING_TURNS > 0 || this.wildOpens;
+    this.log(
+      this.story
+        ? (this.story.isBoss
+            ? `The ${this.wild.name} rises from the smoking peat — ${this.story.form?.label ?? ""}!`
+            : `Wren sends out ${this.wild.name}! (${this.story.remainingFoes + 1} to beat)`) +
+          (this.story.ward < 1 ? " The shrine's warmth steadies you." : "")
+        : wildOpens
+          ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
+          : `A training spar with ${this.wild.name} begins.`,
+    );
+    this.showHunterMatchupTeachIfNeeded();
+    this.buildActionButtons();
+    this.waitingForPlayer = false;
+    const ready = this.playEntrance();
+    this.time.delayedCall(ready, () => {
+      if (this.battleEnded) {
+        return;
+      }
+      if (wildOpens) {
+        this.time.delayedCall(260, () => this.wildTurn());
+      } else {
+        this.waitingForPlayer = true;
+      }
+    });
+    this.hotkeys = new HotkeyGuard();
+    pulseWhenHotkeysArmed(this, this.hotkeys, () => this.moveCards.map((c) => c.container));
+    this.input.keyboard?.on("keydown", this.onGodSparKillCheatKeyDown);
+    this.input.keyboard?.on("keydown", this.onBattleKey);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.keyboard?.off("keydown", this.onGodSparKillCheatKeyDown);
+      this.input.keyboard?.off("keydown", this.onBattleKey);
+    });
+  }
+
+  /**
+   * Arena, sprites, plates, log sheet and FX from the current layout and
+   * battle state (no log line, buttons or entrance). Shared by `create` and
+   * the mid-battle reflow (#418).
+   */
+  private buildVisuals(): void {
     this.drawArena();
     const L = this.layout;
     const ui = L.ui;
@@ -569,6 +626,7 @@ export class BattleScene extends Phaser.Scene {
     });
     if (this.story) {
       this.storyUi = new StoryBattleUi(this, this.story, this.fx);
+      this.storyUi.syncShownForm();
       this.storyUi.setFrame({
         ui,
         s: L.cs,
@@ -581,11 +639,6 @@ export class BattleScene extends Phaser.Scene {
         arenaW: L.mode === "side" ? L.arenaRegion.w : L.view.w,
       });
       this.storyUi.decorateFoe(this.wildSprite);
-      setBattleTheme(this.story.def.theme, this);
-      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-        this.storyUi?.destroy();
-        setBattleTheme(undefined);
-      });
     }
     this.fx.setHome("wild", L.wildHome.x, L.wildHome.y);
     this.fx.setHome("player", L.playerHome.x, L.playerHome.y);
@@ -596,39 +649,58 @@ export class BattleScene extends Phaser.Scene {
     this.drawSheet();
 
     this.refreshHp();
-    this.refreshIntent();
-    // #336: SPAR_WILD_OPENING_TURNS 0 waits for the player's first strike.
-    const wildOpens = SPAR_WILD_OPENING_TURNS > 0 || this.wildOpens;
-    this.log(
-      this.story
-        ? (this.story.isBoss
-            ? `The ${this.wild.name} rises from the smoking peat — ${this.story.form?.label ?? ""}!`
-            : `Wren sends out ${this.wild.name}! (${this.story.remainingFoes + 1} to beat)`) +
-          (this.story.ward < 1 ? " The shrine's warmth steadies you." : "")
-        : wildOpens
-          ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
-          : `A training spar with ${this.wild.name} begins.`,
-    );
-    this.showHunterMatchupTeachIfNeeded();
+  }
+
+  /** A resize / rotation waits for the next idle turn, then re-runs the layout (#418). */
+  update(): void {
+    if (!this.reflowPending || this.battleEnded || !this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
+      return;
+    }
+    this.reflowPending = false;
+    const stage = layoutStage();
+    if (Math.abs(stage.width - this.stageCss.w) < 1 && Math.abs(stage.height - this.stageCss.h) < 1) {
+      return;
+    }
+    this.reflowLayout();
+  }
+
+  /**
+   * Rebuild every widget for the new stage shape (portrait <-> landscape)
+   * from the live battle state. Only runs while the player is choosing, so
+   * no turn animation or timer holds a widget being replaced.
+   */
+  private reflowLayout(): void {
+    const log = this.logText.text;
+    const teach = this.matchupTeachText !== null;
+    this.befriendTipTimer?.remove();
+    this.befriendTipTimer = undefined;
+    this.storyUi?.destroy();
+    this.tweens.killAll();
+    for (const child of [...this.children.list]) {
+      child.destroy();
+    }
+    this.blockedToast = undefined;
+    this.matchupTeachText = null;
+    this.befriendTip = [];
+    this.intentObjects = [];
+    this.actionButtons = [];
+    this.moveCards = [];
+    this.switchButton = undefined;
+    this.befriendButton = undefined;
+    this.switchMenuObjects = [];
+    this.wandererFallbackObjects = [];
+    this.switchRowActions = new Map();
+    this.fitStage();
+    this.buildVisuals();
+    // Same telegraphed move: re-draw it, never re-roll it.
+    this.renderIntent();
+    this.logText.setText(log);
+    if (teach) {
+      this.showHunterMatchupTeachIfNeeded();
+    }
     this.buildActionButtons();
-    this.waitingForPlayer = false;
-    const ready = this.playEntrance();
-    this.time.delayedCall(ready, () => {
-      if (this.battleEnded) {
-        return;
-      }
-      if (wildOpens) {
-        this.time.delayedCall(260, () => this.wildTurn());
-      } else {
-        this.waitingForPlayer = true;
-      }
-    });
-    this.input.keyboard?.on("keydown", this.onGodSparKillCheatKeyDown);
-    this.input.keyboard?.on("keydown", this.onBattleKey);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.input.keyboard?.off("keydown", this.onGodSparKillCheatKeyDown);
-      this.input.keyboard?.off("keydown", this.onBattleKey);
-    });
+    this.fx.startIdle("wild");
+    this.fx.startIdle("player");
   }
 
   // --- Full-stage framing (#404) ---------------------------------------------
@@ -639,13 +711,29 @@ export class BattleScene extends Phaser.Scene {
    * to the stage's real aspect so nothing is letterboxed.
    */
   private frameStage(): void {
+    this.reflowPending = false;
+    this.fitStage();
+    // Until the next idle turn the old view is re-fitted (navy bars), then
+    // `update` reflows every widget for the new shape (#418).
+    const onResize = (): void => {
+      this.frameCamera();
+      this.reflowPending = true;
+    };
+    this.scale.on("resize", onResize);
+    window.addEventListener("resize", onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", onResize);
+      window.removeEventListener("resize", onResize);
+    });
+  }
+
+  /** Size the game to the stage, compute the layout, frame it, bar the outside. */
+  private fitStage(): void {
     const stage = layoutStage();
     resizeGameForDisplay(this, stage.width, stage.height);
     this.stageCss = { w: this.scale.width / RENDER_DPR, h: this.scale.height / RENDER_DPR };
     this.layout = this.computeLayout(this.player.moves.length);
     this.frameCamera();
-    // ponytail: layout is fixed per battle; a mid-battle resize / rotation
-    // re-fits the same view (navy bars) instead of reflowing every widget.
     const v = this.layout.view;
     const reach = 8000;
     for (const [x, y, w, h] of [
@@ -656,9 +744,6 @@ export class BattleScene extends Phaser.Scene {
     ] as const) {
       this.add.rectangle(x, y, w, h, OVERLAY_LETTERBOX_COLOR, 1).setOrigin(0).setDepth(100_000);
     }
-    const onResize = (): void => this.frameCamera();
-    this.scale.on("resize", onResize);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", onResize));
   }
 
   private computeLayout(moveCount: number): BattleLayout {
@@ -737,7 +822,8 @@ export class BattleScene extends Phaser.Scene {
       event.altKey ||
       this.battleEnded ||
       // Phaser hands keys over a frame late; judge by where the key was typed.
-      isDomKeyboardTarget(event.target as Element | null)
+      isDomKeyboardTarget(event.target as Element | null) ||
+      !this.hotkeys.allows(event)
     ) {
       return;
     }

@@ -74,6 +74,8 @@ import { markCreatureDiscovered } from "../world/worldState";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { unlockCodexHud } from "../ui/hudChrome";
 import { isDomKeyboardTarget } from "../ui/canvasFocus";
+import { HotkeyGuard } from "../input/hotkeyGuard";
+import { pulseWhenHotkeysArmed } from "../ui/hotkeyReadyPulse";
 import { openingPersonalityLine } from "../opening/openingScript";
 import {
   addChip,
@@ -404,6 +406,9 @@ export class EncounterScene extends Phaser.Scene {
     if (!keyboard) {
       return;
     }
+    // Walking keys (S = Spar) must not commit a verb as the card opens (#418).
+    const guard = new HotkeyGuard();
+    pulseWhenHotkeysArmed(this, guard, () => this.buttons.map((b) => b.button.container));
     const onKey = (event: KeyboardEvent): void => {
       if (this.actionTaken || event.repeat || isDomKeyboardTarget(event.target as Element | null)) {
         return;
@@ -412,6 +417,9 @@ export class EncounterScene extends Phaser.Scene {
       const index = this.buttons.findIndex(
         (b) => VERB_KEYS[b.verb].letter === key || VERB_KEYS[b.verb].digit === key,
       );
+      if ((index >= 0 || event.key === "Enter" || event.key === " ") && !guard.allows(event)) {
+        return;
+      }
       if (index >= 0) {
         this.setFocus(index, true);
         this.buttons[index]!.button.activate();

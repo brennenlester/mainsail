@@ -22,7 +22,7 @@ import { QUEST_ORDER } from "../story/quests";
 import type { QuestId, QuestStatus } from "../story/questTypes";
 import { STORY_SPARS, storySparRoster } from "../story/storySpars";
 import { getSparWinsForSpecies, setSparWinsBySpecies } from "../world/sparWins";
-import { drainBondTierUps } from "../companions/bond";
+import { BOND_GAIN, drainBondTierUps } from "../companions/bond";
 import {
   isHostSaveLocked,
   loadHostSave,
@@ -438,6 +438,21 @@ describe("no farming through side effects or reloads (#369 review)", () => {
     expect(getItemCount("brook-tonic")).toBe(0);
     expect(drainBondTierUps()).toEqual([]);
     expect({ ...questProgress }).toEqual(progressBefore);
+  });
+
+  it("grants the story-win bond on the first win only, never on a loss or rematch (#418)", () => {
+    const bondOf = () => playerParty.creatures.map((c) => c.bond ?? 0);
+    beginStorySpar("rival-wren");
+    resolveStorySpar(false);
+    expect(bondOf()).toEqual([0, 0]);
+    beginStorySpar("rival-wren");
+    resolveStorySpar(true);
+    const afterFirst = bondOf();
+    expect(afterFirst.slice(0, 2)).toEqual([BOND_GAIN.storyWin, BOND_GAIN.storyWin]);
+    beginStorySpar("rival-wren");
+    resolveStorySpar(true);
+    expect(bondOf()).toEqual(afterFirst);
+    drainBondTierUps();
   });
 
   it("rolls back the same on a first-beat loss", () => {

@@ -8,6 +8,7 @@ import {
 } from "../world/worldState";
 import { isCodexComplete } from "../progression/achievements";
 import { isVisitorMode } from "../world/worldSession";
+import type { ZoneId } from "../world/zoneTypes";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { refreshQuestHud } from "../ui/questHud";
 import { playerParty } from "../creatures/party";
@@ -206,6 +207,19 @@ export function restoreQuestProgress(
 
 export function getActiveQuestId(): QuestId | null {
   return QUEST_ORDER.find((id) => questProgress[id] === "active") ?? null;
+}
+
+/** Beats played out at the Moon Shrine altar / with Wren in the shrine. */
+const SHRINE_STORY_BEATS: readonly QuestId[] = ["shrine-craft", "first-evolution", "shrine-finale"];
+
+/**
+ * Story beats keep the stage clear (#418): no wild encounters in the Moon
+ * Shrine while a shrine beat (first craft, first evolution, the finale) is
+ * active. Every other zone keeps its encounters.
+ */
+export function isStoryBeatSuppressingWild(zoneId: ZoneId): boolean {
+  const active = getActiveQuestId();
+  return zoneId === "shrine" && active !== null && SHRINE_STORY_BEATS.includes(active);
 }
 
 export function isMainStoryComplete(): boolean {

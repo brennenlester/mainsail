@@ -5,7 +5,16 @@ import { setVisitorMode } from "../world/worldSession";
 import { getWildEffectiveLevel, setWildLevelOverride } from "../progression/wildLevel";
 import { openCardPreview, playNowUrl, showInvalidCardScreen } from "./cardPreview";
 import { ensureChallengerParty, ghostAverageLevel, LOANER_PARTY } from "./challenge";
-import { RARE_VARIANT_CHANCE, rareHueShift, rareVariantTint, rollRareVariant } from "./rareVariant";
+import {
+  RARE_VARIANT_CHANCE,
+  rareHueShift,
+  rareVariantGlow,
+  rareVariantAccentCss,
+  rareVariantGlowCss,
+  rareLookSpecies,
+  rareVariantTint,
+  rollRareVariant,
+} from "./rareVariant";
 import { bondLabel } from "./companionCard";
 import { snapshotFromParty, syncShareButton, setShareDisabled } from "./shareActions";
 import type { ShareSnapshot } from "./shareCode";
@@ -44,6 +53,23 @@ describe("rare variant", () => {
       expect(rareVariantTint(id)).toBeGreaterThan(0);
       expect(rareVariantTint(id)).toBeLessThanOrEqual(0xffffff);
     }
+  });
+
+  it("Cinderling keeps its ember-orange art with an ember glow on every surface (#418)", () => {
+    // Share card (hue-rotate), Phaser tint (hatch / finale / follower) and the
+    // party card all read this one look: no shift, no tint, warm glow.
+    expect(rareHueShift("cinder-toad")).toBe(0);
+    expect(rareVariantTint("cinder-toad")).toBe(0xffffff);
+    expect(rareVariantGlow("cinder-toad")).toBe(0xff8a3a);
+    expect(rareVariantGlowCss("cinder-toad", 0.5)).toBe("rgba(255, 138, 58, 0.5)");
+    expect(rareVariantAccentCss("cinder-toad")).toBe("#ff8a3a");
+    expect(rareVariantAccentCss("mossling")).toBe("#d4b0ff");
+  });
+
+  it("an evolved rare keeps its species' look", () => {
+    expect(rareLookSpecies("bramblewarden")).toBe("mossling");
+    expect(rareHueShift("bramblewarden")).toBe(rareHueShift("mossling"));
+    expect(rareVariantTint("hearthflame")).toBe(rareVariantTint("ember-wisp"));
   });
 });
 

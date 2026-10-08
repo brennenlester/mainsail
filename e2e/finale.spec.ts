@@ -184,3 +184,36 @@ test("a hatch cutscene that fails to build never strands the dialogue", async ({
   // The dialogue still advances and closes into the finale card.
   await pressUntil(page, "Enter", () => active(page, "FinaleScene"));
 });
+
+test("no wild encounter can start in the Moon Shrine on the finale approach (#418)", async ({ page }) => {
+  await seed(page, "shrine-finale");
+  await page.evaluate(() => {
+    const iso = (window as Win).__game!.scene.getScene("IsometricScene") as {
+      playerGridX: number;
+      playerGridY: number;
+      loadZone(zone: string): void;
+      syncPlayerToGrid(): void;
+    };
+    iso.playerGridX = 3;
+    iso.playerGridY = 7;
+    iso.loadZone("shrine");
+    iso.syncPlayerToGrid();
+  });
+  await page.waitForTimeout(800);
+  // A long walk in the shrine with the step counter primed to roll every step.
+  const rolled = await page.evaluate(() => {
+    const iso = (window as Win).__game!.scene.getScene("IsometricScene") as {
+      inEncounter: boolean;
+      travelSinceEncounter: number;
+      tryRandomEncounter(step: number): void;
+    };
+    for (let i = 0; i < 200 && !iso.inEncounter; i += 1) {
+      iso.travelSinceEncounter = 999;
+      iso.tryRandomEncounter(5);
+    }
+    return iso.inEncounter;
+  });
+  expect(rolled).toBe(false);
+  await page.waitForTimeout(400);
+  expect(await active(page, "EncounterScene")).toBe(false);
+});

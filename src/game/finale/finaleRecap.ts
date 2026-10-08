@@ -17,6 +17,8 @@ export const FINALE_RECAP_LIMIT = SHARE_PARTY_LIMIT;
 export type FinaleCompanion = {
   instanceId: string;
   definitionId: string;
+  /** Base species (rare look survives evolution). */
+  speciesId: string;
   /** Nickname when set, else species name. */
   name: string;
   speciesName: string;
@@ -56,6 +58,7 @@ function toCompanion(c: CreatureInstance): FinaleCompanion | null {
   return {
     instanceId: c.instanceId,
     definitionId: c.definitionId,
+    speciesId: c.speciesId ?? c.definitionId,
     name: c.nickname?.trim() || speciesName,
     speciesName,
     level: c.level,

@@ -1,5 +1,5 @@
 import { getCreatureDefinition } from "../creatures/catalog";
-import { rareHueShift } from "./rareVariant";
+import { rareHueShift, rareVariantAccentCss, rareVariantGlowCss } from "./rareVariant";
 import {
   formatShareDay,
   SHARE_BOND_MAX,
@@ -24,7 +24,6 @@ const CREAM = "#fff8ec";
 const CREAM_MUTED = "#e8d8c0";
 const GOLD = "#f0c878";
 const TEAL = "#6eb8a8";
-const RARE = "#d4b0ff";
 const SERIF = 'Fraunces, Georgia, "Times New Roman", serif';
 const SANS = '"Source Sans 3", "Helvetica Neue", Arial, sans-serif';
 
@@ -99,6 +98,9 @@ function rareSprite(crop: SpriteCrop, creatureId: string): CanvasImageSource {
     return crop.image;
   }
   const shift = rareHueShift(creatureId);
+  if (shift === 0) {
+    return crop.image;
+  }
   const filter = `hue-rotate(${shift}deg) saturate(1.25)`;
   ctx.filter = filter;
   if (ctx.filter === filter) {
@@ -240,7 +242,7 @@ function drawTags(
   align: "left" | "center",
 ): void {
   const tags: { label: string; color: string }[] = [];
-  if (creature.rare) tags.push({ label: "✦ Rare", color: RARE });
+  if (creature.rare) tags.push({ label: "✦ Rare", color: rareVariantAccentCss(creature.id) });
   if (creature.evolved) tags.push({ label: "Evolved", color: GOLD });
   if (creature.presence) tags.push({ label: "Presence", color: TEAL });
   if (tags.length === 0) return;
@@ -277,7 +279,7 @@ function drawCreatureArt(
 ): void {
   // Moonlit glow pool behind the companion.
   const glow = ctx.createRadialGradient(cx, baseY - box * 0.45, 0, cx, baseY - box * 0.45, box * 0.7);
-  glow.addColorStop(0, creature.rare ? "rgba(212, 176, 255, 0.35)" : "rgba(240, 200, 120, 0.22)");
+  glow.addColorStop(0, creature.rare ? rareVariantGlowCss(creature.id, 0.35) : "rgba(240, 200, 120, 0.22)");
   glow.addColorStop(1, "rgba(240, 200, 120, 0)");
   ctx.fillStyle = glow;
   ctx.fillRect(cx - box, baseY - box * 1.2, box * 2, box * 1.4);
@@ -306,7 +308,7 @@ function drawCreatureArt(
     for (let i = 0; i < 5; i += 1) {
       const sx = cx + (rng() - 0.5) * box * 0.95;
       const sy = baseY - h * (0.2 + rng() * 0.85);
-      drawSparkle(ctx, sx, sy, box * (0.03 + rng() * 0.035), i % 2 ? CREAM : RARE);
+      drawSparkle(ctx, sx, sy, box * (0.03 + rng() * 0.035), i % 2 ? CREAM : rareVariantAccentCss(creature.id));
     }
   } else {
     ctx.drawImage(crop.image, crop.sx, crop.sy, crop.sw, crop.sh, cx - w / 2, baseY - h, w, h);
@@ -357,14 +359,22 @@ function drawBackground(ctx: CanvasRenderingContext2D, rng: () => number): void 
   ctx.stroke();
 }
 
-function drawPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rare: boolean): void {
+function drawPanel(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  rare: boolean,
+  creatureId = "",
+): void {
   roundRect(ctx, x, y, w, h, 22);
   const fill = ctx.createLinearGradient(0, y, 0, y + h);
   fill.addColorStop(0, "rgba(255, 248, 236, 0.09)");
   fill.addColorStop(1, "rgba(255, 248, 236, 0.03)");
   ctx.fillStyle = fill;
   ctx.fill();
-  ctx.strokeStyle = rare ? "rgba(212, 176, 255, 0.7)" : "rgba(240, 200, 120, 0.28)";
+  ctx.strokeStyle = rare ? rareVariantGlowCss(creatureId, 0.7) : "rgba(240, 200, 120, 0.28)";
   ctx.lineWidth = rare ? 2.5 : 1.5;
   ctx.stroke();
 }
@@ -387,7 +397,7 @@ function drawHero(
   // keeps the text block centred.
   const grow = h / HERO_H;
   const y = top + (h - HERO_H) / 2;
-  drawPanel(ctx, x, top, w, h, creature.rare);
+  drawPanel(ctx, x, top, w, h, creature.rare, creature.id);
   drawCreatureArt(ctx, creature, lookup, x + 240 + (grow - 1) * 60, top + h - 36, 320 * grow, rng);
 
   const tx = x + 500;
@@ -434,7 +444,7 @@ function drawSlot(
   h: number,
   rng: () => number,
 ): void {
-  drawPanel(ctx, x, y, w, h, creature.rare);
+  drawPanel(ctx, x, y, w, h, creature.rare, creature.id);
   const cx = x + w / 2;
   drawCreatureArt(ctx, creature, lookup, cx, y + 150, 132, rng);
   ctx.textAlign = "center";

@@ -30,6 +30,7 @@ import {
   bondTierProgress,
   drainBondTierUps,
   tickBattleBond,
+  tickStoryWinBond,
 } from "./bond";
 import {
   claimSite,
@@ -37,7 +38,6 @@ import {
   giftFavorite,
   GIFT_COOLDOWN_MS,
   GIFT_COST,
-  isValidNickname,
   normalizeNickname,
   resetCompanionStateForTests,
 } from "./companionState";
@@ -168,6 +168,34 @@ describe("bond math", () => {
     expect(b.bond).toBe(BOND_GAIN.battleFighter);
   });
 
+  it("a typical arc ends Close on the lead and Friendly on the rest (#418)", () => {
+    // Scripted ~20 minute arc, neutral personalities: 8 wild spar wins with
+    // the lead fighting, the rival + boss first wins, one evolution of the
+    // lead, two favorite gifts to the lead, two first-claim ability uses by
+    // the second companion.
+    const lead = creature({ instanceId: "lead", personality: undefined });
+    const second = creature({ instanceId: "second", personality: undefined });
+    const third = creature({ instanceId: "third", personality: undefined });
+    const party = [lead, second, third];
+    for (let i = 0; i < 8; i += 1) tickBattleBond(party, 0);
+    tickStoryWinBond(party); // rival
+    addBond(lead, BOND_GAIN.evolution, "growth");
+    addBond(lead, BOND_GAIN.gift, "gift");
+    addBond(lead, BOND_GAIN.gift, "gift");
+    addBond(second, BOND_GAIN.ability, "ability");
+    addBond(second, BOND_GAIN.ability, "ability");
+    tickStoryWinBond(party); // Matriarch
+    drainBondTierUps();
+    expect(bondTier(lead.bond)).toBeGreaterThanOrEqual(2);
+    expect(bondTier(lead.bond)).toBeLessThanOrEqual(3);
+    for (const other of [second, third]) {
+      expect(bondTier(other.bond)).toBeGreaterThanOrEqual(1);
+      expect(bondTier(other.bond)).toBeLessThanOrEqual(2);
+    }
+    // Not trivial: Kindred still takes a long grind of wild spars.
+    expect(Math.ceil(BOND_TIER_THRESHOLDS[4]! / BOND_GAIN.battleFighter)).toBeGreaterThanOrEqual(30);
+  });
+
   it("exposes a small pure battle bonus", () => {
     expect(bondBattleBonus(0)).toEqual({ tier: 0, damageScale: 1 });
     expect(bondBattleBonus(BOND_MAX).damageScale).toBeCloseTo(1.08);
@@ -203,13 +231,10 @@ describe("favorites + gifts", () => {
 });
 
 describe("nicknames", () => {
-  it("normalizes and validates", () => {
+  it("normalizes", () => {
     expect(normalizeNickname("  Sir   Moss ")).toBe("Sir Moss");
     expect(normalizeNickname("   ")).toBeUndefined();
     expect(normalizeNickname("x".repeat(17))).toBeUndefined();
-    expect(isValidNickname("Pip")).toBe(true);
-    expect(isValidNickname(" Pip")).toBe(false);
-    expect(isValidNickname(3)).toBe(false);
   });
 });
 

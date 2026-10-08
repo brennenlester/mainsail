@@ -9,7 +9,7 @@ import { effectsEnabled, prefersReducedMotion } from "../render/fx/fxSettings";
 import { ensureFxTextures, FX_TEX } from "../render/fx/fxTextures";
 import { bindOverlayPixelRatio, DESIGN_SIZE } from "../render/pixelRatio";
 import { runCutsceneCreate } from "../ui/hudLock";
-import { rareVariantTint } from "../share/rareVariant";
+import { rareVariantGlow, rareVariantTint } from "../share/rareVariant";
 import {
   isCompanionShareAvailable,
   openCompanionShare,
@@ -201,14 +201,20 @@ export class FinaleScene extends Phaser.Scene {
   }
 
   private cell(x: number, y: number, c: FinaleCompanion): Phaser.GameObjects.Container {
-    const bg = this.add.rectangle(0, 0, CELL_W, CELL_H, NAVY, 0.92).setStrokeStyle(2, c.rare ? 0xd4b0ff : GOLD, 0.7);
-    const glow = this.add.image(0, -28, FX_TEX.halo).setTint(GOLD).setAlpha(0.22).setScale(1.1).setBlendMode(Phaser.BlendModes.ADD);
+    const rareGlow = c.rare ? rareVariantGlow(c.speciesId) : null;
+    const bg = this.add.rectangle(0, 0, CELL_W, CELL_H, NAVY, 0.92).setStrokeStyle(2, rareGlow ?? GOLD, 0.7);
+    const glow = this.add
+      .image(0, -28, FX_TEX.halo)
+      .setTint(rareGlow ?? GOLD)
+      .setAlpha(rareGlow ? 0.45 : 0.22)
+      .setScale(1.1)
+      .setBlendMode(Phaser.BlendModes.ADD);
     const spriteKey = getCreatureDefinition(c.definitionId).spriteKey;
     const [key, frame] = resolveCreaturePoseTexture(this, spriteKey, "encounter");
     const sprite = this.add.image(0, -28, key, frame);
     const fit = Math.min(88 / Math.max(1, sprite.width), 88 / Math.max(1, sprite.height));
     sprite.setScale(fit);
-    if (c.rare) sprite.setTint(rareVariantTint(c.definitionId));
+    if (c.rare) sprite.setTint(rareVariantTint(c.speciesId));
     const name = this.add
       .text(0, 26, c.name, { fontFamily: SANS, fontSize: "15px", fontStyle: "bold", color: "#fff8ec" })
       .setOrigin(0.5);

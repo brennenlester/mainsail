@@ -8,7 +8,7 @@ import {
 } from "../creatures/party";
 import { getCreatureDefinition } from "../creatures/catalog";
 import type { CreatureInstance } from "../creatures/types";
-import { drainBondTierUps } from "../companions/bond";
+import { drainBondTierUps, tickStoryWinBond } from "../companions/bond";
 import {
   addItem,
   addMaterial,
@@ -360,6 +360,10 @@ export function resolveStorySpar(won: boolean): StorySparResult | null {
   if (!firstWin) {
     // Rematch: bragging rights only — no XP / Dust farm.
     rollBackRewards(spar.before);
+  }
+  if (firstWin) {
+    // Kept only here: losses / rematches roll the snapshot back (#418).
+    tickStoryWinBond(getActiveCreatures());
   }
   const companion = firstWin ? grantCoverageGift(spar.id) : null;
   const items = firstWin ? grantFirstWinReward(spar.id) : null;
