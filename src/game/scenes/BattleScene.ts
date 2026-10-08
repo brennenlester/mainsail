@@ -411,7 +411,8 @@ export class BattleScene extends Phaser.Scene {
     this.fainted = new Set();
 
     const wildDef = getCreatureDefinition(data.wildCreatureId);
-    if (!wildDef.excludeFromCodex) {
+    // Trial foes reach the codex after the run settles (trialRun), never mid-trial.
+    if (!wildDef.excludeFromCodex && !data.trial) {
       markCreatureDiscovered(data.wildCreatureId);
     }
     const wildLevel = getWildEffectiveLevel(data.wildCreatureId);

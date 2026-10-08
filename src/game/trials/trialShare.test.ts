@@ -25,8 +25,8 @@ describe("trial share links (#420)", () => {
     const url = new URL(buildTrialShareUrl(DAY, BRAG, "https://example.test/play/?card=x&foo=1#h"));
     expect(url.pathname).toBe("/play/");
     expect([...url.searchParams.keys()]).toEqual(["trial", "by"]);
-    expect(readTrialLink(url.search)).toEqual({ status: "ok", day: DAY, brag: BRAG });
-    expect(readTrialLink(new URL(buildTrialShareUrl(DAY, null, "https://example.test/")).search)).toEqual({
+    expect(readTrialLink(url.search, DAY)).toEqual({ status: "ok", day: DAY, brag: BRAG });
+    expect(readTrialLink(new URL(buildTrialShareUrl(DAY, null, "https://example.test/")).search, DAY)).toEqual({
       status: "ok",
       day: DAY,
       brag: null,
@@ -42,7 +42,7 @@ describe("trial share links (#420)", () => {
     expect(encoded.rounds).toBe(5);
     expect(encoded.party).toHaveLength(7);
     expect(encoded.party).not.toContain("not-a-creature");
-    const hostile = decodeTrialBrag(code({ v: 1, n: "<b>‮evil\u0000name</b>very long indeed", s: 1, r: 1, t: 0, p: [] }))!;
+    const hostile = decodeTrialBrag(code({ v: 1, n: "<b>‮evil\u0000name</b>very long indeed", s: 1200, r: 1, t: 0, p: [] }))!;
     expect(hostile.name).not.toMatch(/[‮\u0000]/);
     expect(Array.from(hostile.name).length).toBeLessThanOrEqual(16);
   });
@@ -51,14 +51,30 @@ describe("trial share links (#420)", () => {
     expect(readTrialLink("")).toEqual({ status: "absent" });
     expect(readTrialLink("?card=abc")).toEqual({ status: "absent" });
     for (const bad of ["?trial=", "?trial=tomorrow", "?trial=2026-02-31", "?trial=1999-01-01", "?trial=2026-10-08x"]) {
-      expect(readTrialLink(bad).status, bad).toBe("invalid");
+      expect(readTrialLink(bad, DAY).status, bad).toBe("invalid");
     }
-    expect(readTrialLink("?trial=2026-10-08&by=%%%")).toEqual({ status: "ok", day: DAY, brag: null });
-    expect(readTrialLink("?trial=2026-10-08&by=" + "A".repeat(TRIAL_BRAG_MAX_LENGTH + 1))).toMatchObject({ brag: null });
+    expect(readTrialLink("?trial=2026-10-08&by=%%%", DAY)).toEqual({ status: "ok", day: DAY, brag: null });
+    expect(readTrialLink("?trial=2026-10-08&by=" + "A".repeat(TRIAL_BRAG_MAX_LENGTH + 1), DAY)).toMatchObject({ brag: null });
+  });
+
+  it("opens past days up to a year back, never a future day", () => {
+    expect(readTrialLink("?trial=2026-10-08", DAY).status).toBe("ok");
+    expect(readTrialLink("?trial=2026-10-09", DAY).status).toBe("invalid");
+    expect(readTrialLink("?trial=2025-10-07", DAY).status).toBe("ok");
+    expect(readTrialLink("?trial=2025-10-06", DAY).status).toBe("invalid");
+  });
+
+  it("drops a brag whose title or rounds don't match its score", () => {
+    const ok = { v: 1, n: "Finn", s: 6420, r: 5, t: 4, p: [] };
+    expect(decodeTrialBrag(code(ok))).not.toBeNull();
+    expect(decodeTrialBrag(code({ ...ok, t: 5 }))).toBeNull();
+    expect(decodeTrialBrag(code({ ...ok, t: 0 }))).toBeNull();
+    expect(decodeTrialBrag(code({ ...ok, s: 3000, t: 2 }))).toBeNull();
+    expect(decodeTrialBrag(code({ ...ok, s: 3000, t: 2, r: 3 }))).not.toBeNull();
   });
 
   it("rejects every off-shape payload", () => {
-    const valid = { v: 1, n: "Finn", s: 10, r: 1, t: 0, p: ["mossling"] };
+    const valid = { v: 1, n: "Finn", s: 1200, r: 1, t: 0, p: ["mossling"] };
     const variants: unknown[] = [
       null,
       [],

@@ -5,6 +5,10 @@ import { isValidTrialDay, parseTrialDayKey, trialDayKey, trialRng, type TrialDay
  * claim. Stored as the optional `eclipseTrials` save field and repaired, never
  * rejected, on load — a hostile or future-version value just reads as "no
  * trials yet" (or keeps whatever parts are valid).
+ *
+ * Multi-tab: like the rest of the host save, the last tab to save wins. Each
+ * tab writes its whole world (inventory included), so two tabs cannot stack
+ * a day's rewards — the other tab's run (and its payout) is simply lost.
  */
 
 export type TrialRecord = {
@@ -16,11 +20,14 @@ export type TrialRecord = {
   lastShowingDay: TrialDay | null;
   /** Last day the whole trial was cleared. */
   lastClearedDay: TrialDay | null;
-  /** Daily Dust claim: the day and the most rounds already paid for. */
-  claimDay: TrialDay | null;
-  claimRounds: number;
+  /**
+   * Daily Dust claims: rounds already paid for, per day key, for the last
+   * CLAIM_DAYS_KEPT days (a clock toggled back to an earlier day finds its
+   * claim; older days never pay).
+   */
+  claims: Record<string, number>;
   /** Day the first-full-clear bonus roll was spent. */
-  bonusDay: TrialDay | null;
+  bonusDays: string[];
 };
 
 export const BEST_DAYS_KEPT = 30;
@@ -33,6 +40,8 @@ export const FULL_CLEAR_DUST_BONUS = 2;
 /** First full clear of the day: chance the lead gets the rare tint (else a bond bump). */
 export const RARE_TINT_CHANCE = 0.12;
 export const TRIAL_BOND_BUMP = 8;
+/** Recent days whose claims are remembered; a day older than the newest claim by this many never pays. */
+export const CLAIM_DAYS_KEPT = 7;
 
 export function emptyTrialRecord(): TrialRecord {
   return {
@@ -40,9 +49,8 @@ export function emptyTrialRecord(): TrialRecord {
     streak: 0,
     lastShowingDay: null,
     lastClearedDay: null,
-    claimDay: null,
-    claimRounds: 0,
-    bonusDay: null,
+    claims: {},
+    bonusDays: [],
   };
 }
 
@@ -66,13 +74,17 @@ function intIn(value: unknown, min: number, max: number, fallback: number): numb
     : fallback;
 }
 
-/** Keep only the most recent `BEST_DAYS_KEPT` valid day keys. */
-function trimBest(best: Record<string, number>): Record<string, number> {
-  const keys = Object.keys(best)
+/** Keep only the most recent `keep` valid day keys. */
+function trimDays(map: Record<string, number>, keep: number): Record<string, number> {
+  const keys = Object.keys(map)
     .filter((k) => parseTrialDayKey(k) !== null)
     .sort()
-    .slice(-BEST_DAYS_KEPT);
-  return Object.fromEntries(keys.map((k) => [k, best[k]!]));
+    .slice(-keep);
+  return Object.fromEntries(keys.map((k) => [k, map[k]!]));
+}
+
+function trimBest(best: Record<string, number>): Record<string, number> {
+  return trimDays(best, BEST_DAYS_KEPT);
 }
 
 /** Lenient repair of a saved record: every bad part falls back on its own. */
@@ -98,9 +110,19 @@ export function sanitizeTrialRecord(raw: unknown): TrialRecord {
   out.streak = intIn(raw.streak, 0, MAX_STREAK, 0);
   out.lastShowingDay = dayOrNull(raw.lastShowingDay);
   out.lastClearedDay = dayOrNull(raw.lastClearedDay);
-  out.claimDay = dayOrNull(raw.claimDay);
-  out.claimRounds = out.claimDay === null ? 0 : intIn(raw.claimRounds, 0, 5, 0);
-  out.bonusDay = dayOrNull(raw.bonusDay);
+  if (isPlainObject(raw.claims)) {
+    const claims: Record<string, number> = {};
+    for (const [key, rounds] of Object.entries(raw.claims)) {
+      if (parseTrialDayKey(key) !== null) {
+        claims[key] = intIn(rounds, 0, 5, 5);
+      }
+    }
+    out.claims = trimDays(claims, CLAIM_DAYS_KEPT);
+  }
+  if (Array.isArray(raw.bonusDays)) {
+    const days = [...new Set(raw.bonusDays.filter((k): k is string => parseTrialDayKey(k) !== null))].sort();
+    out.bonusDays = days.slice(-CLAIM_DAYS_KEPT);
+  }
   if (out.lastShowingDay === null) {
     out.streak = 0;
   }
@@ -119,8 +141,8 @@ export function getTrialRecordSnapshot(): TrialRecord | undefined {
     r.streak === 0 &&
     r.lastShowingDay === null &&
     r.lastClearedDay === null &&
-    r.claimDay === null &&
-    r.bonusDay === null;
+    Object.keys(r.claims).length === 0 &&
+    r.bonusDays.length === 0;
   return untouched ? undefined : structuredClone(r);
 }
 
@@ -152,6 +174,8 @@ export type TrialSettlement = {
   dust: number;
   /** First full clear of the day: the bonus roll (the caller applies it). */
   bonus: TrialBonus | null;
+  /** The day had already been paid for (or is too old to pay). */
+  claimed: boolean;
 };
 
 /**
@@ -181,19 +205,23 @@ export function settleTrialRun(
   if (cleared) {
     record.lastClearedDay = day;
   }
-  const paid = record.claimDay === day ? record.claimRounds : 0;
+  const known = Object.keys(record.claims).map((k) => parseTrialDayKey(k)!);
+  const newest = known.length > 0 ? Math.max(...known) : day;
+  // A clock set back past the remembered window never pays again.
+  const tooOld = day <= newest - CLAIM_DAYS_KEPT;
+  const paid = tooOld ? run.totalRounds : (record.claims[key] ?? 0);
   const dust = Math.max(0, trialDustFor(run.rounds, run.totalRounds) - trialDustFor(paid, run.totalRounds));
-  if (run.rounds > paid && run.rounds >= SHOWING_ROUNDS) {
-    record.claimDay = day;
-    record.claimRounds = Math.min(run.totalRounds, run.rounds);
+  if (!tooOld && run.rounds > paid && run.rounds >= SHOWING_ROUNDS) {
+    record.claims = trimDays({ ...record.claims, [key]: Math.min(run.totalRounds, run.rounds) }, CLAIM_DAYS_KEPT);
   }
   let bonus: TrialBonus | null = null;
-  if (cleared && record.bonusDay !== day) {
-    record.bonusDay = day;
+  const bonusSpent = tooOld || record.bonusDays.includes(key);
+  if (cleared && !bonusSpent) {
+    record.bonusDays = [...record.bonusDays, key].sort().slice(-CLAIM_DAYS_KEPT);
     const roll = trialRng(day, "reward")();
     bonus = leadCanGoRare && roll < RARE_TINT_CHANCE ? { kind: "rare" } : { kind: "bond", amount: TRIAL_BOND_BUMP };
   }
-  return { newBest, best: record.best[key] ?? score, streak: currentStreak(day), dust, bonus };
+  return { newBest, best: record.best[key] ?? score, streak: currentStreak(day), dust, bonus, claimed: paid > 0 };
 }
 
 /** Test-only reset. */

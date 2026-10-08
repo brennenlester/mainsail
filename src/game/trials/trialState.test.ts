@@ -82,6 +82,18 @@ describe("trial record (#420)", () => {
     expect(settleTrialRun(DAY + 1, { score: 6000, rounds: 5, totalRounds: 5 }, true).dust).toBe(7);
   });
 
+  it("toggling the clock between days never pays a day twice; old days never pay", () => {
+    expect(settleTrialRun(DAY, { score: 7000, rounds: 5, totalRounds: 5 }, true)).toMatchObject({ dust: 7, claimed: false });
+    expect(settleTrialRun(DAY - 1, { score: 7000, rounds: 5, totalRounds: 5 }, true).dust).toBe(7);
+    // Back and forth: both days remembered.
+    for (const d of [DAY, DAY - 1, DAY, DAY - 1]) {
+      expect(settleTrialRun(d, { score: 7000, rounds: 5, totalRounds: 5 }, true)).toMatchObject({ dust: 0, bonus: null, claimed: true });
+    }
+    // A day older than the remembered window pays nothing, even unclaimed.
+    expect(settleTrialRun(DAY - 9, { score: 7000, rounds: 5, totalRounds: 5 }, true)).toMatchObject({ dust: 0, bonus: null });
+    expect(Object.keys(getTrialRecord().claims).length).toBeLessThanOrEqual(7);
+  });
+
   it("the bonus roll is seeded by the day: rare tint or a bond bump", () => {
     const kinds = new Set<string>();
     for (let d = DAY; d < DAY + 200; d++) {
@@ -133,16 +145,21 @@ describe("trial record (#420)", () => {
       { streak: -1, lastShowingDay: "2026-10-08" },
       { streak: 1.5, lastShowingDay: DAY },
       { streak: 3, lastShowingDay: 99_999_999 },
-      { claimDay: DAY, claimRounds: 99 },
-      { claimDay: "x", claimRounds: 3 },
-      { bonusDay: { day: DAY } },
+      { claims: { "2026-10-08": 99, nope: 3, "2026-10-09": "x" } },
+      { claims: [] },
+      { bonusDays: [DAY, "2026-10-08", "2026-10-08", null] },
+      { bonusDays: "2026-10-08" },
       JSON.parse('{"__proto__": {"polluted": true}, "best": {"__proto__": {"x": 1}}}'),
     ];
     for (const raw of hostile) {
       const record = sanitizeTrialRecord(raw);
       expect(record.streak).toBeGreaterThanOrEqual(0);
-      expect(Number.isInteger(record.claimRounds)).toBe(true);
-      expect(record.claimRounds).toBeLessThanOrEqual(5);
+      for (const [key, rounds] of Object.entries(record.claims)) {
+        expect(parseTrialDayKey(key)).not.toBeNull();
+        expect(Number.isInteger(rounds) && rounds >= 0 && rounds <= 5).toBe(true);
+      }
+      expect(record.bonusDays.every((k) => parseTrialDayKey(k) !== null)).toBe(true);
+      expect(new Set(record.bonusDays).size).toBe(record.bonusDays.length);
       for (const [key, score] of Object.entries(record.best)) {
         expect(parseTrialDayKey(key)).not.toBeNull();
         expect(Number.isFinite(score) && score >= 0 && score <= 100_000).toBe(true);

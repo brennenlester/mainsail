@@ -4,7 +4,7 @@ import { openShareSheet } from "../share/shareSheet";
 import { formatTrialDay, todayTrialDay, type TrialDay } from "./trialSeed";
 import { isTrialActive, trialBlockReason, type TrialMode, type TrialOutcome } from "./trialRun";
 import { cardDataFor, renderTrialCardData } from "./trialShareActions";
-import type { TrialBrag } from "./trialShare";
+import { readTrialLink, type TrialBrag } from "./trialShare";
 import { TRIAL_SCENE_KEY, TrialScene, type TrialSceneData } from "./TrialScene";
 
 /**
@@ -51,6 +51,12 @@ function whenWorldReady(game: Phaser.Game, run: () => void): void {
  * (main.ts never resumes persistence here). Try it runs the same day's
  * gauntlet as practice; Play now opens the visitor's own game.
  */
+/** `?trial=` landing from main.ts: the day was checked at boot; the brag is decoded here. */
+export function openTrialPreviewFromUrl(game: Phaser.Game, day: TrialDay): void {
+  const link = readTrialLink(window.location.search, day);
+  openTrialPreview(game, day, link.status === "ok" ? link.brag : null);
+}
+
 export function openTrialPreview(game: Phaser.Game, day: TrialDay, brag: TrialBrag | null): void {
   const date = formatTrialDay(day);
   const isToday = day === todayTrialDay();

@@ -27,7 +27,8 @@ import {
   trialBlockReason,
 } from "./trialRun";
 import { getTrialRecord, resetTrialRecordForTest } from "./trialState";
-import { todayTrialDay } from "./trialSeed";
+import { todayTrialDay, trialDayKey } from "./trialSeed";
+import { setDiscoveredCreatures, worldState } from "../world/worldState";
 import { buildTrialPlan } from "./dailyTrial";
 import { TRIAL_ROUND_RECOVERY } from "./trialRules";
 
@@ -198,6 +199,41 @@ describe("Eclipse Trial sandboxing (#420)", () => {
       }
     }
     expect(getMaterialCount("folklore-dust")).toBe(2 + 7);
+  });
+
+  it("a run that crossed UTC midnight still pays, keyed to its start day", () => {
+    beginTrial(TODAY - 1, "host");
+    for (let r = 0; r < 3; r++) {
+      playRound(true);
+      chooseTrialBoon(null);
+    }
+    const outcome = finishTrial()!;
+    expect(outcome.rewards).toEqual(["+3 Folklore Dust"]);
+    expect(outcome.noRewardReason).toBeNull();
+    expect(getTrialRecord().claims[trialDayKey(TODAY - 1)]).toBe(3);
+  });
+
+  it("says why nothing was paid", () => {
+    beginTrial(TODAY, "host");
+    playRound(true);
+    expect(finishTrial()!.noRewardReason).toMatch(/Clear 3 rounds/);
+    beginTrial(TODAY - 5, "host");
+    expect(finishTrial()!.noRewardReason).toMatch(/day has passed/);
+  });
+
+  it("opening the gate adds nothing to the codex; foes fought join it after the run", () => {
+    setDiscoveredCreatures([]);
+    beginTrial(TODAY, "host");
+    expect(worldState.discoveredCreatures).toEqual([]);
+    abandonTrial();
+    expect(worldState.discoveredCreatures).toEqual([]);
+    beginTrial(TODAY, "host");
+    playRound(true);
+    chooseTrialBoon(null);
+    expect(worldState.discoveredCreatures).toEqual([]);
+    finishTrial();
+    // Only the round actually started (round 2 was never fought).
+    expect(worldState.discoveredCreatures).toEqual([buildTrialPlan(TODAY).rounds[0]!.creatureId]);
   });
 
   it("an old seed (not today) records nothing and pays nothing", () => {

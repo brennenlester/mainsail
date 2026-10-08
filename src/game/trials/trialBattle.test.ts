@@ -6,7 +6,7 @@ import { hasStatus } from "../battle/statusEffects";
 import { STAGGER_MOVE_ID } from "../battle/boss/storyBattle";
 import { KEEN_EDGE_DAMAGE, MOON_SHIELD_TAKEN, type BoonId } from "./boons";
 import type { ModifierId } from "./modifiers";
-import { TrialBattle, trialPartyScale } from "./trialBattle";
+import { TRIAL_PARTY_SCALE, TrialBattle, trialPartyScale, trialPartyStrength } from "./trialBattle";
 import { ECLIPSE_SIGNATURE_ID, ECLIPSE_CHARGE_ID, buildEclipseBossDef, counterTypeOf } from "./trialBoss";
 import { generateTrialPlan, type TrialPlan, type TrialRoundPlan } from "./trialPlan";
 import { parseTrialDayKey } from "./trialSeed";
@@ -33,8 +33,21 @@ describe("Eclipse modifiers (#420)", () => {
     expect(b.foeLevel).toBe(11);
     expect(b.foe.maxHp).toBe(Math.round(plain.maxHp * trialPartyScale(2).hp));
     expect(b.foe.damageScale).toBeCloseTo(WILD_DAMAGE_SCALE * trialPartyScale(2).damage);
-    expect(trialPartyScale(1)).toEqual({ hp: 1, damage: 1 });
+    expect(trialPartyScale(1)).toEqual(TRIAL_PARTY_SCALE[0]);
     expect(trialPartyScale(99)).toEqual(trialPartyScale(5));
+  });
+
+  it("eases foes for weaker (unevolved / non-starter) parties, never below the floor", () => {
+    expect(trialPartyStrength(["bramblewarden", "hearthflame", "brook-nymph"])).toBe(1);
+    expect(trialPartyStrength(["bramblewarden", "hearthflame"])).toBe(1);
+    const weak = trialPartyStrength(["mossling", "ember-wisp"]);
+    expect(weak).toBeGreaterThan(0.6);
+    expect(weak).toBeLessThan(0.85);
+    expect(trialPartyStrength([])).toBe(1);
+    const eased = new TrialBattle({ plan: PLAN, round: round([]), partyAverage: 10, partySize: 2, partyStrength: weak, boons: [], maxLevel: 50 });
+    const full = battle([]);
+    expect(eased.foe.maxHp).toBeLessThan(full.foe.maxHp);
+    expect(eased.foe.damageScale!).toBeLessThan(full.foe.damageScale!);
   });
 
   it("Kindled burns everyone on entry; Soaked Arena soaks them", () => {

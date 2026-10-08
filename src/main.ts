@@ -36,7 +36,7 @@ import {
 } from "./game/share/cardPreview";
 import { initShareControls, setShareDisabled } from "./game/share/shareActions";
 import { bindCreatureArt } from "./game/ui/creatureArt";
-import { readTrialLink, type TrialLinkResult } from "./game/trials/trialShare";
+import { readTrialDayParam } from "./game/trials/trialSeed";
 import { initEclipseTrialMenu } from "./game/trials/trialMenu";
 import { initHudLock } from "./game/ui/hudLock";
 
@@ -79,9 +79,11 @@ function readShareParamSafely(): ReturnType<typeof readShareParam> {
 }
 
 /** `?trial=` (#420): any decode failure lands on the broken-link screen. */
+type TrialLinkResult = ReturnType<typeof readTrialDayParam>;
+
 function readTrialLinkSafely(): TrialLinkResult {
   try {
-    return readTrialLink(window.location.search);
+    return readTrialDayParam(window.location.search);
   } catch {
     return { status: "invalid" };
   }
@@ -176,8 +178,8 @@ if (inviteResult.status === "invalid") {
     // Card links skip the title (route is "play") and never show the name intro.
     openCardPreview(game, shareResult.snapshot);
   } else if (trialResult.status === "ok") {
-    const { day, brag } = trialResult;
-    void import("./game/trials/launchTrial").then((m) => m.openTrialPreview(game, day, brag));
+    const { day } = trialResult;
+    void import("./game/trials/launchTrial").then((m) => m.openTrialPreviewFromUrl(game, day));
   } else if (route === "play") {
     // TitleScene runs the name intro itself after New Game / Continue.
     initNameIntro(startOpeningBeat);

@@ -149,15 +149,21 @@ Filling every codex page (all 27 creatures that appear in habitat encounter tabl
 4. Score = rounds cleared + speed + grit (little damage taken) + perfect parries + skipped boons → a title from Ember Initiate to Eclipse Warden. Once per UTC day: Folklore Dust by rounds cleared (3+ rounds; top-up only, 7 max) and, on the first full clear, a small seeded chance of a rare tint for the lead (otherwise a small bond bump).
 5. **Share result** paints a 1080×1350 Trial Result card and a `?trial=YYYY-MM-DD&by=<code>` link. Friends get a "Beat my score" preview; **Try it** runs that day's trial as a sandboxed practice run (their finished party, or a borrowed Lv 9 trio) that never writes a save.
 
-Balance (`src/game/trials/trialBalance.test.ts`, typical post-finale parties of 2-3 evolved companions; each day's plan is gated so the skilled reference parties clear 36-50% of runs):
+Balance (`src/game/trials/trialBalance.test.ts`; reference classes: evolved starters, non-starters such as Brook Nymph + Thunder Finch, and unevolved starters, every lead order). Weaker parties face foes eased toward their base stats (`trialPartyStrength`). Each day's re-roll is chosen offline by a fairness gate (headless sims: overall skilled clear 38-52%, every class at least 33%) and committed to `src/game/trials/trialTable.json` (`npm run trials:table` rebuilds it; a test re-runs the gate on sampled days), so the game never runs sims:
 
-| Policy | Full clear | Rounds cleared (mean) | Cleared ≥1 / 2 / 3 / 4 / 5 |
+| Policy (all classes) | Full clear | Rounds cleared (mean) | Cleared ≥1 / 2 / 3 / 4 / 5 |
 |--------|-----------:|----------------------:|----------------------------|
-| skilled | ~50% | 3.8 | 100 / 93 / 80 / 57 / 50% |
-| max-damage (typical) | ~13% | 2.6 | 94 / 79 / 55 / 21 / 13% |
-| random | ~1% | 1.8 | 91 / 59 / 27 / 4 / 1% |
+| skilled | 50% | 3.75 | 99 / 90 / 78 / 58 / 50% |
+| max-damage (typical) | 17% | 2.76 | 93 / 80 / 55 / 31 / 17% |
+| random | 2% | 1.74 | 86 / 55 / 24 / 7 / 2% |
 
-Every one of 365 seeded days stays winnable (worst day: skilled clears ~22%).
+| Class (skilled, 365 days) | Median day | Hardest day |
+|---|---:|---:|
+| evolved | 50% | 22% |
+| non-starter | 46% | 17% |
+| unevolved | 50% | 25% |
+
+Rewards: a run is paid against the day it started (today or a run that crossed UTC midnight); each of the last 7 claimed days is remembered, so moving the clock back never pays twice; the bonus bond bump goes through the daily bond cap. Multiple tabs: the last tab to save wins, like the rest of the save. The results screen says why nothing was paid. Leaving between rounds scores the rounds already cleared. Trial links open today's or past days (up to a year), never tomorrow's.
 
 **Link previews (Vercel):** `index.html` carries static Open Graph / Twitter tags pointing at `public/og-image.jpg` on the canonical play URL. Social crawlers do not run JavaScript, so every link — including `?card=` links and preview deploys — unfurls with that static image; the personal card travels as the shared PNG. Per-card preview images would need a server/edge function rendering the card from `?card=` (out of scope: no backend). If the canonical host changes, update the absolute `og:image` / `og:url` URLs in `index.html`.
 

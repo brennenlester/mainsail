@@ -1,4 +1,4 @@
-import { addBond, drainBondTierUps } from "../companions/bond";
+import { addBond, BOND_HALVED_ABOVE_TIER, drainBondTierUps } from "../companions/bond";
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
   ACTIVE_PARTY_LIMIT,
@@ -24,11 +24,11 @@ import { markCreatureDiscovered } from "../world/worldState";
 import type { BoonId } from "./boons";
 import { buildTrialPlan } from "./dailyTrial";
 import { scoreTrial, trialTitle, type TrialRoundRecord, type TrialScore } from "./scoring";
-import { TrialBattle } from "./trialBattle";
+import { TrialBattle, trialPartyStrength } from "./trialBattle";
 import { BOSS_ROUND_INDEX, type TrialPlan, type TrialRoundPlan } from "./trialPlan";
 import { applyMend, roundRecovery } from "./trialRules";
 import { todayTrialDay, type TrialDay } from "./trialSeed";
-import { settleTrialRun, type TrialSettlement } from "./trialState";
+import { settleTrialRun, SHOWING_ROUNDS, type TrialSettlement } from "./trialState";
 
 /**
  * Eclipse Trial runtime (#420): one gauntlet from Begin to the results card.
@@ -74,6 +74,8 @@ export type TrialRunState = {
   battle: TrialBattle | null;
   /** Party HP total when the current round started. */
   roundHpBefore: number;
+  /** Species actually fought; they reach the codex once the run settles. */
+  faced: string[];
   phase: "preview" | "battle" | "boon" | "done";
 };
 
@@ -89,6 +91,8 @@ export type TrialOutcome = {
   settlement: TrialSettlement | null;
   /** Reward lines for the results screen. */
   rewards: string[];
+  /** Why nothing was paid (shown on the results screen), or null. */
+  noRewardReason: string | null;
 };
 
 let run: TrialRunState | null = null;
@@ -208,12 +212,6 @@ export function beginTrial(day: TrialDay = todayTrialDay(), mode: TrialMode = "h
     return false;
   }
   const plan = buildTrialPlan(day);
-  // Codex first, so a codex-complete reward is part of the snapshot (#382 review).
-  for (const round of plan.rounds) {
-    if (!getCreatureDefinition(round.creatureId).excludeFromCodex) {
-      markCreatureDiscovered(round.creatureId);
-    }
-  }
   // Persist the pre-trial world now, then hold persistence until the end:
   // a reload mid-trial restores exactly this state.
   flushPendingHostSave();
@@ -233,6 +231,7 @@ export function beginTrial(day: TrialDay = todayTrialDay(), mode: TrialMode = "h
     pendingBoons: [],
     battle: null,
     roundHpBefore: 0,
+    faced: [],
     phase: "preview",
   };
   lastOutcome = null;
@@ -265,12 +264,16 @@ export function startTrialRound(): TrialBattle | null {
     round,
     partyAverage: activeAverageLevel(),
     partySize: standing.length,
+    partyStrength: trialPartyStrength(getActiveCreatures().map((c) => c.definitionId)),
     boons: run.pendingBoons,
     maxLevel: MAX_LEVEL,
   });
   run.battle.hud.roundsTotal = run.plan.rounds.length;
   run.battle.hud.scoreSoFar = runningScore();
   run.roundHpBefore = sum(partyHp().hp);
+  if (!getCreatureDefinition(round.creatureId).excludeFromCodex && !run.faced.includes(round.creatureId)) {
+    run.faced.push(round.creatureId);
+  }
   run.phase = "battle";
   return run.battle;
 }
@@ -368,8 +371,12 @@ function grantRewards(day: TrialDay, score: TrialScore, totalRounds: number): { 
       lead.rare = true;
       lines.push(`${name} drank the eclipse light — a rare tint!`);
     } else {
-      const gained = addBond(lead, settlement.bonus.amount, "battle").gained;
-      lines.push(`${name}: bond +${gained}`);
+      // Same daily cap and halving as spar bond (#421).
+      const gained = addBond(lead, settlement.bonus.amount, "battle", {
+        capped: true,
+        halveAboveTier: BOND_HALVED_ABOVE_TIER,
+      }).gained;
+      lines.push(gained > 0 ? `${name}: bond +${gained}` : `${name}'s bond is full for today`);
     }
   }
   return { settlement, lines };
@@ -395,14 +402,30 @@ export function finishTrial(): TrialOutcome | null {
     rare: c.rare === true,
   }));
   restoreSnapshot(snapshot);
+  recordDiscoveries(current);
   const reached = Math.min(total, current.records.length);
   const modifiers = current.plan.rounds.slice(0, Math.max(1, reached)).map((r) => r.modifiers);
   let settlement: TrialSettlement | null = null;
   let rewards: string[] = [];
-  if (current.mode === "host" && current.day === todayTrialDay() && !isVisitorMode()) {
+  let noRewardReason: string | null = null;
+  const today = todayTrialDay();
+  if (current.mode !== "host" || isVisitorMode()) {
+    noRewardReason = "Practice run — nothing is saved.";
+  } else if (current.day !== today && current.day !== today - 1) {
+    noRewardReason = "That trial's day has passed — rewards come from today's trial.";
+  } else {
+    // A run that started before UTC midnight still pays, keyed to its start day.
     const granted = grantRewards(current.day, score, total);
     settlement = granted.settlement;
     rewards = granted.lines;
+    if (rewards.length === 0) {
+      noRewardReason =
+        score.roundsCleared < SHOWING_ROUNDS
+          ? `Clear ${SHOWING_ROUNDS} rounds for the day's Folklore Dust.`
+          : settlement.dust === 0 && settlement.claimed
+            ? "This day's rewards are already claimed — the score still counts."
+            : "Rewards are paid once per day.";
+    }
   }
   run = null;
   snapshot = null;
@@ -417,6 +440,7 @@ export function finishTrial(): TrialOutcome | null {
     party,
     settlement,
     rewards,
+    noRewardReason,
   };
   return lastOutcome;
 }
@@ -429,10 +453,21 @@ export function abandonTrial(): void {
   if (snapshot) {
     restoreSnapshot(snapshot);
   }
+  recordDiscoveries(run);
   run = null;
   snapshot = null;
   resumeHostPersist();
   notifyWorldChanged();
+}
+
+/** Foes actually fought join the codex after the restore (host world only). */
+function recordDiscoveries(current: TrialRunState): void {
+  if (current.mode !== "host" || isVisitorMode()) {
+    return;
+  }
+  for (const id of current.faced) {
+    markCreatureDiscovered(id);
+  }
 }
 
 export function getLastTrialOutcome(): TrialOutcome | null {

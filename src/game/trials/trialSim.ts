@@ -7,7 +7,7 @@ import { tickStatuses } from "../battle/statusEffects";
 import { MAX_LEVEL } from "../progression/leveling";
 import type { BoonId } from "./boons";
 import { scoreTrial, type TrialRoundRecord, type TrialScore } from "./scoring";
-import { TrialBattle } from "./trialBattle";
+import { TrialBattle, trialPartyStrength } from "./trialBattle";
 import type { TrialPlan } from "./trialPlan";
 import { applyMend, roundRecovery } from "./trialRules";
 import type { TrialDay } from "./trialSeed";
@@ -190,6 +190,7 @@ export function simulateTrial(setup: TrialSimSetup, seed: number, plan: TrialPla
       round,
       partyAverage: setup.level,
       partySize: standing,
+      partyStrength: trialPartyStrength(setup.party),
       boons: pending,
       maxLevel: MAX_LEVEL,
     });

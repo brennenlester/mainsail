@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { BOON_IDS } from "./boons";
-import { buildTrialPlan, clearTrialPlanCacheForTest, referenceClearRate, FAIR_MIN, FAIR_MAX } from "./dailyTrial";
+import { buildTrialPlan, clearTrialPlanCacheForTest, isInTrialTable, trialAttemptFor, TRIAL_TABLE_START } from "./dailyTrial";
 import { MODIFIERS, modifiersClash } from "./modifiers";
 import {
   BOSS_ROUND_INDEX,
@@ -139,14 +139,12 @@ describe("trial plan (#420)", () => {
     }
   });
 
-  it("only offers a gauntlet the skilled reference parties can clear", { timeout: 60_000 }, () => {
-    let inBand = 0;
-    for (let d = DAY; d < DAY + 20; d++) {
-      // Same estimate the gate used: in the band, or (rarely) an easier fallback, never harder.
-      const rate = referenceClearRate(buildTrialPlan(d));
-      expect(rate).toBeGreaterThanOrEqual(FAIR_MIN);
-      inBand += rate <= FAIR_MAX ? 1 : 0;
+  it("builds each day from the committed gate table without running sims", () => {
+    for (let d = TRIAL_TABLE_START; d < TRIAL_TABLE_START + 60; d++) {
+      expect(JSON.stringify(buildTrialPlan(d))).toBe(JSON.stringify(generateTrialPlan(d, trialAttemptFor(d))));
     }
-    expect(inBand).toBeGreaterThanOrEqual(15);
+    // Outside the window: the first roll, still deterministic.
+    expect(trialAttemptFor(TRIAL_TABLE_START - 1)).toBe(0);
+    expect(isInTrialTable(TRIAL_TABLE_START - 1)).toBe(false);
   });
 });

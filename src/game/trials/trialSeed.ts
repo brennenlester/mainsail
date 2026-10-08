@@ -48,6 +48,33 @@ export function parseTrialDayKey(raw: unknown): TrialDay | null {
   return day;
 }
 
+/** Links open days up to a year back, never a future day (no scouting tomorrow's lineup). */
+export const TRIAL_LINK_MAX_AGE_DAYS = 366;
+
+/**
+ * Boot check for `?trial=` (just the day; the optional brag is decoded with
+ * the lazy trial chunk). Never throws.
+ */
+export function readTrialDayParam(
+  search: string,
+  today: TrialDay = todayTrialDay(),
+): { status: "absent" } | { status: "invalid" } | { status: "ok"; day: TrialDay } {
+  let raw: string | null;
+  try {
+    raw = new URLSearchParams(search).get(TRIAL_PARAM);
+  } catch {
+    return { status: "invalid" };
+  }
+  if (raw === null) {
+    return { status: "absent" };
+  }
+  const day = parseTrialDayKey(raw);
+  if (day === null || day > today || day < today - TRIAL_LINK_MAX_AGE_DAYS) {
+    return { status: "invalid" };
+  }
+  return { status: "ok", day };
+}
+
 export function isValidTrialDay(day: unknown): day is TrialDay {
   return (
     typeof day === "number" &&

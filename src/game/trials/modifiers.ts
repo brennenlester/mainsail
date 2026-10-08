@@ -1,4 +1,6 @@
 import type { StatusId } from "../creatures/types";
+import { GUARD_DAMAGE_TAKEN, GUARD_FINISHER_DAMAGE_TAKEN } from "../battle/kits";
+import { BURN_TICK_FRACTION, SOAKED_DAMAGE_TAKEN, SOAKED_STORM_DAMAGE_TAKEN } from "../battle/statusEffects";
 
 /**
  * Eclipse modifiers (#420): data-driven round rules, shown as chips before
@@ -55,11 +57,22 @@ export type ModifierDefinition = {
   effect: ModifierEffect;
 };
 
+/** Effect numbers; the summaries below are written from them (modifiers.test.ts checks). */
+export const TWIN_SHADOWS_EVERY = 4;
+export const ROOTBOUND_GUARD_TAKEN = 0.5;
+export const GLASS = { damage: 1.3, bulk: 0.7 } as const;
+export const MOONFED_REGEN = 0.04;
+export const IRON_HIDE = { hp: 1.35, damage: 0.9 } as const;
+
+const pct = (x: number): number => Math.round(x * 100);
+/** "1.86": two decimals at most. */
+const times = (x: number): string => String(Math.round(x * 100) / 100);
+
 export const MODIFIERS: Readonly<Record<ModifierId, ModifierDefinition>> = {
   kindled: {
     id: "kindled",
     name: "Kindled",
-    summary: "Everyone enters Burned — 5% max HP each turn.",
+    summary: `Everyone enters Burned — ${pct(BURN_TICK_FRACTION)}% max HP each turn.`,
     chip: "KINDLED",
     glyph: "K",
     color: "#ff8a4c",
@@ -70,38 +83,38 @@ export const MODIFIERS: Readonly<Record<ModifierId, ModifierDefinition>> = {
   "twin-shadows": {
     id: "twin-shadows",
     name: "Twin Shadows",
-    summary: "Every 4th turn the foe acts twice.",
+    summary: `Every ${TWIN_SHADOWS_EVERY}th foe turn ends with an extra basic strike (not when it guarded, charged or reeled).`,
     chip: "TWIN ×2",
     glyph: "T",
     color: "#c49cff",
     weight: 1.5,
-    effect: { foeEchoEvery: 4 },
+    effect: { foeEchoEvery: TWIN_SHADOWS_EVERY },
   },
   rootbound: {
     id: "rootbound",
     name: "Rootbound",
-    summary: "Your Guard is twice as strong: guarded hits land at half.",
+    summary: `Guard blocks twice as much: guarded hits land at ${pct(GUARD_DAMAGE_TAKEN * ROOTBOUND_GUARD_TAKEN)}% (finishers ${pct(GUARD_FINISHER_DAMAGE_TAKEN * ROOTBOUND_GUARD_TAKEN)}%).`,
     chip: "ROOTBOUND",
     glyph: "R",
     color: "#8fd36a",
     weight: -1,
-    effect: { playerGuardTaken: 0.5 },
+    effect: { playerGuardTaken: ROOTBOUND_GUARD_TAKEN },
   },
   "glass-cannons": {
     id: "glass-cannons",
     name: "Glass Cannons",
-    summary: "Everyone deals +30% damage and is 30% more fragile.",
-    chip: "GLASS +30%",
+    summary: `Everyone hits ${pct(GLASS.damage - 1)}% harder and takes ${pct(1 / GLASS.bulk - 1)}% more: every hit lands ×${times(GLASS.damage / GLASS.bulk)}.`,
+    chip: `GLASS ×${times(GLASS.damage / GLASS.bulk)}`,
     glyph: "G",
     color: "#ffd27a",
     weight: 1,
     notOnBoss: true,
-    effect: { glass: { damage: 1.3, bulk: 0.7 } },
+    effect: { glass: GLASS },
   },
   "soaked-arena": {
     id: "soaked-arena",
     name: "Soaked Arena",
-    summary: "Everyone enters Soaked — takes ×1.25 (storm ×1.5), can't Burn.",
+    summary: `Everyone enters Soaked — takes ×${times(SOAKED_DAMAGE_TAKEN)} (storm ×${times(SOAKED_STORM_DAMAGE_TAKEN)}), can't Burn.`,
     chip: "SOAKED",
     glyph: "S",
     color: "#6cc4ff",
@@ -111,13 +124,13 @@ export const MODIFIERS: Readonly<Record<ModifierId, ModifierDefinition>> = {
   moonfed: {
     id: "moonfed",
     name: "Moonfed",
-    summary: "The foe heals 4% max HP after each of its turns.",
+    summary: `The foe heals ${pct(MOONFED_REGEN)}% max HP after each of its turns.`,
     chip: "MOONFED",
     glyph: "M",
     color: "#e8d8ff",
     weight: 2,
     notOnBoss: true,
-    effect: { foeRegen: 0.04 },
+    effect: { foeRegen: MOONFED_REGEN },
   },
   "short-fuse": {
     id: "short-fuse",
@@ -132,13 +145,13 @@ export const MODIFIERS: Readonly<Record<ModifierId, ModifierDefinition>> = {
   "iron-hide": {
     id: "iron-hide",
     name: "Iron Hide",
-    summary: "The foe has +35% HP but hits 10% softer.",
+    summary: `The foe has +${pct(IRON_HIDE.hp - 1)}% HP but hits ${pct(1 - IRON_HIDE.damage)}% softer.`,
     chip: "IRON HIDE",
     glyph: "I",
     color: "#b8c4d0",
     weight: 2,
     notOnBoss: true,
-    effect: { foeHp: 1.35, foeDamage: 0.9 },
+    effect: { foeHp: IRON_HIDE.hp, foeDamage: IRON_HIDE.damage },
   },
 };
 

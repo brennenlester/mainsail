@@ -34,6 +34,7 @@ import { formatTrialDay, type TrialDay } from "./trialSeed";
 import { bestScoreFor, currentStreak } from "./trialState";
 import { openTrialShare, renderTrialCardBlob } from "./trialShareActions";
 import { TrialOverlay, type PipState } from "./trialUi";
+import { freshTrialSceneState, teardownTrialSceneState, type TrialSceneRunState } from "./trialSceneState";
 import { TrialBattleStrip } from "./trialBattleHud";
 
 export const TRIAL_SCENE_KEY = "TrialScene";
@@ -58,11 +59,9 @@ const BOSS_START_TIMEOUT_MS = 20_000;
  */
 export class TrialScene extends Phaser.Scene {
   private data_!: TrialSceneData;
-  private ui!: TrialOverlay;
-  private sky?: Phaser.GameObjects.Graphics;
-  private confetti?: Phaser.GameObjects.Particles.ParticleEmitter;
-  private lastScore = 0;
-  private exiting = false;
+  private ui: TrialOverlay | null = null;
+  /** Per-run state; init() tears the previous run's down (the scene object is reused). */
+  private s: TrialSceneRunState = freshTrialSceneState();
 
   constructor() {
     super({ key: TRIAL_SCENE_KEY });
@@ -70,8 +69,21 @@ export class TrialScene extends Phaser.Scene {
 
   init(data: TrialSceneData): void {
     this.data_ = data;
-    this.lastScore = 0;
-    this.exiting = false;
+    this.resetRun();
+  }
+
+  /** Drop every per-run object, timer, listener and overlay. */
+  private resetRun(): void {
+    this.s = teardownTrialSceneState(this.s);
+    this.ui?.destroy();
+    this.ui = null;
+  }
+
+  private get overlay(): TrialOverlay {
+    if (!this.ui) {
+      this.ui = new TrialOverlay(this.game);
+    }
+    return this.ui;
   }
 
   private get motion(): { particles: boolean; animate: boolean } {
@@ -85,17 +97,16 @@ export class TrialScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       release();
       document.body.classList.remove("trial-active");
-      this.ui?.destroy();
       this.scale.off("resize", this.drawSky, this);
+      this.resetRun();
     });
     ensureFxTextures(this);
     // The boss wears late-loaded art: start the fetch now so round 5 never waits.
     void fetchLateImages(this.textures, lateCreatureKeys([ECLIPSE_BOSS_CREATURE]));
     this.fitStage();
     this.scale.on("resize", this.drawSky, this);
-    this.ui = new TrialOverlay(this.game);
     if (!beginTrial(this.data_.day, this.data_.mode)) {
-      this.ui.renderMessage(
+      this.overlay.renderMessage(
         "The Eclipse Gate is closed",
         trialBlockReason() ?? "No companion can stand in the trial right now.",
         () => this.exit(null),
@@ -116,7 +127,7 @@ export class TrialScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     this.cameras.main.setZoom(1).centerOn(w / 2, h / 2);
-    this.sky?.destroy();
+    this.s.sky?.destroy();
     const g = this.add.graphics().setDepth(-10);
     g.fillGradientStyle(0x2a1640, 0x2a1640, 0x07040c, 0x07040c, 1);
     g.fillRect(0, 0, w, h);
@@ -129,9 +140,9 @@ export class TrialScene extends Phaser.Scene {
     g.fillCircle(w * 0.78, h * 0.18, r);
     g.lineStyle(Math.max(2, r * 0.04), 0xffd27a, 0.9);
     g.strokeCircle(w * 0.78, h * 0.18, r);
-    this.sky = g;
-    if (this.motion.particles && !this.confetti) {
-      this.add
+    this.s.sky = g;
+    if (this.motion.particles && !this.s.confetti) {
+      this.s.motes = this.add
         .particles(0, 0, FX_TEX.glow, {
           x: { min: 0, max: w },
           y: h + 10,
@@ -145,7 +156,7 @@ export class TrialScene extends Phaser.Scene {
           blendMode: Phaser.BlendModes.ADD,
         })
         .setDepth(-9);
-      this.confetti = this.add
+      this.s.confetti = this.add
         .particles(0, 0, FX_TEX.spark, {
           emitting: false,
           speed: { min: 220, max: 620 },
@@ -189,7 +200,7 @@ export class TrialScene extends Phaser.Scene {
     if (boss) {
       playBossStingSfx(this);
     }
-    this.ui.renderPreview(
+    this.overlay.renderPreview(
       {
         kicker: this.kicker(),
         pips: this.pips(),
@@ -221,19 +232,18 @@ export class TrialScene extends Phaser.Scene {
       this.showResults(finishTrial());
       return;
     }
-    this.ui.hide();
+    this.overlay.hide();
     trial.createStrip = (scene, area, ui) => new TrialBattleStrip(scene, trial, area, ui);
     const battle = this.scene.get("BattleScene");
     let started = false;
     let settled = false;
-    const watchdog = window.setTimeout(
+    this.s.watchdog = window.setTimeout(
       () => {
         if (started || settled) {
           return;
         }
         settled = true;
-        battle.events.off(Phaser.Scenes.Events.SHUTDOWN, onShutdown);
-        battle.events.off(Phaser.Scenes.Events.CREATE, onCreate);
+        detach();
         this.scene.stop("BattleScene");
         this.onRoundClosed(null);
       },
@@ -241,20 +251,26 @@ export class TrialScene extends Phaser.Scene {
     );
     const onCreate = (): void => {
       started = true;
-      window.clearTimeout(watchdog);
+      this.clearWatchdog();
     };
     const onShutdown = (): void => {
-      battle.events.off(Phaser.Scenes.Events.CREATE, onCreate);
-      window.clearTimeout(watchdog);
+      detach();
+      this.clearWatchdog();
       if (settled) {
         return;
       }
       settled = true;
       this.onRoundClosed(trial.verdict === true);
     };
+    const detach = (): void => {
+      battle.events.off(Phaser.Scenes.Events.CREATE, onCreate);
+      battle.events.off(Phaser.Scenes.Events.SHUTDOWN, onShutdown);
+      this.s.detachBattle = null;
+    };
     battle.events.once(Phaser.Scenes.Events.CREATE, onCreate);
     battle.events.once(Phaser.Scenes.Events.SHUTDOWN, onShutdown);
-    this.lastScore = runningScore();
+    this.s.detachBattle = detach;
+    this.s.lastScore = runningScore();
     this.scene.launch("BattleScene", {
       wildCreatureId: trial.foeCreatureId,
       wandererPartner: UNARMED_WANDERER,
@@ -264,13 +280,20 @@ export class TrialScene extends Phaser.Scene {
     this.scene.pause();
   }
 
+  private clearWatchdog(): void {
+    if (this.s.watchdog !== null) {
+      window.clearTimeout(this.s.watchdog);
+      this.s.watchdog = null;
+    }
+  }
+
   /** Battle closed: `won` null = it never came up (watchdog). */
   private onRoundClosed(won: boolean | null): void {
     this.scene.resume();
     this.fitStage();
     if (won === null) {
       abandonTrial();
-      this.ui.renderMessage(
+      this.overlay.renderMessage(
         "The Eclipse Gate faltered",
         "The battle could not start. Your party and your save are untouched.",
         () => this.exit(null),
@@ -297,13 +320,13 @@ export class TrialScene extends Phaser.Scene {
       hp: Math.max(0, c.currentHp),
       max: getEffectiveMaxHp(c),
     }));
-    this.ui.renderBoon(
+    this.overlay.renderBoon(
       {
         kicker: this.kicker(),
         pips: this.pips(),
         score,
         banner: `ROUND ${run.roundIndex} CLEARED`,
-        sub: `+${(score - this.lastScore).toLocaleString("en-US")} score · your party caught its breath`,
+        sub: `+${(score - this.s.lastScore).toLocaleString("en-US")} score · your party caught its breath`,
         party,
         nextLine:
           next.kind === "boss"
@@ -333,7 +356,16 @@ export class TrialScene extends Phaser.Scene {
   }
 
   private confirmLeave(): void {
-    if (!window.confirm("Leave the Eclipse Trial? Your party is restored and this run won't count.")) {
+    const earned = (getTrialRun()?.records ?? []).some((r) => r.cleared);
+    const prompt = earned
+      ? "Leave the Eclipse Trial? Your cleared rounds are scored now and your party is restored."
+      : "Leave the Eclipse Trial? Your party is restored and this run won't count.";
+    if (!window.confirm(prompt)) {
+      return;
+    }
+    if (earned) {
+      // Like a loss: the rounds already cleared still count.
+      this.showResults(finishTrial());
       return;
     }
     abandonTrial();
@@ -349,9 +381,9 @@ export class TrialScene extends Phaser.Scene {
     const total = TRIAL_ROUNDS;
     if (s.roundsCleared >= 3) {
       playBattleWinSfx(this);
-      if (this.motion.particles && this.confetti) {
+      if (this.motion.particles && this.s.confetti) {
         const w = this.scale.width;
-        this.confetti.explode(s.cleared ? 160 : 80, w / 2, this.scale.height * 0.35);
+        this.s.confetti.explode(s.cleared ? 160 : 80, w / 2, this.scale.height * 0.35);
       }
     }
     const lines: string[] = [];
@@ -361,18 +393,18 @@ export class TrialScene extends Phaser.Scene {
       lines.push(
         `${outcome.settlement?.newBest ? "New best today!" : `Best today: ${(best ?? s.total).toLocaleString("en-US")}`}${streak > 0 ? ` · Streak: ${streak} day${streak === 1 ? "" : "s"}` : ""}`,
       );
-      if (outcome.rewards.length === 0 && s.roundsCleared < 3) {
-        lines.push("Clear 3 rounds for today's Folklore Dust.");
-      }
     } else {
-      lines.push("Practice run — nothing was saved. Play Ivyward to run it in your own world.");
+      lines.push("Play Ivyward to run it in your own world.");
+    }
+    if (outcome.noRewardReason) {
+      lines.push(outcome.noRewardReason);
     }
     const boonsLine = s.boonsSkipped > 0 ? `${s.boonsUsed} taken · ${s.boonsSkipped} skipped` : `${s.boonsUsed} taken`;
     const buttons = [
       { label: "Share result", variant: "primary" as const, onClick: () => this.share(outcome) },
       { label: "Done", onClick: () => this.exit(outcome) },
     ];
-    this.ui.renderResults(
+    this.overlay.renderResults(
       {
         kicker: this.kicker(),
         pips: this.pipsFor(outcome),
@@ -392,7 +424,7 @@ export class TrialScene extends Phaser.Scene {
       buttons,
     );
     void renderTrialCardBlob(this.game, outcome)
-      .then((blob) => this.ui.showCard(blob))
+      .then((blob) => this.ui?.showCard(blob))
       .catch(() => undefined);
   }
 
@@ -409,13 +441,14 @@ export class TrialScene extends Phaser.Scene {
   }
 
   private exit(outcome: TrialOutcome | null): void {
-    if (this.exiting) {
+    if (this.s.exiting) {
       return;
     }
-    this.exiting = true;
+    this.s.exiting = true;
     const returnTo = this.data_.returnTo;
     const onExit = this.data_.onExit;
-    this.ui.destroy();
+    this.ui?.destroy();
+    this.ui = null;
     if (returnTo) {
       this.scene.resume(returnTo);
     }

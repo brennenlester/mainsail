@@ -31,16 +31,42 @@ import type { TrialPlan, TrialRoundPlan } from "./trialPlan";
 
 /** Regular foes scale with the standing party (a 3-companion party faces a sturdier foe). */
 export const TRIAL_PARTY_SCALE: readonly { hp: number; damage: number }[] = [
-  { hp: 1, damage: 1 },
-  { hp: 1.42, damage: 1.24 },
-  { hp: 1.66, damage: 1.3 },
-  { hp: 1.85, damage: 1.35 },
-  { hp: 2.0, damage: 1.4 },
+  { hp: 1.1, damage: 1.05 },
+  { hp: 1.56, damage: 1.3 },
+  { hp: 1.83, damage: 1.37 },
+  { hp: 2.04, damage: 1.42 },
+  { hp: 2.2, damage: 1.47 },
 ];
 
 export function trialPartyScale(size: number): { hp: number; damage: number } {
   const i = Math.min(TRIAL_PARTY_SCALE.length, Math.max(1, Math.floor(size))) - 1;
   return TRIAL_PARTY_SCALE[i]!;
+}
+
+/**
+ * Party strength (#420 review): a trial is tuned on evolved companions, so
+ * an unevolved or non-starter party (~70% of their base HP x attack) faces
+ * foes eased toward its own power. Species base stats only — level-free, so
+ * the same party reads the same every day. 1 = evolved reference.
+ */
+export const STRENGTH_REFERENCE = ["bramblewarden", "hearthflame", "brook-nymph"] as const;
+export const STRENGTH_FLOOR = 0.6;
+/** Foe HP / damage ease = strength ^ these (tuned with trialSim). */
+export const STRENGTH_EXP = { hp: 1.4, damage: 0.9 };
+
+function basePower(id: string): number {
+  const def = getCreatureDefinition(id);
+  return Math.sqrt(def.maxHp * def.attack);
+}
+
+const REFERENCE_POWER = STRENGTH_REFERENCE.reduce((s, id) => s + basePower(id), 0) / STRENGTH_REFERENCE.length;
+
+export function trialPartyStrength(speciesIds: readonly string[]): number {
+  if (speciesIds.length === 0) {
+    return 1;
+  }
+  const mean = speciesIds.reduce((s, id) => s + basePower(id), 0) / speciesIds.length;
+  return Math.min(1, Math.max(STRENGTH_FLOOR, mean / REFERENCE_POWER));
 }
 
 export type TrialBattleContext = {
@@ -50,6 +76,8 @@ export type TrialBattleContext = {
   partyAverage: number;
   /** Standing companions when the round starts. */
   partySize: number;
+  /** `trialPartyStrength` of the active party (default 1). */
+  partyStrength?: number;
   /** Boons picked for this round (all but Mend, which acts at once). */
   boons: readonly BoonId[];
   maxLevel: number;
@@ -77,12 +105,14 @@ export class TrialBattle {
   private readonly rules: ReturnType<typeof combineModifiers>;
   private foeTurns = 0;
   private freeSwitches: number;
+  private readonly strength: number;
 
   constructor(ctx: TrialBattleContext) {
     this.round = ctx.round;
     this.modifiers = ctx.round.modifiers;
     this.boons = ctx.boons;
     this.rules = combineModifiers(ctx.round.modifiers);
+    this.strength = ctx.partyStrength ?? 1;
     this.freeSwitches = this.boons.includes("swift-swap") ? 2 : 1;
     const level = Math.min(ctx.maxLevel, Math.max(1, Math.round(ctx.partyAverage) + ctx.round.levelBonus));
     if (ctx.round.kind === "boss") {
@@ -142,11 +172,12 @@ export class TrialBattle {
   /** Modifier stats on the foe (HP, damage, glass, finisher wind-up). */
   private decorateFoe(foe: BattleCombatant, regular: boolean): void {
     const r = this.rules;
-    if (r.foeHp !== 1) {
-      foe.maxHp = Math.max(1, Math.round(foe.maxHp * r.foeHp));
+    const hp = r.foeHp * this.strength ** STRENGTH_EXP.hp;
+    if (hp !== 1) {
+      foe.maxHp = Math.max(1, Math.round(foe.maxHp * hp));
       foe.currentHp = foe.maxHp;
     }
-    foe.damageScale = (foe.damageScale ?? 1) * r.foeDamage * r.glassDamage;
+    foe.damageScale = (foe.damageScale ?? 1) * r.foeDamage * r.glassDamage * this.strength ** STRENGTH_EXP.damage;
     if (regular) {
       // The boss keeps its glass bulk through staggers via StoryBattle options.
       foe.bulk = (foe.bulk ?? 1) * r.glassBulk;

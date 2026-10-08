@@ -198,6 +198,36 @@ test("a full Eclipse Trial through the gate, boons and the share card", async ({
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
+test("two trials back to back both reach their results (particles on, 3+ rounds)", async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await seedPostFinale(page);
+  expect(await page.evaluate(async () => (await import("/src/game/render/fx/fxSettings.ts")).effectsEnabled())).toBe(true);
+  const overlay = page.locator("#trial-overlay");
+  for (let run = 0; run < 2; run++) {
+    await walkToGate(page);
+    await page.keyboard.press("e");
+    await expect(page.locator("#trial-title")).toHaveText("ROUND 1", { timeout: 15_000 });
+    await page.keyboard.press("Enter");
+    for (let round = 1; round <= 4; round += 1) {
+      await settleRound(page, round <= 3);
+      if (round <= 3) {
+        await expect(overlay.locator(".trial-boon")).toHaveCount(3, { timeout: 15_000 });
+        await page.keyboard.press("4");
+        await page.getByRole("button", { name: "Begin round" }).click();
+      }
+    }
+    // Results (with the confetti burst) every time; then back to the world.
+    await expect(page.locator(".trial-result-title")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".trial-breakdown")).toContainText("3 / 5");
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect.poll(() => active(page, "IsometricScene"), { timeout: 10_000 }).toBe(true);
+    await expect(overlay).toHaveCount(0);
+  }
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
 test("reloading mid-trial restores the pre-trial save with no rewards", async ({ page }) => {
   test.setTimeout(90_000);
   await seedPostFinale(page);

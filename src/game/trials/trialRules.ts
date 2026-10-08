@@ -6,7 +6,7 @@ import { MEND_FRACTION } from "./boons";
  */
 
 /** Standing companions catch their breath between rounds (fainted stay down). Tuned with trialSim. */
-export const TRIAL_ROUND_RECOVERY = { fraction: 0.35 };
+export const TRIAL_ROUND_RECOVERY = { fraction: 0.25 };
 
 export function roundRecovery(hp: number[], maxHp: readonly number[], fraction = TRIAL_ROUND_RECOVERY.fraction): void {
   hp.forEach((value, i) => {

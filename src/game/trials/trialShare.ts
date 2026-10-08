@@ -2,9 +2,11 @@ import { CREATURES } from "../creatures/catalog";
 import { fromBase64Url, toBase64Url } from "../world/invite";
 import { capCodePoints, cleanDisplayText } from "../world/displayText";
 import { PLAYER_NAME_MAX_LENGTH } from "../world/playerName";
-import { TRIAL_TITLES } from "./scoring";
+import { SCORE, TRIAL_TITLES, trialTitleIndex } from "./scoring";
 import { MAX_TRIAL_SCORE } from "./trialState";
-import { parseTrialDayKey, TRIAL_PARAM, trialDayKey, type TrialDay } from "./trialSeed";
+import { readTrialDayParam, todayTrialDay, TRIAL_PARAM, trialDayKey, type TrialDay } from "./trialSeed";
+
+export { TRIAL_LINK_MAX_AGE_DAYS } from "./trialSeed";
 
 /**
  * Trial share links (#420): `?trial=YYYY-MM-DD` names the gauntlet; the
@@ -33,6 +35,12 @@ export type TrialBrag = {
   party: string[];
 };
 
+
+/** Least score `rounds` cleared rounds can carry (the round points alone). */
+export function minScoreFor(rounds: number): number {
+  return rounds >= 5 ? 4 * SCORE.round + SCORE.boss : rounds * SCORE.round;
+}
+
 export type TrialLinkResult =
   | { status: "absent" }
   | { status: "invalid" }
@@ -57,7 +65,7 @@ export function encodeTrialBrag(brag: TrialBrag): string {
       n: sanitizeTrialName(brag.name),
       s: Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(brag.score))),
       r: Math.min(5, Math.max(0, Math.floor(brag.rounds))),
-      t: Math.min(TRIAL_TITLES.length - 1, Math.max(0, Math.floor(brag.title))),
+      t: trialTitleIndex(Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(brag.score)))),
       p: brag.party.filter((id) => ALLOWED_IDS.has(id)).slice(0, TRIAL_BRAG_PARTY_LIMIT),
     }),
   );
@@ -93,7 +101,10 @@ export function decodeTrialBrag(raw: string | null): TrialBrag | null {
     !isInt(o.t, 0, TRIAL_TITLES.length - 1) ||
     !Array.isArray(o.p) ||
     o.p.length > TRIAL_BRAG_PARTY_LIMIT ||
-    !o.p.every((id) => typeof id === "string" && ALLOWED_IDS.has(id))
+    !o.p.every((id) => typeof id === "string" && ALLOWED_IDS.has(id)) ||
+    // A brag must be self-consistent: the title its score earns, rounds it could score.
+    o.t !== trialTitleIndex(o.s) ||
+    o.s < minScoreFor(o.r)
   ) {
     return null;
   }
@@ -101,22 +112,18 @@ export function decodeTrialBrag(raw: string | null): TrialBrag | null {
 }
 
 /** Read `?trial=` (+ optional `by`) from a query string. Never throws. */
-export function readTrialLink(search: string): TrialLinkResult {
-  let params: URLSearchParams;
+export function readTrialLink(search: string, today: TrialDay = todayTrialDay()): TrialLinkResult {
+  const day = readTrialDayParam(search, today);
+  if (day.status !== "ok") {
+    return day;
+  }
+  let brag: TrialBrag | null = null;
   try {
-    params = new URLSearchParams(search);
+    brag = decodeTrialBrag(new URLSearchParams(search).get(TRIAL_BRAG_PARAM));
   } catch {
-    return { status: "invalid" };
+    brag = null;
   }
-  const raw = params.get(TRIAL_PARAM);
-  if (raw === null) {
-    return { status: "absent" };
-  }
-  const day = parseTrialDayKey(raw);
-  if (day === null) {
-    return { status: "invalid" };
-  }
-  return { status: "ok", day, brag: decodeTrialBrag(params.get(TRIAL_BRAG_PARAM)) };
+  return { status: "ok", day: day.day, brag };
 }
 
 /** Clean share URL on this origin + path (drops every other param). */
