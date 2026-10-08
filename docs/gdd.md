@@ -72,7 +72,7 @@ Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done,
 
 - **Story 18/18** as the full main line; Act 1 (steps 1–4) is the FTUE on-ramp. Skill/content gate: first spar win unlocks the overworld. Village cottages unlock when the main quest opens the east gate (Act 2).
 - **Party:** active party max 7; extras in reserve. [inferred: `ACTIVE_PARTY_LIMIT`]
-- **Levels:** creatures level from shared spar XP (actives only). Catalog HP/ATK are Lv 1 baselines; effective combat stats use `floor(base * (1 + (level-1)*(2.25/49)))` plus shrine bonuses → ~3.25× at Lv 50. XP to reach level N is `5 * (N - 1)²` (`MAX_LEVEL` = 50; `XP_PER_SPAR_WIN` = 70 shared). No heal on level-up. Wilds scale with per-species spar wins: `min(50, 1 + floor(wins/2) + rarityBias)` where rarityBias is +0 / +3 / +6 from max encounter weight (≥40 / 13–39 / ≤12); sovereigns excluded. Befriend inherits the wild’s effective level.
+- **Levels:** creatures level from shared spar XP (actives only). Catalog HP/ATK are Lv 1 baselines; effective combat stats use `floor(base * (1 + (level-1)*(2.25/49)))` plus shrine bonuses → ~3.25× at Lv 50. XP to reach level N is `5 * (N - 1)²` (`MAX_LEVEL` = 50; `XP_PER_SPAR_WIN` = 70 pool: the fighter takes 50%, benched actives split the rest). No heal on level-up. Wild level is `min(50, round(active party avg level) + rarityBias)` where rarityBias is +0 / +1 / +2 from max encounter weight (≥40 / 13–39 / ≤12); spar wins no longer raise it (#370); sovereigns excluded. Spar wins also roll a bonus drop (Moonlit find +3 Dust 5%, Lucky scrap +1 Dust 15%, Bonus haul +1 species material 25%). Befriend inherits the wild’s effective level.
 - **Codex:** encountering a creature once lists it under every habitat that can spawn it. 27 encounter-table species required for the hidden **Codex Keeper** achievement (evolution-only `Bramblewarden` and `Hearthflame` are not required). Once per save: Brook Tonic ×5 and Moonwake Draught ×5.
 - **Village side asks** (host only, after first-visit gift):
   - Warden Bryn: word of five different creatures → Brook Tonic ×2
@@ -96,7 +96,7 @@ Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done,
 
 | Resource | Role | Faucet | Sink |
 | --- | --- | --- | --- |
-| Wood, Stone, Wild Fiber, Pebble | Gather nodes | Chop/mine/gather/collect on world props, 30s cooldown [inferred: `gatherNodes.ts`] | Craft patterns; Sable delivery (Wood ×5, Wild Fiber ×3) |
+| Wood, Stone, Wild Fiber, Pebble | Gather nodes | Chop/mine/gather/collect on world props, 2-3 per harvest, 15s cooldown [inferred: `gatherNodes.ts`] | Craft patterns; Sable delivery (Wood ×5, Wild Fiber ×3) |
 | Creature materials (Moss Fiber, Ember Ash, Brook Pearl, … per species) | Spar loot | Win a spar vs that species | Craft glyphs (subset: moss, ember, pearl, etc.) |
 | Folklore Dust | Spar loot | +1 per spar win [inferred: `sparRewards.ts`] | Craft (glyph D) |
 | Brook Tonic | Heal | Craft ×3; NPC gifts/asks; Codex Keeper ×5 | Use |
