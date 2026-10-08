@@ -68,6 +68,14 @@ describe("selectMusicTrack", () => {
     ).toBe("grove");
   });
 
+  it("story battles swap the spar loop for the boss / rival theme (#385)", () => {
+    const fight: MusicContext = { ...base, zoneId: "emberfen", battle: true };
+    expect(selectMusicTrack({ ...fight, battleTheme: "boss" })).toBe("boss");
+    expect(selectMusicTrack({ ...fight, battleTheme: "rival" })).toBe("rival");
+    expect(selectMusicTrack({ ...fight, battleTheme: "boss", victory: true })).toBe("victory");
+    expect(selectMusicTrack({ ...base, zoneId: "emberfen", battleTheme: "boss" })).not.toBe("boss");
+  });
+
   it("only the victory sting is a one-shot", () => {
     const oneShots = Object.entries(MUSIC_TRACKS).filter(([, c]) => !c.loop);
     expect(oneShots.map(([id]) => id)).toEqual(["victory"]);

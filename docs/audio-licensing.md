@@ -17,6 +17,8 @@ python3 scripts/generate-audio.py sfx      # sfx only
 | --- | --- | --- |
 | `music-title`, `music-grove`, `music-shrine`, `music-village`, `music-battle`, `music-night` | `.ogg` (Vorbis, mono, 22050 Hz) + `.m4a` (AAC, Safari fallback) | Seamless loops, 33-40 s. Night plays after 20:00 local time in outdoor zones and always in Mistwood. |
 | `music-victory` | `.ogg` + `.m4a` | One-shot sting, about 5.8 s. |
+| `music-boss`, `music-rival` | `.ogg` + `.m4a` | Story battle loops (#385): Cinder Matriarch (D Phrygian war drums, about 30 s) and Wren (E minor whistle hook, about 26 s). |
+| `sfx-boss-sting` | `.wav` | Story battle VS banner and boss transformation hit (#385). |
 | `sfx-ui-click`, `sfx-step-grass`, `sfx-step-stone`, `sfx-step-wood`, `sfx-step-sand`, `sfx-craft-success`, `sfx-level-up`, `sfx-evolve`, `sfx-ability`, `sfx-move-fire`, `sfx-move-water`, `sfx-move-grove`, `sfx-move-neutral` | `.wav` (16-bit PCM, mono, 22050 Hz) | Short effects. |
 
 The `.m4a` files need macOS `afconvert`; the script skips them elsewhere and the game falls back to the `.ogg`.

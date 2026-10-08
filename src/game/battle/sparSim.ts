@@ -143,7 +143,8 @@ function bestDamageMove(
   )[0];
 }
 
-function chooseMove(
+/** Policy move pick, shared with the story battle sim (battle/boss). */
+export function chooseMove(
   policy: SparPolicy,
   player: BattleCombatant,
   wild: BattleCombatant,
