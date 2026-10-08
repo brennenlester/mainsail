@@ -805,6 +805,18 @@ export function applyNpcSprite(
   size: { width: number; height: number } = NPC_DISPLAY,
   anim: "idle" | "talk" = "idle",
 ): Phaser.GameObjects.Image {
+  // Dialogue (talk) prefers a rendered bust portrait when one exists (#392:
+  // `npc-rival-wren-portrait`), so the panel never shows a blown-up sprite.
+  const portraitKey = `${npc.spriteKey}-portrait`;
+  if (anim === "talk" && hasImagineFrame(scene, portraitKey)) {
+    image.setTexture(IMAGINE_ATLAS_KEY, portraitKey);
+    image.clearTint();
+    const animKey = `${portraitKey}__talk`;
+    if (image instanceof Phaser.GameObjects.Sprite && scene.anims.exists(animKey)) {
+      image.play(animKey);
+    }
+    return fitContainDisplay(image, size);
+  }
   if (hasImagineFrame(scene, npc.spriteKey)) {
     image.setTexture(IMAGINE_ATLAS_KEY, npc.spriteKey);
     image.clearTint();

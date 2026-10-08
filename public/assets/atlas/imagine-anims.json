@@ -1,6 +1,61 @@
 {
   "anims": [
     {
+      "key": "creature-bog-lantern-battle__idle",
+      "frames": [
+        "creature-bog-lantern-battle__idle_00",
+        "creature-bog-lantern-battle__idle_01",
+        "creature-bog-lantern-battle__idle_02",
+        "creature-bog-lantern-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-bog-lantern-battle__attack",
+      "frames": [
+        "creature-bog-lantern-battle__attack_00",
+        "creature-bog-lantern-battle__attack_01",
+        "creature-bog-lantern-battle__attack_02",
+        "creature-bog-lantern-battle__attack_03",
+        "creature-bog-lantern-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-bog-lantern-battle__hurt",
+      "frames": [
+        "creature-bog-lantern-battle__hurt_00",
+        "creature-bog-lantern-battle__hurt_01",
+        "creature-bog-lantern-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-bog-lantern-battle__faint",
+      "frames": [
+        "creature-bog-lantern-battle__faint_00",
+        "creature-bog-lantern-battle__faint_01",
+        "creature-bog-lantern-battle__faint_02",
+        "creature-bog-lantern-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-bog-lantern__idle",
+      "frames": [
+        "creature-bog-lantern__idle_00",
+        "creature-bog-lantern__idle_01",
+        "creature-bog-lantern__idle_02",
+        "creature-bog-lantern__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
       "key": "creature-bramblewarden-battle__idle",
       "frames": [
         "creature-bramblewarden-battle__idle_00",
@@ -106,6 +161,116 @@
         "creature-brook-nymph__idle_01",
         "creature-brook-nymph__idle_02",
         "creature-brook-nymph__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-cinder-matriarch-battle__idle",
+      "frames": [
+        "creature-cinder-matriarch-battle__idle_00",
+        "creature-cinder-matriarch-battle__idle_01",
+        "creature-cinder-matriarch-battle__idle_02",
+        "creature-cinder-matriarch-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-cinder-matriarch-battle__attack",
+      "frames": [
+        "creature-cinder-matriarch-battle__attack_00",
+        "creature-cinder-matriarch-battle__attack_01",
+        "creature-cinder-matriarch-battle__attack_02",
+        "creature-cinder-matriarch-battle__attack_03",
+        "creature-cinder-matriarch-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-matriarch-battle__hurt",
+      "frames": [
+        "creature-cinder-matriarch-battle__hurt_00",
+        "creature-cinder-matriarch-battle__hurt_01",
+        "creature-cinder-matriarch-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-matriarch-battle__faint",
+      "frames": [
+        "creature-cinder-matriarch-battle__faint_00",
+        "creature-cinder-matriarch-battle__faint_01",
+        "creature-cinder-matriarch-battle__faint_02",
+        "creature-cinder-matriarch-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-matriarch-phase2-battle__idle",
+      "frames": [
+        "creature-cinder-matriarch-phase2-battle__idle_00",
+        "creature-cinder-matriarch-phase2-battle__idle_01",
+        "creature-cinder-matriarch-phase2-battle__idle_02",
+        "creature-cinder-matriarch-phase2-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-cinder-matriarch-phase2-battle__attack",
+      "frames": [
+        "creature-cinder-matriarch-phase2-battle__attack_00",
+        "creature-cinder-matriarch-phase2-battle__attack_01",
+        "creature-cinder-matriarch-phase2-battle__attack_02",
+        "creature-cinder-matriarch-phase2-battle__attack_03",
+        "creature-cinder-matriarch-phase2-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-matriarch-phase2-battle__hurt",
+      "frames": [
+        "creature-cinder-matriarch-phase2-battle__hurt_00",
+        "creature-cinder-matriarch-phase2-battle__hurt_01",
+        "creature-cinder-matriarch-phase2-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-matriarch-phase2-battle__faint",
+      "frames": [
+        "creature-cinder-matriarch-phase2-battle__faint_00",
+        "creature-cinder-matriarch-phase2-battle__faint_01",
+        "creature-cinder-matriarch-phase2-battle__faint_02",
+        "creature-cinder-matriarch-phase2-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-matriarch-phase2__idle",
+      "frames": [
+        "creature-cinder-matriarch-phase2__idle_00",
+        "creature-cinder-matriarch-phase2__idle_01",
+        "creature-cinder-matriarch-phase2__idle_02",
+        "creature-cinder-matriarch-phase2__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-cinder-matriarch__idle",
+      "frames": [
+        "creature-cinder-matriarch__idle_00",
+        "creature-cinder-matriarch__idle_01",
+        "creature-cinder-matriarch__idle_02",
+        "creature-cinder-matriarch__idle_03"
       ],
       "frameRate": 6,
       "repeat": -1
@@ -331,6 +496,61 @@
       "repeat": -1
     },
     {
+      "key": "creature-mist-serpent-battle__idle",
+      "frames": [
+        "creature-mist-serpent-battle__idle_00",
+        "creature-mist-serpent-battle__idle_01",
+        "creature-mist-serpent-battle__idle_02",
+        "creature-mist-serpent-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-mist-serpent-battle__attack",
+      "frames": [
+        "creature-mist-serpent-battle__attack_00",
+        "creature-mist-serpent-battle__attack_01",
+        "creature-mist-serpent-battle__attack_02",
+        "creature-mist-serpent-battle__attack_03",
+        "creature-mist-serpent-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-mist-serpent-battle__hurt",
+      "frames": [
+        "creature-mist-serpent-battle__hurt_00",
+        "creature-mist-serpent-battle__hurt_01",
+        "creature-mist-serpent-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-mist-serpent-battle__faint",
+      "frames": [
+        "creature-mist-serpent-battle__faint_00",
+        "creature-mist-serpent-battle__faint_01",
+        "creature-mist-serpent-battle__faint_02",
+        "creature-mist-serpent-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-mist-serpent__idle",
+      "frames": [
+        "creature-mist-serpent__idle_00",
+        "creature-mist-serpent__idle_01",
+        "creature-mist-serpent__idle_02",
+        "creature-mist-serpent__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
       "key": "creature-mossling-battle__idle",
       "frames": [
         "creature-mossling-battle__idle_00",
@@ -389,6 +609,61 @@
         "creature-mossling__idle_05"
       ],
       "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "creature-peat-sprite-battle__idle",
+      "frames": [
+        "creature-peat-sprite-battle__idle_00",
+        "creature-peat-sprite-battle__idle_01",
+        "creature-peat-sprite-battle__idle_02",
+        "creature-peat-sprite-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-peat-sprite-battle__attack",
+      "frames": [
+        "creature-peat-sprite-battle__attack_00",
+        "creature-peat-sprite-battle__attack_01",
+        "creature-peat-sprite-battle__attack_02",
+        "creature-peat-sprite-battle__attack_03",
+        "creature-peat-sprite-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-peat-sprite-battle__hurt",
+      "frames": [
+        "creature-peat-sprite-battle__hurt_00",
+        "creature-peat-sprite-battle__hurt_01",
+        "creature-peat-sprite-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-peat-sprite-battle__faint",
+      "frames": [
+        "creature-peat-sprite-battle__faint_00",
+        "creature-peat-sprite-battle__faint_01",
+        "creature-peat-sprite-battle__faint_02",
+        "creature-peat-sprite-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-peat-sprite__idle",
+      "frames": [
+        "creature-peat-sprite__idle_00",
+        "creature-peat-sprite__idle_01",
+        "creature-peat-sprite__idle_02",
+        "creature-peat-sprite__idle_03"
+      ],
+      "frameRate": 6,
       "repeat": -1
     },
     {
@@ -596,6 +871,102 @@
         "npc-island-hermit-reed__talk_01",
         "npc-island-hermit-reed__talk_02",
         "npc-island-hermit-reed__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren-east__walk",
+      "frames": [
+        "npc-rival-wren-east-1",
+        "npc-rival-wren-east-2",
+        "npc-rival-wren-east-3",
+        "npc-rival-wren-east-4",
+        "npc-rival-wren-east-5",
+        "npc-rival-wren-east-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren-north__walk",
+      "frames": [
+        "npc-rival-wren-north-1",
+        "npc-rival-wren-north-2",
+        "npc-rival-wren-north-3",
+        "npc-rival-wren-north-4",
+        "npc-rival-wren-north-5",
+        "npc-rival-wren-north-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren-portrait__idle",
+      "frames": [
+        "npc-rival-wren-portrait__idle_00",
+        "npc-rival-wren-portrait__idle_01",
+        "npc-rival-wren-portrait__idle_02",
+        "npc-rival-wren-portrait__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren-portrait__talk",
+      "frames": [
+        "npc-rival-wren-portrait__talk_00",
+        "npc-rival-wren-portrait__talk_01",
+        "npc-rival-wren-portrait__talk_02",
+        "npc-rival-wren-portrait__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren-south__walk",
+      "frames": [
+        "npc-rival-wren-south-1",
+        "npc-rival-wren-south-2",
+        "npc-rival-wren-south-3",
+        "npc-rival-wren-south-4",
+        "npc-rival-wren-south-5",
+        "npc-rival-wren-south-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren-west__walk",
+      "frames": [
+        "npc-rival-wren-west-1",
+        "npc-rival-wren-west-2",
+        "npc-rival-wren-west-3",
+        "npc-rival-wren-west-4",
+        "npc-rival-wren-west-5",
+        "npc-rival-wren-west-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren__idle",
+      "frames": [
+        "npc-rival-wren__idle_00",
+        "npc-rival-wren__idle_01",
+        "npc-rival-wren__idle_02",
+        "npc-rival-wren__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren__talk",
+      "frames": [
+        "npc-rival-wren__talk_00",
+        "npc-rival-wren__talk_01",
+        "npc-rival-wren__talk_02",
+        "npc-rival-wren__talk_03"
       ],
       "frameRate": 8,
       "repeat": -1

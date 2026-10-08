@@ -891,6 +891,22 @@ export class OverworldFx {
         this.glows.push({ image, base: 0.08, night: 0.7, flicker: false });
         continue;
       }
+      if (prop.kind === "brazier" || prop.kind === "glowcap") {
+        // Emberfen braziers / Mistwood glowcaps (#392): always lit, brighter at night.
+        const brazier = prop.kind === "brazier";
+        const image = this.scene.add
+          .image(
+            this.origin.x + prop.x * TILE_WIDTH + TILE_WIDTH / 2,
+            this.origin.y + prop.y * TILE_HEIGHT + TILE_HEIGHT / 2 - (brazier ? 30 : 8),
+            FX_TEX.halo,
+          )
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setTint(brazier ? 0xff8a30 : 0x7fe8d0)
+          .setScale(brazier ? 1.5 : 1.1)
+          .setDepth(depth);
+        this.glows.push({ image, base: brazier ? 0.3 : 0.22, night: 0.5, flicker: brazier });
+        continue;
+      }
       if (prop.kind !== "shrine-altar" && prop.kind !== "hearth") {
         continue;
       }

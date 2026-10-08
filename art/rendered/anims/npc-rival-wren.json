@@ -1,0 +1,26 @@
+{
+  "anims": [
+    {
+      "key": "npc-rival-wren__idle",
+      "frames": [
+        "npc-rival-wren__idle_00",
+        "npc-rival-wren__idle_01",
+        "npc-rival-wren__idle_02",
+        "npc-rival-wren__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-rival-wren__talk",
+      "frames": [
+        "npc-rival-wren__talk_00",
+        "npc-rival-wren__talk_01",
+        "npc-rival-wren__talk_02",
+        "npc-rival-wren__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    }
+  ]
+}

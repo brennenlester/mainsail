@@ -1,0 +1,17 @@
+{
+  "anims": [
+    {
+      "key": "npc-rival-wren-north__walk",
+      "frames": [
+        "npc-rival-wren-north-1",
+        "npc-rival-wren-north-2",
+        "npc-rival-wren-north-3",
+        "npc-rival-wren-north-4",
+        "npc-rival-wren-north-5",
+        "npc-rival-wren-north-6"
+      ],
+      "frameRate": 10,
+      "repeat": -1
+    }
+  ]
+}

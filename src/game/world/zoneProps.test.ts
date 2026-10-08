@@ -29,8 +29,12 @@ describe("propTextureKey biome trees (#345)", () => {
     ).toBe("prop-tree-mistwood");
   });
 
-  it("does not retarget non-tree props by biome", () => {
-    expect(propTextureKey("fern", true, "mistwood")).toBe("prop-fern");
-    expect(propTextureKey("fern", true, "emberfen")).toBe("prop-fern");
+  it("retargets gatherable props by biome and falls back to the base sheet (#392)", () => {
+    expect(propTextureKey("fern", true, "mistwood")).toBe("prop-fern-mistwood");
+    expect(propTextureKey("pebble-pile", true, "emberfen")).toBe("prop-pebble-pile-emberfen");
+    expect(propTextureKey("standing-stone", true, "harbor")).toBe("prop-standing-stone-harbor");
+    expect(propTextureKey("fern", true, "grove")).toBe("prop-fern");
+    expect(propTextureKey("brazier", true, "emberfen")).toBe("prop-brazier");
+    expect(resolvePropTextureKey("fern", true, "harbor", () => false)).toBe("prop-fern");
   });
 });

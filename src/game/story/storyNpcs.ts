@@ -29,7 +29,9 @@ export type StoryConversation = {
 const RIVAL: Omit<NpcDefinition, "x" | "y"> = {
   id: RIVAL_NPC_ID,
   name: "Wren",
-  // No bespoke art yet — villager fallback with Wren's rust-red robe.
+  // Blender-rendered rival (#392): `npc-rival-wren` (+ __idle/__talk, walk
+  // facings) and a bust `npc-rival-wren-portrait` for dialogue; the tint
+  // only applies to the procedural villager fallback.
   spriteKey: "npc-rival-wren",
   tint: 0xd8603c,
   introLines: [],

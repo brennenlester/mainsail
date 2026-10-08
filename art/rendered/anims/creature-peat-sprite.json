@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-peat-sprite__idle",
+      "frames": [
+        "creature-peat-sprite__idle_00",
+        "creature-peat-sprite__idle_01",
+        "creature-peat-sprite__idle_02",
+        "creature-peat-sprite__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

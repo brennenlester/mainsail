@@ -50,7 +50,6 @@ export class PreloadScene extends Phaser.Scene {
       "minigame-hearth-lots-board",
       "assets/minigames/hearth-lots-board.png",
     );
-    this.load.image("prop-shelf", "assets/world/prop-shelf.png");
     this.load.image(
       "boundary-warden-cottage",
       "assets/world/boundary-cottage.png",
