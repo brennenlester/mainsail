@@ -1,6 +1,7 @@
 import type { ZoneId } from "./zoneTypes";
 import { getArchipelagoProps } from "./archipelagoStream";
-import { VILLAGE_CODE_GATE } from "./villageGate";
+import { MISTWOOD_GATE, VILLAGE_CODE_GATE } from "./villageGate";
+import { worldState } from "./worldState";
 import { revealedSiteProps } from "../companions/abilities";
 import { getClaimedSites } from "../companions/companionState";
 
@@ -101,7 +102,8 @@ export const ZONE_PROPS: Partial<Record<ZoneId, ZoneProp[]>> = {
     { x: 7, y: 8, kind: "standing-stone" },
     { x: 3, y: 8, kind: "pebble-pile" },
     { x: 11, y: 8, kind: "pebble-pile" },
-    // East path toward Mistwood
+    // East path toward Mistwood (region gate, #369)
+    { x: MISTWOOD_GATE.x, y: MISTWOOD_GATE.y, kind: "gate" },
     { x: 12, y: 6, kind: "tree" },
     { x: 12, y: 8, kind: "fern" },
     { x: 11, y: 4, kind: "standing-stone" },
@@ -197,12 +199,16 @@ export function isGatePropOpen(
   prop: ZoneProp,
   overworldUnlocked: boolean,
   villageGateUnlocked: boolean,
+  mistwoodPathOpen = worldState.mistwoodPathOpen,
 ): boolean {
   if (prop.kind !== "gate") {
     return true;
   }
   if (zoneId === "village" && prop.x === VILLAGE_CODE_GATE.x && prop.y === VILLAGE_CODE_GATE.y) {
     return villageGateUnlocked;
+  }
+  if (zoneId === "overworld" && prop.x === MISTWOOD_GATE.x && prop.y === MISTWOOD_GATE.y) {
+    return mistwoodPathOpen;
   }
   return overworldUnlocked;
 }

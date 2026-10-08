@@ -33,7 +33,8 @@ import {
   resetDailyAskForTest,
   setDailyAskState,
 } from "./dailyAsk";
-import { getActiveQuestId, recordQuestEvent, syncMainQuestFromGameplay } from "../story/questProgress";
+import { isStoryNpcId, storyNpcConversation } from "../story/storyNpcs";
+import type { StorySparId } from "../story/questTypes";
 import { HERMIT_NPC_ID } from "./hermitIsland";
 
 const TIDE_SOVEREIGN_ID = "tide-sovereign";
@@ -58,7 +59,9 @@ export const ODD_REST_REPEAT_COST = 5;
 
 export type ConversationPrompt =
   | { kind: "advance" }
-  | { kind: "confirm-rest" };
+  | { kind: "confirm-rest" }
+  /** Rival / boss spar offer (#369) — last button starts the story spar. */
+  | { kind: "challenge"; sparId: StorySparId; label: string };
 
 export type Conversation = {
   lines: string[];
@@ -223,7 +226,6 @@ function turnInSideQuest(quest: SideQuestDefinition): string[] | null {
   sideQuestStatus.set(quest.id, "complete");
   grantGift(quest.reward);
   notifyWorldChanged();
-  syncMainQuestFromGameplay();
   return [
     ...quest.turnInLines,
     `Reward — ${formatGift(quest.reward)}.`,
@@ -332,19 +334,6 @@ export function confirmOddRest(): string[] {
   return ["There. Whole again. The hearth does not mind the work."];
 }
 
-function tryAdvanceOddCompanyMainQuest(): void {
-  if (getActiveQuestId() !== "odd-company") {
-    return;
-  }
-  if (playerParty.creatures.length < 3) {
-    return;
-  }
-  recordQuestEvent({
-    type: "party_size",
-    count: playerParty.creatures.length,
-  });
-}
-
 function partyHasGroveLine(starterId: BrynGroveStarterId): boolean {
   const ids = GROVE_STARTER_LINE[starterId];
   return playerParty.creatures.some(
@@ -415,6 +404,9 @@ export function beginConversation(npc: NpcDefinition): Conversation {
   if (npc.id === HERMIT_NPC_ID) {
     return hermitConversation(npc);
   }
+  if (isStoryNpcId(npc.id)) {
+    return storyNpcConversation(npc);
+  }
 
   if (!hasClaimedNpcGift(npc.id)) {
     const lines = [...npc.introLines];
@@ -440,9 +432,6 @@ export function beginConversation(npc: NpcDefinition): Conversation {
 
   const sideQuest = sideQuestConversation(npc);
   if (sideQuest) {
-    if (npc.id === ODD_NPC_ID) {
-      tryAdvanceOddCompanyMainQuest();
-    }
     return sideQuest;
   }
 

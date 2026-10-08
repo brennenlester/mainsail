@@ -6,6 +6,7 @@ import {
   recordQuestEvent,
   restoreQuestProgress,
 } from "../story/questProgress";
+import { setInventoryFromSnapshot } from "../inventory/playerInventory";
 
 describe("syncQuestHudPosition", () => {
   it("pins the quest HUD to the game board top-right inside the playfield", () => {
@@ -66,46 +67,61 @@ describe("refreshQuestHud", () => {
   });
 
   it("shows quest completion in the tracker immediately", () => {
-    recordQuestEvent({ type: "befriend_creature" });
+    recordQuestEvent({ type: "befriend_creature", creatureId: "ember-wisp" });
 
     const summary = document.getElementById("quest-hud-summary")!;
     const hint = document.getElementById("quest-hud-hint")!;
 
-    expect(summary.textContent).toBe("Quest complete: Befriend a wild creature");
+    expect(summary.textContent).toBe(
+      "Quest complete: Befriend your first companion — Ember Wisp joins — restless, bright, and fond of warm hands",
+    );
     expect(hint.textContent).toContain("Next:");
     expect(hint.textContent).toContain("Spar");
   });
 
-  it("shows Act 1 NPC flavor on steps 3–4 only", () => {
+  it("shows Story N/8 and the beat's villager or rival line (#369)", () => {
     const npc = document.getElementById("quest-hud-npc")!;
+    const summary = () =>
+      document.getElementById("quest-hud-summary")!.textContent;
 
     refreshQuestHud();
-    expect(document.getElementById("quest-hud-summary")!.textContent).toMatch(
-      /^Story 1\/18:/,
-    );
+    expect(summary()).toMatch(/^Story 1\/8:/);
     expect(npc.textContent).toBe("");
 
     restoreQuestProgress({
       "first-befriend": "complete",
       "first-spar": "complete",
-      "reach-village": "active",
+      "shrine-craft": "active",
     });
     refreshQuestHud();
-    expect(document.getElementById("quest-hud-summary")!.textContent).toMatch(
-      /^Story 3\/18:/,
-    );
-    expect(npc.textContent).toContain("Hearthkeep Odd:");
+    expect(summary()).toMatch(/^Story 3\/8:/);
+    expect(npc.textContent).toContain("Weaver Sable:");
 
     restoreQuestProgress({
       "first-befriend": "complete",
       "first-spar": "complete",
-      "reach-village": "complete",
-      "shrine-craft": "active",
+      "shrine-craft": "complete",
+      "first-evolution": "complete",
+      "rival-wren": "active",
     });
     refreshQuestHud();
-    expect(document.getElementById("quest-hud-summary")!.textContent).toMatch(
-      /^Story 4\/18:/,
-    );
-    expect(npc.textContent).toContain("Weaver Sable:");
+    expect(summary()).toBe("Story 5/8: Beat Wren, the rival");
+    expect(npc.textContent).toMatch(/^Wren:/);
+  });
+
+  it("keeps an already-started Sovereign voyage visible as optional (#369)", () => {
+    restoreQuestProgress({
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "shrine-craft": "complete",
+      "first-evolution": "complete",
+      "rival-wren": "active",
+    });
+    setInventoryFromSnapshot({}, { boat: 1 });
+    refreshQuestHud();
+    const hint = document.getElementById("quest-hud-hint")!.textContent ?? "";
+    expect(hint).toMatch(/^Next: Find Wren/);
+    expect(hint).toContain("Optional — Sovereign voyage:");
+    setInventoryFromSnapshot({}, {});
   });
 });

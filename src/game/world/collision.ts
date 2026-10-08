@@ -30,6 +30,9 @@ export function isTileWalkable(
   if (tile === TileType.VillageGate) {
     return worldState.villageGateUnlocked;
   }
+  if (tile === TileType.MistwoodGate) {
+    return worldState.mistwoodPathOpen;
+  }
   return false;
 }
 

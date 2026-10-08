@@ -33,7 +33,7 @@ A folklore RPG where you spar with your odd little party, craft at the Moon Shri
 | Codex | Habitat codex: what lives where (fills in as you encounter creatures) |
 | Reset game | Wipe local host save and start fresh |
 
-**FTUE / confined region** [moved from README]: Start in **Whisper Grove**, walk map exits through **Moon Shrine** to **Hearth Crossing** (plaza). North of the plaza, **Folklore Fields** unlock after Story quest 2 (overworld gate). East of the plaza, the **cottage village** sits behind a village gate that opens at Act 2 start. From Harbor (north of Fields), sail east past East Landing into the open **Archipelago** sea. The top-right island holds hermit **Reed**, a fusion sage who teaches Sovereign lore; Tide Sovereign is found on that island.
+**FTUE / confined region** [moved from README]: Start in **Whisper Grove**, walk map exits through **Moon Shrine** to **Hearth Crossing** (plaza). North of the plaza, **Folklore Fields** unlock after Story 2 (overworld gate). East of the plaza, the **cottage village** sits behind a village gate that opens when Story 4 (first evolution) starts. Folklore Fields' east exit into **Mistwood Reach** / **Emberfen Hollow** is a region gate that opens when you beat the rival Wren (Story 5). From Harbor (north of Fields), sail east past East Landing into the open **Archipelago** sea. The top-right island holds hermit **Reed**, a fusion sage who teaches Sovereign lore; Tide Sovereign is found on that island.
 
 ---
 
@@ -51,14 +51,26 @@ Repeating cycle (**spine loop**):
 
 **In spine:** overworld walk and encounters; befriend; spars with party present; gather nodes that feed craft; Moon Shrine pattern craft and growth.
 
-**FTUE close (once):** first four beats of the 18-step main line on the HUD (`Story N/18` + Next hint; NPC flavor on steps 3–4):
+**Main arc (#369):** eight linear beats on the HUD (`Story N/8` + Next hint + a short villager or rival line), sized for a ~20-minute Hybrid session. Each beat has a payoff:
 
-1. Befriend a wild creature.
-2. Win a training spar — this **opens the overworld gate** (Folklore Fields / Harbor / Archipelago).
-3. Reach Hearth Crossing plaza (Grove → Shrine → Village).
-4. Craft a relic at Moon Shrine (stand on the moon altar, press E, craft any relic). Step 5 activates next.
+| # | Beat (HUD) | Payoff |
+| --- | --- | --- |
+| 1 | Befriend your first companion | Companion joins; toast names its temperament |
+| 2 | Win a training spar (hunter tip teaches one matchup) | **Overworld gate opens** |
+| 3 | Craft a relic at Moon Shrine | First relic (Moss Salve / Ember Charm sets up beat 4) |
+| 4 | Grow your first companion (either Grove evolution) | Visible evolution; **cottage gate opens** (Bryn gifts a missing Grove starter) |
+| 5 | Beat Wren, the rival | Wren spars a scaled 2-creature party in the Hearth Crossing plaza; banter changes on win / loss; first win gives Brook Tonic ×2 and **opens the Mistwood path** |
+| 6 | Walk the Mistwood path | **Region unlock** — new creatures |
+| 7 | Face the Cinder Matriarch | **Boss** in Emberfen Hollow: two forms, each **telegraphed** (form + the type that hunts it) before it rises; Wren reappears with a tip; Folklore Dust ×5 + Moonwake Draught |
+| 8 | Return to the Moon Shrine | **Finale** with Wren; main story complete; hook toward the optional Sovereign voyage (Horizon / Eclipse fusion) |
 
-Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done, then `OPEN`.
+Rival and boss rosters, level bonuses, telegraphs, and rewards are data in `src/game/story/storySpars.ts`. Rounds run back-to-back on the existing spar (HP carries over). A loss restores the party for a cheap retry. Wren stays in the plaza for scaled rematches after the arc.
+
+Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens.
+
+**Optional side threads (never gate the main arc):** village asks, cottage minigames, daily asks, Odd's rest, and the **Sovereign voyage** (craft a Boat → Tide Sovereign on Reed's isle → Stone Sovereign on the cairn isle → Sovereign Seal → Horizon fusion; Eclipse beyond). The voyage shows as `Optional — Sovereign voyage: …` after the finale, or earlier once you have a boat or a Sovereign.
+
+**Save migration:** older 18-step and 4-step saves map to the first matching beat. Old step 1 → 1, 2 → 2, 3–4 → 3, 5 → 4, and 6+ → 5 (rival). A finished save stays finished. An evolved companion completes beat 4 on load, a walked Mistwood keeps its gate open, and a voyage in progress keeps its step.
 
 **Session loop:** Hybrid. A good short session lands a Session set (spar with companions present + one craft/shrine step). Longer sit-downs can chain more loops, including frozen satellites, without being the promise.
 
@@ -70,7 +82,7 @@ Gate status reads `Overworld: LOCKED (Story 2/18)` until the spar quest is done,
 
 **Shipped progression** [moved from README + inferred from `src/game/`]:
 
-- **Story 18/18** as the full main line; Act 1 (steps 1–4) is the FTUE on-ramp. Skill/content gate: first spar win unlocks the overworld. Village cottages unlock when the main quest opens the east gate (Act 2).
+- **Story 8/8** main arc (#369): befriend → spar → shrine craft → evolution → rival → region → boss → finale. Gates: first spar win opens the overworld, Story 4 opens the cottage gate, and beating Wren opens the Mistwood path. Village content and the Sovereign voyage are optional side threads.
 - **Party:** active party max 7; extras in reserve. [inferred: `ACTIVE_PARTY_LIMIT`]
 - **Levels:** creatures level from shared spar XP (actives only). Catalog HP/ATK are Lv 1 baselines; effective combat stats use `floor(base * (1 + (level-1)*(2.25/49)))` plus shrine bonuses → ~3.25× at Lv 50. XP to reach level N is `5 * (N - 1)²` (`MAX_LEVEL` = 50; `XP_PER_SPAR_WIN` = 70 pool: the fighter takes 50%, benched actives split the rest). No heal on level-up. Wild level is `min(50, round(active party avg level) + rarityBias)` where rarityBias is +0 / +1 / +2 from max encounter weight (≥40 / 13–39 / ≤12); spar wins no longer raise it (#370); sovereigns excluded. Spar wins also roll a bonus drop (Moonlit find +3 Dust 5%, Lucky scrap +1 Dust 15%, Bonus haul +1 species material 25%). Befriend inherits the wild’s effective level.
 - **Befriend odds (#366):** additive, clamped 5–95% (`encounters/befriendChance.ts`): base 28%, −6%/rarity step, −4%/level the wild is above the lead (cap −20%) or +2%/level below (cap +10%), up to +40% from missing HP, Rooted/Dazed +12% (Burn/Soaked +5%), opt-in Folk Seal +15% / Favorite Bait +25% (bait spends 1 favorite material), lead bond +2%/tier, Curious/Gentle/Loyal lead +5%, shrine-folklore habitats ±10% for a hunter/hunted party. Sovereigns stay at a flat 8% (one try); Story 1 stays assured. The encounter card allows one try; a miss makes the wild open the spar. Befriend is a battle action only on wild-encounter spars (`allowBefriend`; story spars and ghost fights never). A spar miss spends the turn; 3 misses per encounter (card miss included) and the wild leaves (counts as Flee). Sim (`sparBalance.test.ts`, starter trio, wild at rarity level): card try then weaken to ≥60% recruits commons ~87% in ~1.9 tries; befriending at full HP every time ~60%; rares weakened ~60%.
@@ -194,7 +206,7 @@ From Folklore Fields, north gate into Moonwake Harbor. Press E near the west Har
 
 **Frozen:** cottages, NPC asks, and the three minigames (Ward / Loom / Hearth Lots) — no new work.
 
-Hearth Crossing plaza is west; an east gate into the cottage yard opens at Act 2 start (no code). Three cottages, enter via door + E; leave through the bottom doorway. Hermit **Reed** lives on the archipelago’s top-right island as a fusion sage (Sovereign lore; Moon Shrine Horizon after Tide and Stone).
+Hearth Crossing plaza is west; an east gate into the cottage yard opens when Story 4 starts (no code). Cottage content is optional to the main arc. Three cottages, enter via door + E; leave through the bottom doorway. Hermit **Reed** lives on the archipelago’s top-right island as a fusion sage (Sovereign lore; Moon Shrine Horizon after Tide and Stone).
 
 | Villager | Home | First-visit gift |
 | --- | --- | --- |
@@ -275,7 +287,7 @@ Decided 2026-10-07 in the Wow Pass art spike. New world art comes from `scripts/
 
 **Post-milestone (also shipped, not in original freeze):** level-scaled combat (#287), overworld encounter fixes (#300, #301). Contract assumption on holding #287 was superseded after feel gate — prep-gated spars coexist with level drip; shrine remains the big spike.
 
-**Next:** campaign Spine-quality on remaining catalog; bond meter only if ownership still weak. Open backlog: #218 (item art), #232 (Greg slice, separate gate). FTUE Story 1–4 is the on-ramp of the 18-step main line (#316).
+**Next:** campaign Spine-quality on remaining catalog; bond meter only if ownership still weak. Open backlog: #218 (item art), #232 (Greg slice, separate gate). The main line is the 8-beat arc from #369 (it replaces the 18-step contract from #312).
 
 **Smallest showable version:** surpassed — core loop and first milestone bar both met.
 

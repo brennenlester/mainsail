@@ -14,7 +14,6 @@ import {
 } from "../inventory/playerInventory";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
-import { recordCraftOutputQuestEvents } from "../story/questProgress";
 import { registerStagedCraftingSource } from "../crafting/stagedMaterials";
 import {
   GRID_SIZE,
@@ -219,7 +218,6 @@ export function mountCraftingHud(
     lastError = null;
     grid = result.grid;
     clearCraftSpotlight();
-    recordCraftOutputQuestEvents(result.recipe.outputItemId);
     options.onCrafted?.(result.recipe.name, result.recipe.outputCount);
     inventoryChanged();
     render();

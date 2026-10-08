@@ -26,8 +26,13 @@ import {
 } from "./npcState";
 import { resetMinigameProgressForTest } from "../minigames/progress";
 import type { CreatureInstance } from "../creatures/types";
-import type { QuestId, QuestStatus } from "../story/questTypes";
+import {
+  SPINE18_QUEST_IDS,
+  type QuestId,
+  type QuestStatus,
+} from "../story/questTypes";
 import { QUEST_ORDER } from "../story/quests";
+import { getActiveQuestId } from "../story/questProgress";
 import {
   applyWorldSnapshot,
   exportWorldSnapshot,
@@ -665,6 +670,60 @@ describe("applyWorldSnapshot codex achievement", () => {
       }),
     );
     expect(worldState.villageGateUnlocked).toBe(true);
+  });
+
+  function spine18Progress(activeIndex: number): Record<string, QuestStatus> {
+    return Object.fromEntries(
+      SPINE18_QUEST_IDS.map((id, i) => [
+        id,
+        i < activeIndex ? "complete" : i === activeIndex ? "active" : "locked",
+      ]),
+    );
+  }
+
+  it("migrates 18-step saves through validate + apply onto the 8 beats (#369)", () => {
+    const snapshot = validSnapshot({
+      overworldUnlocked: true,
+      // Old step 10 (bryn-ledger) active.
+      questProgress: spine18Progress(9) as WorldSnapshot["questProgress"],
+      party: [partyMember({ definitionId: "bramblewarden" })],
+      discoveredZones: ["grove", "shrine", "village", "overworld"],
+      position: { zoneId: "village", x: 3, y: 5 },
+    });
+    expect(isValidWorldSnapshot(snapshot)).toBe(true);
+    applyWorldSnapshot(snapshot);
+    expect(getActiveQuestId()).toBe("rival-wren");
+    expect(worldState.overworldUnlocked).toBe(true);
+    expect(worldState.villageGateUnlocked).toBe(true);
+    expect(worldState.mistwoodPathOpen).toBe(false);
+    const exported = exportWorldSnapshot({ zoneId: "village", x: 3, y: 5 });
+    expect(Object.keys(exported.questProgress).sort()).toEqual(
+      [...QUEST_ORDER].sort(),
+    );
+  });
+
+  it("catches an old evolve-step save with a Bramblewarden up to the rival (#369)", () => {
+    applyWorldSnapshot(
+      validSnapshot({
+        overworldUnlocked: true,
+        questProgress: spine18Progress(4) as WorldSnapshot["questProgress"],
+        party: [partyMember({ definitionId: "bramblewarden" })],
+      }),
+    );
+    expect(getActiveQuestId()).toBe("rival-wren");
+  });
+
+  it("keeps Mistwood open for a migrated save that already walked it (#369)", () => {
+    const snapshot = validSnapshot({
+      overworldUnlocked: true,
+      questProgress: spine18Progress(14) as WorldSnapshot["questProgress"],
+      discoveredZones: ["grove", "overworld", "mistwood"],
+      position: { zoneId: "mistwood", x: 5, y: 6 },
+    });
+    expect(isValidWorldSnapshot(snapshot)).toBe(true);
+    applyWorldSnapshot(snapshot);
+    expect(worldState.mistwoodPathOpen).toBe(true);
+    expect(getActiveQuestId()).toBe("rival-wren");
   });
 
   it("grandfathers village gate for legacy cottage / villager saves (#291)", () => {

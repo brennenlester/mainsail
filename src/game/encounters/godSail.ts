@@ -3,7 +3,7 @@ import type { MoveDefinition } from "../creatures/types";
 import { addItem, canAddItem, getItemCount, ownsSovereignPlate, TIDE_CROWN_ID } from "../inventory/playerInventory";
 import type { ZoneId } from "../world/zoneTypes";
 import { HERMIT_ISLAND_INDEX } from "../world/hermitIsland";
-import { questProgress, recordQuestEvent } from "../story/questProgress";
+import { questProgress } from "../story/questProgress";
 import {
   canObtainAnotherParentSovereign,
   getTideSovereignObtained,
@@ -325,9 +325,5 @@ export function resolveTideSovereignOutcome(
   if (outcome === "spar-win" || ownsSovereignPlate()) {
     result.crownGranted = grantCrownIfMissing(TIDE_CROWN_ID);
   }
-  recordQuestEvent({
-    type: "obtain_creature",
-    creatureId: TIDE_SOVEREIGN_ID,
-  });
   return result;
 }

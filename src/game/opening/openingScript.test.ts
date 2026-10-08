@@ -35,7 +35,7 @@ describe("pickOpeningEncounter", () => {
 
   it("does nothing outside the beat's zone or quest", () => {
     expect(pickOpeningEncounter({ activeQuestId: "first-befriend", zoneId: "shrine" })).toBeNull();
-    expect(pickOpeningEncounter({ activeQuestId: "reach-village", zoneId: "grove" })).toBeNull();
+    expect(pickOpeningEncounter({ activeQuestId: "shrine-craft", zoneId: "grove" })).toBeNull();
     expect(pickOpeningEncounter({ activeQuestId: null, zoneId: "grove" })).toBeNull();
   });
 

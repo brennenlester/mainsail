@@ -19,6 +19,8 @@ import {
   questProgress,
   isFullQuestProgress,
   isLegacyQuestProgress,
+  isSpine18QuestProgress,
+  syncStoryAfterWorldRestore,
   syncVillageGateForStoryQuest,
 } from "../story/questProgress";
 import {
@@ -31,6 +33,11 @@ import {
   setShrineDisclosureFromSnapshot,
 } from "../shrine/shrineDisclosure";
 import type { QuestId, QuestStatus } from "../story/questTypes";
+import {
+  getStorySparLosses,
+  isStorySparId,
+  setStorySparLosses,
+} from "../battle/storySpar";
 import { reopenParentSovereignEncounters } from "../shrine/godFusion";
 import { migrateLegacyPresenceCharmBuffs } from "../shrine/presence";
 import { CAIRN_SOVEREIGN_ID } from "../encounters/godLand";
@@ -178,6 +185,8 @@ export type WorldSnapshot = {
   harborBefriendUsed?: string[];
   /** Grove starters Bryn already gifted (#349). Optional for older saves. */
   brynGroveStartersGifted?: string[];
+  /** Story spar beats lost at least once — only the first loss heals (#369). */
+  storySparLosses?: string[];
   /** Sovereign Plate wild-encounter suppress toggle (#289). Optional for older saves. */
   sovereignPlateActive?: boolean;
   /** Per-species spar win counts for wild level scaling (#287). Optional for older saves. */
@@ -274,11 +283,20 @@ function isSpawnWalkable(
   if (tile === TileType.VillageGate) {
     return villageGateUnlocked;
   }
+  // Mistwood gate is derived from quest progress on load (#369); a stand there
+  // predates the gate, so accept it whenever the overworld itself is open.
+  if (tile === TileType.MistwoodGate) {
+    return overworldUnlocked;
+  }
   return false;
 }
 
 function acceptsQuestProgress(value: unknown): boolean {
-  return isFullQuestProgress(value) || isLegacyQuestProgress(value);
+  return (
+    isFullQuestProgress(value) ||
+    isLegacyQuestProgress(value) ||
+    isSpine18QuestProgress(value)
+  );
 }
 
 function isValidCountMap(value: unknown): value is Record<string, number> {
@@ -801,6 +819,10 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
       }
     }
   }
+  if (s.storySparLosses !== undefined) {
+    if (!Array.isArray(s.storySparLosses)) return false;
+    if (!s.storySparLosses.every((id) => isStorySparId(id))) return false;
+  }
   if (s.brynGroveStartersGifted !== undefined) {
     if (!Array.isArray(s.brynGroveStartersGifted)) return false;
     for (const creatureId of s.brynGroveStartersGifted) {
@@ -1048,6 +1070,7 @@ export function exportWorldSnapshot(
     story1BefriendGuaranteeConsumed: worldState.story1BefriendGuaranteeConsumed,
     harborBefriendUsed: [...worldState.harborBefriendUsed],
     brynGroveStartersGifted: [...worldState.brynGroveStartersGifted],
+    storySparLosses: getStorySparLosses(),
     sovereignPlateActive: worldState.sovereignPlateActive,
     sparWinsBySpecies: { ...sparWinsBySpecies },
     firstIslandLanded: worldState.firstIslandLanded,
@@ -1176,6 +1199,7 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   );
   setHarborBefriendUsed(snapshot.harborBefriendUsed ?? []);
   setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
+  setStorySparLosses(snapshot.storySparLosses ?? []);
   setClaimedSites(
     Array.isArray(snapshot.companionSitesClaimed)
       ? snapshot.companionSitesClaimed.filter(isCompanionSiteId)
@@ -1242,5 +1266,8 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   // Saves predating the achievement can already have a full codex; award after
   // the inventory is restored so the items are not overwritten.
   evaluateCodexAchievement(worldState.discoveredCreatures);
+  // Needs party + discovered zones: migrated saves catch up evolved / walked
+  // beats, and a walked Mistwood path never re-locks (#369).
+  syncStoryAfterWorldRestore();
   pendingPosition = snapshot.position;
 }

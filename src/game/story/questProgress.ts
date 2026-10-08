@@ -1,6 +1,7 @@
 import {
   isFirstIslandLanded,
   setFirstIslandLanded,
+  setMistwoodPathOpen,
   setOverworldUnlocked,
   setVillageGateUnlocked,
   worldState,
@@ -10,18 +11,19 @@ import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
 import { refreshQuestHud } from "../ui/questHud";
 import { playerParty } from "../creatures/party";
-import { hasClaimedMinigameWin } from "../minigames/progress";
-import { getSideQuestStatuses } from "../world/npcState";
+import { getCreatureDefinition } from "../creatures/catalog";
+import { SHRINE_EFFECTS } from "../shrine/shrineEffects";
 import { getMaterialName } from "../inventory/materials";
-import { addMaterial, SOVEREIGN_SEAL_ID } from "../inventory/playerInventory";
-import { QUEST_ORDER, QUESTS } from "./quests";
+import { addMaterial } from "../inventory/playerInventory";
+import { formatCompanionJoinNote, QUEST_ORDER, QUESTS } from "./quests";
+import { getSovereignVoyageHint } from "./sovereignVoyage";
 import type {
   QuestEvent,
   QuestId,
   QuestObjective,
   QuestStatus,
 } from "./questTypes";
-import { LEGACY_QUEST_IDS } from "./questTypes";
+import { LEGACY_QUEST_IDS, SPINE18_QUEST_IDS } from "./questTypes";
 
 const VALID_QUEST_STATUSES = new Set<QuestStatus>([
   "locked",
@@ -54,12 +56,73 @@ function isQuestStatus(value: unknown): value is QuestStatus {
   );
 }
 
-/** Additive migration: legacy 4-step saves map into steps 1–4; missing ids lock. */
+const CURRENT_QUEST_IDS = new Set<string>(QUEST_ORDER);
+
+/** Ids only the pre-#369 registries wrote — their presence marks an old save. */
+const RETIRED_QUEST_IDS = SPINE18_QUEST_IDS.filter(
+  (id) => !CURRENT_QUEST_IDS.has(id),
+);
+
+function isRetiredQuestProgress(source: Record<string, unknown>): boolean {
+  return RETIRED_QUEST_IDS.some((id) => id in source);
+}
+
+/**
+ * Old 18-step (and 4-step legacy) step index → new beat index (#369).
+ * Index = first old step that is not complete. Never regresses: every old
+ * step at or past the first evolution lands on the rival beat with 1–4 done.
+ */
+export function mapRetiredStepToBeat(firstIncompleteOldIndex: number): number {
+  const oldId = SPINE18_QUEST_IDS[firstIncompleteOldIndex];
+  switch (oldId) {
+    case "first-befriend":
+      return QUEST_ORDER.indexOf("first-befriend");
+    case "first-spar":
+      return QUEST_ORDER.indexOf("first-spar");
+    case "reach-village":
+    case "shrine-craft":
+      return QUEST_ORDER.indexOf("shrine-craft");
+    case "evolve-bramblewarden":
+      return QUEST_ORDER.indexOf("first-evolution");
+    default:
+      return QUEST_ORDER.indexOf("rival-wren");
+  }
+}
+
+/** Map a pre-#369 save onto the 8-beat arc (one active, earlier beats complete). */
+export function migrateRetiredQuestProgress(
+  source: Record<string, unknown>,
+): Record<QuestId, QuestStatus> {
+  const migrated = createEmptyQuestProgress();
+  const firstIncomplete = SPINE18_QUEST_IDS.findIndex(
+    (id) => source[id] !== "complete",
+  );
+  if (firstIncomplete < 0) {
+    for (const id of QUEST_ORDER) {
+      migrated[id] = "complete";
+    }
+    return migrated;
+  }
+  const activeIndex = mapRetiredStepToBeat(firstIncomplete);
+  QUEST_ORDER.forEach((id, index) => {
+    if (index < activeIndex) {
+      migrated[id] = "complete";
+    } else if (index === activeIndex) {
+      migrated[id] = "active";
+    }
+  });
+  return migrated;
+}
+
+/** Restores current-arc saves as-is; migrates 4-step / 18-step saves (#369). */
 export function normalizeQuestProgress(
   saved: Partial<Record<QuestId, QuestStatus>> | Record<string, unknown>,
 ): Record<QuestId, QuestStatus> {
-  const normalized = createEmptyQuestProgress();
   const source = saved as Record<string, unknown>;
+  if (isRetiredQuestProgress(source)) {
+    return migrateRetiredQuestProgress(source);
+  }
+  const normalized = createEmptyQuestProgress();
   for (const id of QUEST_ORDER) {
     const status = source[id];
     if (isQuestStatus(status)) {
@@ -84,6 +147,15 @@ export function isLegacyQuestProgress(value: unknown): boolean {
     }
   }
   return true;
+}
+
+/** #312 18-step save shape (pre-#369). */
+export function isSpine18QuestProgress(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const progress = value as Record<string, unknown>;
+  return SPINE18_QUEST_IDS.every((id) => isQuestStatus(progress[id]));
 }
 
 export function isFullQuestProgress(value: unknown): value is Record<
@@ -126,40 +198,28 @@ export function restoreQuestProgress(
   }
   ensureActiveQuest();
   syncVillageGateForStoryQuest();
-  syncMainQuestFromGameplay();
+  syncMistwoodPathForStoryQuest();
+  // No gameplay catch-up here: party / zones may still be the previous
+  // session's. applyWorldSnapshot runs syncStoryAfterWorldRestore() once they
+  // are restored.
 }
 
 export function getActiveQuestId(): QuestId | null {
   return QUEST_ORDER.find((id) => questProgress[id] === "active") ?? null;
 }
 
-const POST_STORY_NEXT = {
-  harbor: "Next: reach Moonwake Harbor",
-  // Pre-boarding lines name the Want object (Folklore Dust), not place alone (#270 AC1).
-  sail: "Next: sail east for Folklore Dust",
-  islands: "Next: claim Folklore Dust ashore",
-} as const;
+export function isMainStoryComplete(): boolean {
+  return QUEST_ORDER.every((id) => questProgress[id] === "complete");
+}
 
-/** Post-story HUD Next while main quest is done and before first island landing. */
-export function getPostStoryNext(): string | null {
-  const done = QUEST_ORDER.every((id) => questProgress[id] === "complete");
-  if (!done) {
-    return null;
-  }
-  if (!worldState.discoveredZones.includes("harbor")) {
-    return POST_STORY_NEXT.harbor;
-  }
-  if (!worldState.discoveredZones.includes("archipelago")) {
-    return POST_STORY_NEXT.sail;
-  }
-  if (!isFirstIslandLanded()) {
-    return POST_STORY_NEXT.islands;
-  }
-  return null;
+/** True when `questId` is the active beat or already complete. */
+export function isQuestReached(questId: QuestId): boolean {
+  const status = questProgress[questId];
+  return status === "active" || status === "complete";
 }
 
 /**
- * First on-foot island stand: deliver the named Want, clear the Next chain.
+ * First on-foot island stand: deliver the named Want once.
  * Returns true when Dust was granted (host only; visitors mark landed without grant).
  */
 export function claimSecondActWantOnIslandLand(): boolean {
@@ -179,12 +239,7 @@ export function claimSecondActWantOnIslandLand(): boolean {
 export function getQuestSummary(): string {
   const activeId = getActiveQuestId();
   if (!activeId) {
-    const post = getPostStoryNext();
-    if (post) {
-      return post;
-    }
-    const done = QUEST_ORDER.every((id) => questProgress[id] === "complete");
-    return done ? "Story: complete" : "Story: —";
+    return isMainStoryComplete() ? "Story: complete" : "Story: —";
   }
   const index = QUEST_ORDER.indexOf(activeId) + 1;
   return `Story ${index}/${STORY_QUEST_COUNT}: ${QUESTS[activeId].title}`;
@@ -205,13 +260,13 @@ export function getQuestNpcLine(): string | null {
 export function getQuestHint(): string {
   const activeId = getActiveQuestId();
   if (!activeId) {
-    const done = QUEST_ORDER.every((id) => questProgress[id] === "complete");
-    if (!done) {
+    if (!isMainStoryComplete()) {
       return "";
     }
-    // While the post-story Next chain occupies the story slot, keep the hint empty.
-    if (getPostStoryNext()) {
-      return "";
+    // Finale hook: the optional voyage toward Horizon / Eclipse fusion.
+    const voyage = getSovereignVoyageHint();
+    if (voyage) {
+      return voyage;
     }
     // Subtle nudge only — the codex reward is never named before it is earned.
     if (isCodexComplete(worldState.discoveredCreatures)) {
@@ -248,135 +303,93 @@ function objectiveMatches(
     case "evolve_creature":
       return (
         event.type === "evolve_creature" &&
-        event.evolvesTo === objective.evolvesTo
+        (objective.evolvesTo === undefined ||
+          event.evolvesTo === objective.evolvesTo)
       );
-    case "unlock_village_gate":
-      return event.type === "unlock_village_gate";
-    case "party_size":
+    case "win_story_spar":
       return (
-        event.type === "party_size" && event.count >= objective.count
+        event.type === "win_story_spar" && event.sparId === objective.sparId
       );
-    case "complete_minigame":
-      return (
-        event.type === "complete_minigame" &&
-        event.minigameId === objective.minigameId
-      );
-    case "discover_creatures":
-      return (
-        event.type === "discover_creatures" &&
-        event.count >= objective.count
-      );
-    case "deliver_materials":
-      return event.type === "deliver_materials";
-    case "craft_item_id":
-      return (
-        event.type === "craft_item_id" && event.itemId === objective.itemId
-      );
-    case "obtain_creature":
-      return (
-        event.type === "obtain_creature" &&
-        event.creatureId === objective.creatureId
-      );
-    case "fuse_horizon":
-      return event.type === "fuse_horizon";
+    case "story_finale":
+      return event.type === "story_finale";
     default:
       return false;
   }
 }
 
-const VILLAGE_GATE_QUEST_INDEX = QUEST_ORDER.indexOf("evolve-bramblewarden");
-
-function isAtOrPastVillageGateQuest(): boolean {
-  for (let i = VILLAGE_GATE_QUEST_INDEX; i < QUEST_ORDER.length; i += 1) {
-    const status = questProgress[QUEST_ORDER[i]];
-    if (status === "active" || status === "complete") {
-      return true;
-    }
-  }
-  return false;
-}
-
-/** Act 2 start: east cottage gate opens so Bryn can gift a missing Grove starter (#349). */
+/** Cottage gate opens once the first-evolution beat starts (#349 Bryn gift). */
 export function syncVillageGateForStoryQuest(): void {
-  if (isVisitorMode() || !isAtOrPastVillageGateQuest()) {
+  if (isVisitorMode() || !isQuestReached("first-evolution")) {
     return;
   }
   if (!worldState.villageGateUnlocked) {
     setVillageGateUnlocked(true);
   }
-  if (getActiveQuestId() === "open-village-gate") {
-    recordQuestEvent({ type: "unlock_village_gate" });
-  }
 }
 
 /**
- * Bridge village side quests / minigames into the linear main quest (steps 8–13).
- * Loops so saves that finished content out-of-order catch up on load.
+ * Mistwood region gate (#369): open after the rival beat, or whenever the save
+ * already walked Mistwood / Emberfen (pre-#369 saves never lose a path).
+ */
+export function syncMistwoodPathForStoryQuest(): void {
+  setMistwoodPathOpen(
+    questProgress["rival-wren"] === "complete" ||
+      worldState.discoveredZones.includes("mistwood") ||
+      worldState.discoveredZones.includes("emberfen"),
+  );
+}
+
+const EVOLVED_FORM_IDS = new Set(
+  SHRINE_EFFECTS.filter((effect) => effect.effectType === "evolution").map(
+    (effect) => effect.evolvesTo,
+  ),
+);
+
+function partyHasEvolvedForm(): boolean {
+  return playerParty.creatures.some((creature) =>
+    EVOLVED_FORM_IDS.has(creature.definitionId),
+  );
+}
+
+/**
+ * Catch-up for state reached before a beat became active — mainly migrated
+ * saves: an evolved companion already counts for first-evolution, and a
+ * walked Mistwood already counts for reach-mistwood. Optional side threads
+ * (village asks, minigames, voyage) never feed the main arc.
  */
 export function syncMainQuestFromGameplay(): void {
   if (isVisitorMode()) {
     return;
   }
-  const sideStatuses = getSideQuestStatuses();
   for (let pass = 0; pass < QUEST_ORDER.length; pass += 1) {
     const activeId = getActiveQuestId();
-    if (!activeId) {
-      return;
-    }
     let advanced = false;
-    switch (activeId) {
-      case "odd-company":
-        if (playerParty.creatures.length >= 3) {
-          advanced = recordQuestEvent({
-            type: "party_size",
-            count: playerParty.creatures.length,
-          });
-        }
-        break;
-      case "hearth-lots":
-        if (hasClaimedMinigameWin("hearth-lots")) {
-          advanced = recordQuestEvent({
-            type: "complete_minigame",
-            minigameId: "hearth-lots",
-          });
-        }
-        break;
-      case "bryn-ledger":
-        if (sideStatuses["bryn-ledger"] === "complete") {
-          advanced = recordQuestEvent({
-            type: "discover_creatures",
-            count: worldState.discoveredCreatures.length,
-          });
-        }
-        break;
-      case "ward-crossing":
-        if (hasClaimedMinigameWin("ward-crossing")) {
-          advanced = recordQuestEvent({
-            type: "complete_minigame",
-            minigameId: "ward-crossing",
-          });
-        }
-        break;
-      case "sable-thread":
-        if (sideStatuses["sable-thread"] === "complete") {
-          advanced = recordQuestEvent({ type: "deliver_materials" });
-        }
-        break;
-      case "loom-pattern":
-        if (hasClaimedMinigameWin("loom-pattern")) {
-          advanced = recordQuestEvent({
-            type: "complete_minigame",
-            minigameId: "loom-pattern",
-          });
-        }
-        break;
-      default:
-        return;
+    if (activeId === "first-evolution" && partyHasEvolvedForm()) {
+      advanced = completeActiveQuest("first-evolution");
+    } else if (
+      activeId === "reach-mistwood" &&
+      worldState.discoveredZones.includes("mistwood")
+    ) {
+      advanced = completeActiveQuest("reach-mistwood");
     }
     if (!advanced) {
       return;
     }
   }
+}
+
+/** After a snapshot restores party + zones (#369 migration catch-up). */
+export function syncStoryAfterWorldRestore(): void {
+  syncMistwoodPathForStoryQuest();
+  syncMainQuestFromGameplay();
+}
+
+function completeActiveQuest(questId: QuestId, note?: string): boolean {
+  if (getActiveQuestId() !== questId) {
+    return false;
+  }
+  completeQuest(questId, note);
+  return true;
 }
 
 function activateNextQuest(completedId: QuestId): void {
@@ -386,17 +399,17 @@ function activateNextQuest(completedId: QuestId): void {
     questProgress[next] = "active";
   }
   syncVillageGateForStoryQuest();
+  syncMistwoodPathForStoryQuest();
   syncMainQuestFromGameplay();
 }
 
-function completeQuest(questId: QuestId): void {
+function completeQuest(questId: QuestId, note?: string): void {
   const quest = QUESTS[questId];
   questProgress[questId] = "complete";
-  lastCompletionMessage = `Quest complete: ${quest.title}`;
+  lastCompletionMessage = `Quest complete: ${quest.title} — ${note ?? quest.payoff}`;
 
   if (quest.unlocksOverworld) {
     setOverworldUnlocked(true);
-    lastCompletionMessage += " — Overworld gate opened!";
   }
 
   activateNextQuest(questId);
@@ -404,13 +417,12 @@ function completeQuest(questId: QuestId): void {
   refreshQuestHud();
 }
 
-export function recordCraftOutputQuestEvents(outputItemId: string): void {
-  if (outputItemId === "boat") {
-    recordQuestEvent({ type: "craft_item_id", itemId: "boat" });
+function completionNote(event: QuestEvent): string | undefined {
+  if (event.type === "befriend_creature" && event.creatureId) {
+    const name = getCreatureDefinition(event.creatureId).name;
+    return formatCompanionJoinNote(name, event.creatureId);
   }
-  if (outputItemId === SOVEREIGN_SEAL_ID) {
-    recordQuestEvent({ type: "craft_item_id", itemId: SOVEREIGN_SEAL_ID });
-  }
+  return undefined;
 }
 
 export function recordQuestEvent(event: QuestEvent): boolean {
@@ -428,12 +440,13 @@ export function recordQuestEvent(event: QuestEvent): boolean {
     return false;
   }
 
-  completeQuest(activeId);
+  completeQuest(activeId, completionNote(event));
   return true;
 }
 
 export function getGateStatusText(): string {
   const sparIndex = QUEST_ORDER.indexOf("first-spar") + 1;
+  const rivalIndex = QUEST_ORDER.indexOf("rival-wren") + 1;
   const overworld =
     questProgress["first-spar"] === "complete"
       ? "Overworld: OPEN"
@@ -441,5 +454,8 @@ export function getGateStatusText(): string {
   const village = worldState.villageGateUnlocked
     ? "Village: OPEN"
     : "Village: LOCKED (story)";
-  return `${overworld} · ${village}`;
+  const mistwood = worldState.mistwoodPathOpen
+    ? "Mistwood: OPEN"
+    : `Mistwood: LOCKED (Story ${rivalIndex}/${STORY_QUEST_COUNT})`;
+  return `${overworld} · ${village} · ${mistwood}`;
 }
