@@ -36,7 +36,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "shrine-craft": {
     id: "shrine-craft",
     title: "Craft a relic at Moon Shrine",
-    hint: "Walk east to the Moon Shrine and press E at the moon altar (it heals your party and gives Moss Fiber, Ember Ash and Folklore Dust if you are short). On Craft, make Moss Salve (Moss Fiber ×2 + Folklore Dust) or Ember Charm (Ember Ash ×2 + Folklore Dust).",
+    hint: "Walk east to the Moon Shrine and press E at the moon altar (it heals your party, and once gives Moss Fiber, Ember Ash and Folklore Dust if you are short). On Craft, make Moss Salve (Moss Fiber ×2 + Folklore Dust) or Ember Charm (Ember Ash ×2 + Folklore Dust).",
     objective: { type: "craft_item" },
     payoff: "the shrine answers your craft",
     npcLine: {
@@ -47,7 +47,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   "first-evolution": {
     id: "first-evolution",
     title: "Grow your first companion",
-    hint: "At the Moon Shrine altar (press E), open Use and apply Moss Salve to Mossling or Ember Charm to Ember Wisp. No relic? The altar refills the materials: craft one on Craft. Missing a Grove companion? Warden Bryn's cottage gate is open now.",
+    hint: "At the Moon Shrine altar (press E), open the Fusion tab and apply Moss Salve to Mossling or Ember Charm to Ember Wisp. No relic? Craft one on Craft (the altar gives the materials once if you are short). Missing a Grove companion? Warden Bryn's cottage gate is open now.",
     objective: { type: "evolve_creature" },
     payoff: "your companion grew — and the cottage gate in Hearth Crossing opened",
     npcLine: {

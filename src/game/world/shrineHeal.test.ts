@@ -20,7 +20,7 @@ import type { QuestId, QuestStatus } from "../story/questTypes";
 import {
   beginStorySpar,
   resetStorySparForTest,
-  resolveStorySparRound,
+  resolveStorySpar,
 } from "../battle/storySpar";
 import {
   grantSparRewards,
@@ -29,6 +29,15 @@ import {
 } from "../battle/sparRewards";
 import { sparStats } from "../battle/sparSim";
 import { setVisitorMode } from "./worldSession";
+import { worldState } from "./worldState";
+import {
+  applyWorldSnapshot,
+  exportWorldSnapshot,
+  isValidWorldSnapshot,
+} from "./worldSnapshot";
+import { QUESTS } from "../story/quests";
+import { CONSUMABLE_ITEM_IDS, FUSION_ITEM_IDS } from "../shrine/consumables";
+import { readFileSync } from "node:fs";
 import {
   isPartyStranded,
   SHRINE_HEAL_LINE,
@@ -71,6 +80,7 @@ beforeEach(() => {
   setInventoryFromSnapshot({}, {});
   setPartyFromSnapshot([member("a", 1), member("b", 0)], 3);
   restoreQuestProgress(progressAt("rival-wren"));
+  worldState.storyRelicBundleGiven = false;
 });
 
 describe("Moon Shrine altar heal (#390)", () => {
@@ -89,8 +99,16 @@ describe("Moon Shrine altar heal (#390)", () => {
     expect(visitShrineAltar()).toBeNull();
   });
 
-  it("does not heal a visitor's view of the host world", () => {
+  it("does not heal or wake a visitor / card session's party", () => {
     setVisitorMode(true);
+    expect(visitShrineAltar()).toBeNull();
+    expect(playerParty.creatures[1]!.currentHp).toBe(0);
+    setPartyFromSnapshot([member("a", 0)], 2);
+    expect(wakeStrandedParty(false)).toBeNull();
+  });
+
+  it("does not heal during an active story spar", () => {
+    beginStorySpar("rival-wren");
     expect(visitShrineAltar()).toBeNull();
     expect(playerParty.creatures[1]!.currentHp).toBe(0);
   });
@@ -106,6 +124,7 @@ describe("Story 4 relic materials (#390)", () => {
   it("tops up one relic's worth during the craft and evolve beats", () => {
     for (const beat of ["shrine-craft", "first-evolution"] as const) {
       restoreQuestProgress(progressAt(beat));
+      worldState.storyRelicBundleGiven = false;
       setInventoryFromSnapshot({ "moss-fiber": 1 }, {});
       expect(topUpStoryRelicMaterials()).toMatch(/Moss Fiber ×1, Ember Ash ×2, Folklore Dust ×1/);
       expect(getMaterialCount("moss-fiber")).toBe(2);
@@ -127,11 +146,53 @@ describe("Story 4 relic materials (#390)", () => {
     expect(topUpStoryRelicMaterials()).toBeNull();
   });
 
+  it("is one top-up per save, persisted, not a material faucet", () => {
+    restoreQuestProgress(progressAt("first-evolution"));
+    expect(topUpStoryRelicMaterials()).not.toBeNull();
+    // Spend the materials elsewhere and come back: no second bundle.
+    setInventoryFromSnapshot({}, {});
+    expect(topUpStoryRelicMaterials()).toBeNull();
+
+    const saved = exportWorldSnapshot({ zoneId: "shrine", x: 5, y: 6 });
+    expect(saved.storyRelicBundleGiven).toBe(true);
+    worldState.storyRelicBundleGiven = false;
+    applyWorldSnapshot(saved);
+    expect(worldState.storyRelicBundleGiven).toBe(true);
+  });
+
+  it("loads older or malformed saves as not-yet-given", () => {
+    const saved = exportWorldSnapshot({ zoneId: "shrine", x: 5, y: 6 });
+    delete (saved as { storyRelicBundleGiven?: boolean }).storyRelicBundleGiven;
+    expect(isValidWorldSnapshot(saved)).toBe(true);
+    worldState.storyRelicBundleGiven = true;
+    applyWorldSnapshot(saved);
+    expect(worldState.storyRelicBundleGiven).toBe(false);
+
+    const junk = { ...saved, storyRelicBundleGiven: "yes" as unknown as boolean };
+    expect(isValidWorldSnapshot(junk)).toBe(true);
+    applyWorldSnapshot(junk);
+    expect(worldState.storyRelicBundleGiven).toBe(false);
+  });
+
   it("comes with the altar visit and names what to craft", () => {
     restoreQuestProgress(progressAt("shrine-craft"));
     const notice = visitShrineAltar();
     expect(notice).toContain(SHRINE_HEAL_LINE);
     expect(notice).toContain("Craft Moss Salve or Ember Charm");
+  });
+});
+
+describe("Story 4 hint names the real shrine tab", () => {
+  it("sends relics to the Fusion tab (not Use, which only lists tonics)", () => {
+    const hint = QUESTS["first-evolution"].hint;
+    for (const relic of ["moss-salve", "ember-charm"]) {
+      expect(FUSION_ITEM_IDS).toContain(relic);
+      expect(CONSUMABLE_ITEM_IDS).not.toContain(relic);
+    }
+    expect(hint).toContain("Fusion tab");
+    expect(hint).not.toMatch(/\bUse\b/);
+    const shrineScene = readFileSync("src/game/scenes/ShrineScene.ts", "utf8");
+    expect(shrineScene).toContain('label: "Fusion"');
   });
 });
 
@@ -163,7 +224,7 @@ describe("stranded party recovery (#390)", () => {
     beginStorySpar("rival-wren");
     for (const c of playerParty.creatures) c.currentHp = 0;
     expect(wakeStrandedParty(false)).toBeNull();
-    resolveStorySparRound(false);
+    resolveStorySpar(false);
     // First real loss heals via storySpar itself, not the wake.
     expect(isPartyStranded()).toBe(false);
   });
@@ -190,21 +251,31 @@ describe("spar-win breather (#390)", () => {
   it("never heals inside a story spar: rounds, first win, or rematch", () => {
     beginStorySpar("rival-wren");
     for (const c of playerParty.creatures) c.currentHp = 2;
-    const round = grantSparRewards("ember-wisp", 0, () => 0.99);
-    expect(round.hpRestored).toBe(0);
-    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([2, 2]);
-    resolveStorySparRound(true);
-    grantSparRewards("ember-wisp", 0, () => 0.99);
-    resolveStorySparRound(true);
-    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([2, 2]);
+    const first = grantSparRewards("ember-wisp", 0, () => 0.99);
+    expect(first.hpRestored).toBe(0);
+    expect(resolveStorySpar(true)).toBe("won");
+    // (A first win may add a gifted companion; the fighters' HP is what matters.)
+    expect(playerParty.creatures.slice(0, 2).map((c) => c.currentHp)).toEqual([2, 2]);
 
     // Rematch win: still exactly the HP you fought with.
     beginStorySpar("rival-wren");
-    grantSparRewards("ember-wisp", 0, () => 0.99);
-    resolveStorySparRound(true);
-    grantSparRewards("ember-wisp", 0, () => 0.99);
-    resolveStorySparRound(true);
-    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([2, 2]);
+    expect(grantSparRewards("ember-wisp", 0, () => 0.99).hpRestored).toBe(0);
+    expect(resolveStorySpar(true)).toBe("won");
+    // (A first win may add a gifted companion; the fighters' HP is what matters.)
+    expect(playerParty.creatures.slice(0, 2).map((c) => c.currentHp)).toEqual([2, 2]);
+  });
+
+  it("story losses never pick up the win heal or the wake heal", () => {
+    // Second loss of a beat: back to pre-spar HP, no extra heal from #390.
+    beginStorySpar("rival-wren");
+    resolveStorySpar(false);
+    for (const c of playerParty.creatures) c.currentHp = 3;
+    beginStorySpar("rival-wren");
+    for (const c of playerParty.creatures) c.currentHp = 0;
+    expect(wakeStrandedParty(false)).toBeNull();
+    expect(visitShrineAltar()).toBeNull();
+    expect(resolveStorySpar(false)).toBe("lost");
+    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([3, 3]);
   });
 
   it("gives back well under half of what an average win costs (sparSim)", () => {

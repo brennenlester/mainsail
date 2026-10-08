@@ -374,7 +374,13 @@ export class IsometricScene extends Phaser.Scene {
     this.inviteKey = this.input.keyboard!.addKey("I");
     this.interactKey = this.input.keyboard!.addKey("E");
     this.input.keyboard!.on("keydown-E", (event: KeyboardEvent) => {
-      if (!event.repeat) {
+      // Typing an "e" into a DOM field (e.g. the nickname prompt) is not an interact.
+      const target = event.target;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (!event.repeat && !typing) {
         this.interactTapped = true;
       }
     });

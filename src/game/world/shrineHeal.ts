@@ -15,6 +15,7 @@ import { getActiveQuestId } from "../story/questProgress";
 import type { QuestId } from "../story/questTypes";
 import { notifyWorldChanged } from "./worldSaveSchedule";
 import { isVisitorMode } from "./worldSession";
+import { worldState } from "./worldState";
 import type { ZoneId } from "./zoneTypes";
 
 /**
@@ -68,11 +69,14 @@ function canCraftStoryRelic(): boolean {
 
 /**
  * During the craft / evolve beats, top the host up to one evolution relic's
- * materials when they hold neither the relic nor its materials. Stateless on
- * purpose: it stops as soon as a relic is held, and once the beats finish.
- * Returns the gift line, or null when nothing was given.
+ * materials when they hold neither the relic nor its materials. Once per save
+ * (persisted `storyRelicBundleGiven`), so it rescues a stuck player without
+ * becoming a material faucet. Returns the gift line, or null.
  */
 export function topUpStoryRelicMaterials(): string | null {
+  if (worldState.storyRelicBundleGiven) {
+    return null;
+  }
   const questId = getActiveQuestId();
   if (!questId || !STORY_RELIC_QUESTS.includes(questId)) {
     return null;
@@ -91,6 +95,7 @@ export function topUpStoryRelicMaterials(): string | null {
   if (given.length === 0) {
     return null;
   }
+  worldState.storyRelicBundleGiven = true;
   return `Offering: ${given.join(", ")}. Craft Moss Salve or Ember Charm.`;
 }
 
@@ -100,7 +105,8 @@ export function topUpStoryRelicMaterials(): string | null {
  * for the shrine status line, or null when nothing happened.
  */
 export function visitShrineAltar(): string | null {
-  if (isVisitorMode()) {
+  // Invite visitors and card sessions run in visitor mode; story spars own their HP.
+  if (isVisitorMode() || getActiveStorySpar() !== null) {
     return null;
   }
   const lines: string[] = [];
@@ -119,9 +125,10 @@ export function visitShrineAltar(): string | null {
   return lines.join(" ");
 }
 
-/** Every active companion is down (and none is mid story spar). */
+/** Host only: every active companion is down (and none is mid story spar). */
 export function isPartyStranded(): boolean {
   return (
+    !isVisitorMode() &&
     getActiveCreatures().length > 0 &&
     !hasLivingPartyMembers() &&
     getActiveStorySpar() === null
