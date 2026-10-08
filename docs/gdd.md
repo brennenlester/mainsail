@@ -58,11 +58,11 @@ Repeating cycle (**spine loop**):
 | 1 | Befriend your first companion | Companion joins; toast names its temperament |
 | 2 | Win a training spar (hunter tip teaches one matchup) | **Overworld gate opens** |
 | 3 | Craft a relic at Moon Shrine | First relic (Moss Salve / Ember Charm sets up beat 4) |
-| 4 | Grow your first companion (either Grove evolution) | Visible evolution; **cottage gate opens** (Bryn gifts a missing Grove starter) |
+| 4 | Grow your first companion (either Grove evolution) | Evolution cutscene (skippable; the first one offers the Companion Card share); **cottage gate opens** when the beat starts (Bryn gifts a missing Grove starter) |
 | 5 | Beat Wren, the rival | One battle ("Wren, the Rival", VS banner, rival theme). Wren sends a scaled 2-creature team in sequence. Banter changes on a win or a loss. The first win gives Brook Tonic ×2, **opens the Mistwood path**, and adds Pip the Brook Nymph if the party has no water type |
 | 6 | Walk the Mistwood path | **Region unlock** — new creatures |
-| 7 | Face the Cinder Matriarch | **Boss battle** in Emberfen Hollow, with an ember arena, a boss theme and a boss bar with a phase pip. Mire form (fen) becomes Cinder form (ember) at 50% HP, inside the same battle. Each form runs a fixed intent pattern. The telegraphed signature, Cinderfall, has a wind-up; Guard parries it and staggers her. Wren assists every few turns (cleanse / heal / daze, or drench when her form hunts your lead; Soaked douses Cinder form). HP and damage scale to the number of challengers. **Hearth Ward** catch-up: ×0.85 after 2 losses in a row and ×0.75 after 4 (persisted per challenge, reset on a win), shown as a player-side chip. Reward: Moonwake Draught + ember egg |
-| 8 | Return to the Moon Shrine | **Finale**: a scripted shrine scene with Wren. The egg hatches into **Cinderling** (a rare Cinder Toad with a signature Ember Spit). Main story complete; hook toward the optional Sovereign voyage (Horizon / Eclipse fusion). Emits `story:finale-complete` for the credits / share card |
+| 7 | Face the Cinder Matriarch | **Boss battle** in Emberfen Hollow, with an ember arena, a boss theme and a boss bar with a phase pip. Mire form (fen) becomes Cinder form (ember) at 50% HP, inside the same battle. Each form runs a fixed intent pattern. The telegraphed signature, Cinderfall, has a wind-up; Guard parries it and staggers her. Wren assists every few turns (cleanse / heal / daze, or drench when her form hunts your lead; Soaked douses Cinder form). HP and damage scale to the number of challengers. **Hearth Ward** catch-up: ×0.85 after 2 losses in a row and ×0.75 after 4 (persisted per challenge, reset on a win), shown as a chip above the foe's bar with "N more tries until the ward strengthens" (#399). Reward: Moonwake Draught + ember egg |
+| 8 | Return to the Moon Shrine | **Finale**: a scripted shrine scene with Wren. The egg hatches into **Cinderling** (a rare Cinder Toad with a signature Ember Spit). Main story complete; hook toward the optional Sovereign voyage (Horizon / Eclipse fusion). On `story:finale-complete` the credits card (companion recap, Share, Keep exploring) shows once per save (persisted `storyFinaleCardShown`, #399) |
 
 Rival and boss rosters, forms, patterns, challenger scaling, assist rules and rewards are data in `src/game/story/storySpars.ts`. Each challenge is one BattleScene battle driven by `battle/boss/storyBattle.ts`, which BattleScene and the balance sim share. The win rates are pinned in `battle/boss/storyBattleBalance.test.ts`; the full table comes from `STORY_REPORT=… npx vitest run src/game/battle/boss/storyBattleReport.test.ts`. A loss restores the party for a cheap retry (once per beat). Wren stays in the plaza for escalated rematches after the arc.
 
@@ -150,6 +150,10 @@ Walk in zones to trigger encounters: **Befriend**, **Spar**, or **Flee**. Cottag
 
 [inferred: travel threshold `ENCOUNTER_TRAVEL_THRESHOLD` = 0.75 tiles of movement before a roll.]
 
+**Pacing (#390, `encounters/encounterPacing.ts`):** after an encounter ends the player walks at least 12 tiles (14 after a Flee) before the next roll, and entering a zone grants a 6-tile grace. Habitat rates are otherwise unchanged.
+
+**Soft recovery (#390):** E at the Moon Shrine altar fully heals the party for free (fainted included); a won wild spar restores 20% max HP to standing companions; a fully fainted active party wakes beside the altar. Odd's paid rest is optional flavour.
+
 **Habitat encounter tables** [inferred from `encounters/tables.ts`]:
 
 | Habitat | Typical wilds |
@@ -187,6 +191,10 @@ Immunities apply only when the defender has rolled an immunity trait (signature 
 ### Party
 
 Active party max 7. Reserve holds the rest. Host-only befriend/spar/quest.
+
+**Companions (#367):** each befriended creature rolls a personality (Bold, Shy, Greedy, Sleepy, Curious, Loyal, Playful, Gentle) that drives follower behaviour and barks, and can be nicknamed. Bond (0–240) grows from battling together, gifting the species' favorite material, and abilities; five tiers (Wary → Kindred) add an aura, +2% damage per tier and +2% befriend odds per tier as lead. Overworld abilities (E, with the right type in the active party): burn brush (ember/hearth), ford shallows (water), sense hidden nodes (woodland/fen); one-time optional rewards.
+
+**Companion Card (#368):** Share renders the active party as a PNG card and a `?card=` link (versioned snapshot, no save data) with Play now / Challenge (sandboxed ghost spars). ~1 in 16 befriends is a ✦ Rare colour variant. The first evolution's result card and the finale card also offer Share.
 
 ### Shrine, fusion, gods
 
@@ -275,7 +283,8 @@ Decided 2026-10-07 in the Wow Pass art spike. New world art comes from `scripts/
 - **Creature roster (#361):** one parametric generator (`scripts/blender/creatures.py`: blob, wisp, bird, toad, quad, stump plans) so every species shares proportions, eyes, outline and motion. Converted: Mossling, Bramblewarden, Ember Wisp, Hearthflame, Brook Nymph, Thunder Finch, Cinder Toad, Rootwalker, Lantern Fox, Stone Hound; #392 added `serpent` and `lantern` plans and converted Peat Sprite, Bog Lantern and Mist Serpent, plus the Cinder Matriarch boss (`creature-cinder-matriarch*`, second form `creature-cinder-matriarch-phase2*`). Archipelago and sovereign species stay on legacy art for now.
 - **World (#361):** Grove/Shrine/Village ground uses 4 seamless variants + a path tile per zone, picked by a tile hash (no checkerboard); outdoor zones sit in a painted canopy with a navy vignette instead of a flat void; villagers, gates, lanterns, banners, a market stall and fence/shrine boundaries come from the same kit. Spar arenas: grove meadow, village plaza (warm), night.
 - **Biomes (#392, `scripts/blender/biomes.py`):** Folklore Fields (meadow + flagstone road, sandy bay shore, drystone wall), Mistwood Reach (mossy dark-green floor, pines, glowcaps, soft fog banks), Emberfen Hollow (peat and ash with glowing cracks, basalt + reed boundary, braziers), Moonwake Harbor (cobbled quay, boardwalk, kerbed quay edge, sea wall, toon water/dock tiles), cottage interiors (plank floor + runner rug, timber-and-plaster back wall, fireplace, bookcase, loom, table, doorway). Gatherable props get per-zone looks (`prop-<kind>-<zone>`). Wren, the rival, has her own rig (rust-red capelet, side ponytail, wren feather, staff) with idle/talk and a higher-res bust portrait (walk facings are specced but not packed until she moves) for dialogue.
-- **Budget:** atlas pages are 2048² PNG, 256-color quantized, skyline-packed; the packed atlas stays under 12 MB and at most 8 pages (both test-enforced; #392: 8 pages, ~3.6 MB). Battle art renders at 2× design px. Pack inputs live in `art/rendered/` (Blender) and `art/legacy/` (Imagine); neither ships in dist. Spar stage: dais centred at design y=300, arena scaled 1.18×; arena variant by zone (village plaza in Hearth Crossing) and night.
+- **Budget:** atlas pages are 2048² PNG, 256-color quantized, skyline-packed; the packed atlas stays under 12 MB on disk and at most 8 pages (both test-enforced). Disk size is not the constraint: every page decodes to 2048² RGBA = 16.8 MB of GPU memory (+⅓ for mipmaps), so 8 pages ≈ 134 MB is the real ceiling, chosen for mid-range phones. #399 measured 8 pages (~29 MPx of slots); the packer now packs identical images once and aliases duplicate keys (base pose = `__idle_00`, walk contact frames, legacy light/dark floors: 93 of 621 keys), and the boss arena + cottage boundary load standalone instead, so the atlas is **7 pages (~117 MB GPU) with ~1.5 pages free** (page 7 half empty, page 8 unused), output deterministic.
+- **Remaining-art plan (fits the cap in this order):** (1) Archipelago floors — done in #399 (`floor-archipelago-v0..3`, one pale "isle" set; per-island biome colour stays a code tint), ~0.15 MPx. (2) The 16 archipelago species on the parametric generator: encounter pose + idle loop only (no battle sheet until they matter), ≈ 16 × (0.15 + 4 × 0.04) ≈ 5 MPx, about 1.2 pages. (3) Sovereigns (Tide, Stone, Horizon, Eclipse) stay standalone 1024² PNGs loaded by PreloadScene, outside the atlas; converting them should keep them standalone (loaded on demand). If (2) overruns: render overworld idle loops at half resolution (they display at ~48 logical px, so 2× is enough) before adding a 9th page, and raise the page cap only with a phone memory check. Battle art renders at 2× design px. Pack inputs live in `art/rendered/` (Blender) and `art/legacy/` (Imagine); neither ships in dist. Spar stage: dais centred at design y=300, arena scaled 1.18×; arena variant by zone (village plaza in Hearth Crossing) and night.
 - **In-canvas UI:** prompts and hints are rounded navy pills with cream text (`ui/hudPill.ts`) to match the DOM chrome.
 
 ---
@@ -288,7 +297,7 @@ Decided 2026-10-07 in the Wow Pass art spike. New world art comes from `scripts/
 
 **Post-milestone (also shipped, not in original freeze):** level-scaled combat (#287), overworld encounter fixes (#300, #301). Contract assumption on holding #287 was superseded after feel gate — prep-gated spars coexist with level drip; shrine remains the big spike.
 
-**Next:** campaign Spine-quality on remaining catalog; bond meter only if ownership still weak. Open backlog: #218 (item art), #232 (Greg slice, separate gate). The main line is the 8-beat arc from #369 (it replaces the 18-step contract from #312).
+**Next:** campaign Spine-quality on remaining catalog (bond shipped in the Wow Pass, #367). Open backlog: #218 (item art), #232 (Greg slice, separate gate). The main line is the 8-beat arc from #369 (it replaces the 18-step contract from #312).
 
 **Smallest showable version:** surpassed — core loop and first milestone bar both met.
 

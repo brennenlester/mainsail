@@ -298,7 +298,7 @@ describe("launchStorySpar (BattleScene adapter)", () => {
         key: "BattleScene",
         data: expect.objectContaining({
           wildCreatureId: "lantern-fox",
-          story: { sparId: "rival-wren", rematch: false, ward: 1 },
+          story: { sparId: "rival-wren", rematch: false, ward: 1, wardNextIn: 2 },
         }),
       },
     ]);

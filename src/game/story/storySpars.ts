@@ -270,6 +270,15 @@ export function hearthWardScale(def: StorySparDefinition, losses: number): numbe
   return scale;
 }
 
+/**
+ * More real losses before the ward's next, stronger step (null when the ward
+ * is already at its last step). Drives the battle hint (#399).
+ */
+export function hearthWardTriesToNext(def: StorySparDefinition, losses: number): number | null {
+  const next = def.hearthWard.find((step) => step.after > losses);
+  return next ? next.after - losses : null;
+}
+
 /** Scale for a party of `size` standing companions (1 when the table is empty). */
 export function challengerScaleFor(
   def: StorySparDefinition,

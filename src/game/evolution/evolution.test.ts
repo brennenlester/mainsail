@@ -5,6 +5,7 @@ import { setInventoryFromSnapshot } from "../inventory/playerInventory";
 import { LEVEL_XP_THRESHOLDS } from "../progression/leveling";
 import { applyShrineFusion } from "../shrine/fusion";
 import { setVisitorMode } from "../world/worldSession";
+import { worldState } from "../world/worldState";
 import {
   buildGrowthReveal,
   growthHeadline,
@@ -12,6 +13,8 @@ import {
   isFirstEvolution,
 } from "./growthReveal";
 import {
+  acceptsResultKey,
+  RESULT_KEY_DEBOUNCE_MS,
   BEAT_ORDER,
   evolutionDurations,
   evolutionTimeline,
@@ -96,6 +99,7 @@ describe("growth reveal data (#393)", () => {
     setPartyFromSnapshot([], 1);
     setInventoryFromSnapshot({}, {});
     setVisitorMode(false);
+    worldState.firstEvolutionCelebrated = false;
   });
 
   it("detects the first evolution from the party", () => {
@@ -137,6 +141,18 @@ describe("growth reveal data (#393)", () => {
     expect(result.ok && result.growth?.firstEvolution).toBe(false);
   });
 
+  it("the share nudge is once per save, even after the evolved companion is released (#399)", () => {
+    setPartyFromSnapshot([member({ instanceId: "c-m", definitionId: "mossling" })], 1);
+    setInventoryFromSnapshot({}, { "moss-salve": 2 });
+    const first = applyShrineFusion("c-m", "moss-salve");
+    expect(first.ok && first.growth?.firstEvolution).toBe(true);
+    expect(worldState.firstEvolutionCelebrated).toBe(true);
+    // Released: the party has no evolved member any more.
+    setPartyFromSnapshot([member({ instanceId: "c-2", definitionId: "mossling" })], 3);
+    const second = applyShrineFusion("c-2", "moss-salve");
+    expect(second.ok && second.growth?.firstEvolution).toBe(false);
+  });
+
   it("presence returns a lighter reveal on the same species", () => {
     const fox = member({ instanceId: "c-f", definitionId: "lantern-fox" });
     setPartyFromSnapshot([fox], 1);
@@ -156,6 +172,12 @@ describe("growth reveal data (#393)", () => {
     const result = applyShrineFusion("c-m", "ember-charm");
     expect(result.ok).toBe(true);
     expect(result.ok && result.growth).toBeUndefined();
+  });
+
+  it("ignores result keys briefly after the panel appears (key-repeat / double press, #399)", () => {
+    expect(acceptsResultKey(1000, 1000)).toBe(false);
+    expect(acceptsResultKey(1000, 1000 + RESULT_KEY_DEBOUNCE_MS - 1)).toBe(false);
+    expect(acceptsResultKey(1000, 1000 + RESULT_KEY_DEBOUNCE_MS)).toBe(true);
   });
 
   it("builder keeps only changed stats", () => {

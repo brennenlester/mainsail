@@ -12,22 +12,24 @@ Invites, village minigames, sailing depth, and Sovereign fusion stay in the buil
 
 ### First boot
 
-On a fresh save (or after Reset / `?new=1`), enter a display name (1–16 characters). That name appears in black letters above your avatar in the overworld and above your token in **Hearth Lots**. Host saves keep the name; invite visitors pick a name for that visit only.
+Ivyward opens on a title screen: **Continue** resumes your save, **New Game** starts over (`?new=1` and invite / card links skip the title). On a fresh save, enter a display name (1–16 characters). That name appears in black letters above your avatar in the overworld and above your token in **Hearth Lots**. Host saves keep the name; invite visitors pick a name for that visit only.
 
 ### Controls
 
 | Input | Action |
 | --- | --- |
-| **Arrow keys** or **WASD** | Move (hold to keep walking) |
-| **E** | Interact — open Moon Shrine, enter a cottage door, talk to a villager, play a cottage minigame on the house prop, moor / board / disembark a boat, or use a companion ability |
+| **Arrow keys** or **WASD** | Move (hold to keep walking). On touch screens, drag the on-screen stick |
+| **E** | Interact — open Moon Shrine, enter a cottage door, talk to a villager, play a cottage minigame on the house prop, moor / board / disembark a boat, or use a companion ability. On touch screens, the on-screen **E** button does the same |
+| **Space / Enter / tap** | Advance dialogue; skip a cutscene (evolution) to its result card |
 | **I** | Shortcut: copy a friend invite link (host only) |
-| **Copy invite link** (status panel) | Copy a friend invite link (host only; works on touch) |
-| **Party** (status panel) | Manage the active party (max 7) and scroll/swap reserve creatures |
-| **Share** (status panel) | Make a Companion Card of your party — share, copy, or download the PNG, or copy a challenge link |
-| **Inventory** (status panel) | Browse materials and items. After you craft a Portable Moonshrine, Inventory also has the 4×4 craft grid and **Use** on tonic / draught / crystal |
-| **Recipes** (status panel, Inventory, or Moon Shrine) | See every shaped crafting pattern |
-| **Codex** (status panel) | Open the habitat codex — what lives where (fills in as you encounter creatures) |
-| **Reset game** (status panel) | Wipe local host save and start fresh |
+| **Party** (dock) | Manage the active party (max 7), swap reserve creatures, rename, and gift favorite materials |
+| **Share** (dock) | Make a Companion Card of your party — share, copy, or download the PNG, or copy a challenge link |
+| **Inventory** (dock; **Items** on phones) | Browse materials and items. After you craft a Portable Moonshrine, Inventory also has the 4×4 craft grid and **Use** on tonic / draught / crystal |
+| **Recipes** (dock, Inventory, or Moon Shrine) | See every shaped crafting pattern |
+| **Codex** (dock) | Open the habitat codex — what lives where (fills in as you encounter creatures) |
+| **…** menu (dock) | **Copy invite link** (host only; works on touch), sound on/off and volume, and **Reset game** (wipe the local host save) |
+
+The dock is the status panel under the game (beside it on landscape phones). Recipes and Codex appear once they unlock. Battles, encounters, and cutscenes take the whole stage: the dock dims and its buttons stop responding until they end.
 
 ### Confined region
 
@@ -40,11 +42,11 @@ The HUD shows `Story N/8: …`, a short “Next” hint, and on some beats a lin
 1. **Befriend your first companion.** Walk until an encounter appears, then choose **Befriend**. The toast names your companion's temperament.
 2. **Win a training spar.** Choose **Spar** and win; a hunter tip teaches one matchup. This **opens the overworld gate**.
 3. **Craft a relic at Moon Shrine.** Stand on the moon altar, press **E**, and craft any relic. Moss Salve (Moss Fiber ×2 + Folklore Dust) or Ember Charm (Ember Ash ×2 + Folklore Dust) sets up the next beat. If you are short during steps 3-4, the altar gives one bundle of those materials (once per save).
-4. **Grow your first companion.** On the shrine's **Fusion** tab, apply Moss Salve to a Mossling or Ember Charm to an Ember Wisp. The cottage gate in Hearth Crossing opens; Warden Bryn gives a Grove starter if you are missing one.
+4. **Grow your first companion.** On the shrine's **Fusion** tab, apply Moss Salve to a Mossling or Ember Charm to an Ember Wisp. A short evolution cutscene plays (skip with Space / Enter / tap); the first time, its result card offers to share your companion. The cottage gate in Hearth Crossing opens when this beat starts, and Warden Bryn gives a Grove starter if you are missing one.
 5. **Beat Wren, the rival.** Talk to Wren in the Hearth Crossing plaza and accept her challenge: one battle ("Wren, the Rival") where she sends out her creatures one after another. Losing patches your party up for a retry. Winning gives Brook Tonic ×2, **opens the Mistwood path**, and if nothing in your party hunts ember, Pip the Brook Nymph joins you.
 6. **Walk the Mistwood path.** Take the east exit of Folklore Fields into Mistwood Reach.
-7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). It is one boss battle with her own arena, music and boss bar. At half HP she transforms from Mire form (fen) to Cinder form (ember). She telegraphs Cinderfall with a wind-up; **Guard parries it and staggers her** (she loses a turn and takes extra damage). Wren fights at your side, cleansing, healing, dazzling or drenching her every few turns. Soaked, the Cinder form is doused and loses its ember bite. Losing is cheap: after 2 losses in a row the **Hearth Ward** softens her (and after 4, more). The same applies to Wren rematches. Reward: a Moonwake Draught and a warm ember egg.
-8. **Return to the Moon Shrine.** Talk to Wren there. The egg hatches into **Cinderling**, a rare Cinder Toad that joins your party, and then Wren points you toward the optional Sovereign voyage. The main story is complete.
+7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). It is one boss battle with her own arena, music and boss bar. At half HP she transforms from Mire form (fen) to Cinder form (ember). She telegraphs Cinderfall with a wind-up; **Guard parries it and staggers her** (she loses a turn and takes extra damage). Wren fights at your side, cleansing, healing, dazzling or drenching her every few turns. Soaked, the Cinder form is doused and loses its ember bite. Losing is cheap: after 2 losses in a row the **Hearth Ward** softens her (and after 4, more); a chip above her bar shows the ward and how many more tries until it strengthens. The same applies to Wren. Reward: a Moonwake Draught and a warm ember egg.
+8. **Return to the Moon Shrine.** Talk to Wren there. The egg hatches into **Cinderling**, a rare Cinder Toad that joins your party, and then Wren points you toward the optional Sovereign voyage. A closing card ("Thanks for playing") recaps your companions with **Share your companions** and **Keep exploring**; it shows once per save. The main story is complete.
 
 Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens. After the arc, Wren stays in the plaza for tougher rematches, where her storm finch joins her team.
 
@@ -134,7 +136,7 @@ Filling every codex page (all 27 creatures that appear in habitat encounter tabl
 
 ### Companion Cards and challenge links
 
-1. Tap **Share** in the status panel (appears once you have a companion). The game paints a Companion Card PNG of your active party (up to 7, with levels, Evolved / Presence / ✦ Rare tags, bond, and date). **Share** uses the native share sheet with the image where the browser supports file sharing; otherwise use **Copy image**, **Download**, or **Copy link**.
+1. Tap **Share** in the dock (appears once you have a companion). The first evolution's result card and the finale card also offer it. The game paints a Companion Card PNG of your active party (up to 7, with levels, Evolved / Presence / ✦ Rare tags, bond, and date). **Share** uses the native share sheet with the image where the browser supports file sharing; otherwise use **Copy image**, **Download**, or **Copy link**.
 2. The link is `?card=<code>` — a compact, versioned party snapshot (no save data; v2 carries bond hearts, older v1 links still open). Card links skip the title screen, and no save-wipe path (title New Game, Reset, `?new=1`) works while a card or invite is open. Opening it shows the card with **Play now** (drops the link and boots normally: a fresh game for new players, your own save otherwise — never overwritten) and **Challenge** (practice spars against a ghost of that party at its levels; you use your own party, or a loaner trio if you have no save). Challenge runs sandboxed: nothing is written to your save, and reloading resets it.
 3. Broken, oversized, or tampered `?card=` links show an error notice and load nothing. A valid `?join=` invite takes precedence over `?card=`.
 4. **Rare variants:** roughly 1 in 16 befriended companions is a colour-shifted ✦ Rare. They are tinted in the overworld, starred in the party HUD, and highlighted on the card.

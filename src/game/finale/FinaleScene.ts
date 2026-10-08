@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { playUiClickSfx } from "../audio/gameAudio";
+import { fastBattleEnabled } from "../battle/vfx/battleTiming";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
 import type { CreatureInstance } from "../creatures/types";
@@ -37,12 +38,15 @@ const NAVY = 0x1a3048;
 const CELL_W = 136;
 const CELL_H = 150;
 const CELL_GAP = 12;
+const FAST_INPUT_GRACE_MS = 800;
 
 /** Credits-style closing card with a companion recap and Share (#393). */
 export class FinaleScene extends Phaser.Scene {
   private data_!: FinaleSceneData;
   private recap!: FinaleRecap;
   private leaving = false;
+  /** Input opens only once the entrance fade has finished (#399). */
+  private ready = false;
 
   constructor() {
     super({ key: FINALE_SCENE_KEY });
@@ -52,6 +56,7 @@ export class FinaleScene extends Phaser.Scene {
     this.data_ = data;
     this.recap = buildFinaleRecap(data);
     this.leaving = false;
+    this.ready = false;
   }
 
   create(): void {
@@ -140,20 +145,38 @@ export class FinaleScene extends Phaser.Scene {
     }
     buttons.push(this.button(share ? cx + 128 : cx, btnY, "Keep exploring", !share, () => this.finish()));
 
-    // Entrance: header, then the cells, then the call to action.
+    // Entrance: header, then the cells, then the call to action. Fast mode
+    // shows the finished card at once; either way every element ends at
+    // alpha 1 explicitly, so Share never depends on a tween finishing.
     const all = [header, ...cells, summary, ...buttons];
-    for (const obj of all) obj.setAlpha(0);
-    this.tweens.add({ targets: header, alpha: 1, duration: 600 });
-    cells.forEach((cell, i) => {
-      const y = cell.y;
-      if (!rm) cell.setY(y + 16);
-      this.tweens.add({ targets: cell, alpha: 1, y, delay: 350 + i * 90, duration: 420, ease: "Cubic.easeOut" });
-    });
-    const tail = 350 + cells.length * 90 + 200;
-    this.tweens.add({ targets: [summary, ...buttons], alpha: 1, delay: tail, duration: 400 });
+    const open = (): void => {
+      for (const obj of all) obj.setAlpha(1);
+      this.ready = true;
+    };
+    if (fastBattleEnabled()) {
+      // Everything visible at once, but keep a beat before input so the
+      // Enter-mash through the shrine dialogue can't dismiss the card unseen.
+      for (const obj of all) obj.setAlpha(1);
+      this.time.delayedCall(FAST_INPUT_GRACE_MS, open);
+    } else {
+      for (const obj of all) obj.setAlpha(0);
+      this.tweens.add({ targets: header, alpha: 1, duration: 600 });
+      cells.forEach((cell, i) => {
+        const y = cell.y;
+        if (!rm) cell.setY(y + 16);
+        this.tweens.add({ targets: cell, alpha: 1, y, delay: 350 + i * 90, duration: 420, ease: "Cubic.easeOut" });
+      });
+      const tail = 350 + cells.length * 90 + 200;
+      this.tweens.add({ targets: [summary, ...buttons], alpha: 1, delay: tail, duration: 400, onComplete: open });
+    }
 
-    this.input.keyboard?.on("keydown-ESC", () => this.finish());
-    this.input.keyboard?.on("keydown-ENTER", () => this.finish());
+    // The Enter that closed the shrine dialogue must not also close the card:
+    // keys count only after the entrance, and never as auto-repeat.
+    const onKey = (event: KeyboardEvent): void => {
+      if (this.ready && !event.repeat) this.finish();
+    };
+    this.input.keyboard?.on("keydown-ESC", onKey);
+    this.input.keyboard?.on("keydown-ENTER", onKey);
   }
 
   private layoutCells(cx: number, top: number): Phaser.GameObjects.Container[] {
@@ -208,7 +231,10 @@ export class FinaleScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
-      .on("pointerdown", onClick);
+      .on("pointerdown", () => {
+        // Invisible (mid-fade) buttons must not catch a stray tap.
+        if (this.ready) onClick();
+      });
   }
 
   private finish(): void {

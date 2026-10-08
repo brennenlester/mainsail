@@ -25,6 +25,7 @@ import type { StorySparId } from "../story/questTypes";
 import {
   getStorySpar,
   hearthWardScale,
+  hearthWardTriesToNext,
   storySparRoster,
   storySparRoundLevel,
   storySparSpecies,
@@ -91,6 +92,8 @@ export type StoryBattleInit = {
   rematch: boolean;
   /** Hearth Ward multiplier from the loss streak (1 = none). */
   ward: number;
+  /** Losses until the ward strengthens again (null = strongest already). */
+  wardNextIn?: number | null;
 };
 
 /** How long BattleScene may take to come up before the save pause is released. */
@@ -406,7 +409,12 @@ export function reportStoryBattleResult(id: StorySparId, won: boolean): void {
 /** Init data for the running story battle (BattleScene `story`). */
 export function getStoryBattleInit(): StoryBattleInit | null {
   return active
-    ? { sparId: active.id, rematch: active.rematch, ward: getHearthWard(active.id) }
+    ? {
+        sparId: active.id,
+        rematch: active.rematch,
+        ward: getHearthWard(active.id),
+        wardNextIn: hearthWardTriesToNext(getStorySpar(active.id), lossStreaks.get(active.id) ?? 0),
+      }
     : null;
 }
 

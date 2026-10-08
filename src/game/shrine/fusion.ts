@@ -13,6 +13,7 @@ import {
 } from "../evolution/growthReveal";
 import { recordQuestEvent } from "../story/questProgress";
 import { isVisitorMode } from "../world/worldSession";
+import { worldState } from "../world/worldState";
 import {
   applyPresenceStatBoost,
   PRESENCE_ATTACK_BONUS,
@@ -71,11 +72,15 @@ export function applyShrineFusion(
   const isGrowth =
     effect.effectType === "evolution" || effect.effectType === "presence";
   const before = isGrowth ? captureGrowthSide(creature) : null;
-  const firstEvolution = isFirstEvolution(playerParty.creatures);
+  // Persisted (#399): releasing the evolved companion must not re-arm the
+  // share nudge; the party check still covers saves that predate the flag.
+  const firstEvolution =
+    !worldState.firstEvolutionCelebrated && isFirstEvolution(playerParty.creatures);
   const message = applyEffect(creature, effect, key);
   if (effect.effectType === "evolution" && effect.evolvesTo) {
     // Quest event fires here exactly once; the evolve sting now plays in EvolutionScene.
     recordQuestEvent({ type: "evolve_creature", evolvesTo: effect.evolvesTo });
+    worldState.firstEvolutionCelebrated = true;
   }
   if (!before) {
     return { ok: true, message };

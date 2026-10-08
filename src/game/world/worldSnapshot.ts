@@ -192,6 +192,10 @@ export type WorldSnapshot = {
   storySparLosses?: string[];
   /** Real losses in a row per story spar (#385 Hearth Ward). */
   storySparLossStreaks?: Record<string, number>;
+  /** Finale credits card already shown for this save (#399). Non-true reads as false. */
+  storyFinaleCardShown?: boolean;
+  /** First evolution's share nudge already offered (#399). Non-true reads as false. */
+  firstEvolutionCelebrated?: boolean;
   /** Sovereign Plate wild-encounter suppress toggle (#289). Optional for older saves. */
   sovereignPlateActive?: boolean;
   /** Per-species spar win counts for wild level scaling (#287). Optional for older saves. */
@@ -302,6 +306,10 @@ function acceptsQuestProgress(value: unknown): boolean {
     isLegacyQuestProgress(value) ||
     isSpine18QuestProgress(value)
   );
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isValidCountMap(value: unknown): value is Record<string, number> {
@@ -424,9 +432,6 @@ function isValidPartyMember(value: unknown): boolean {
   ) {
     return false;
   }
-  if (creature.rare !== undefined && creature.rare !== true) {
-    return false;
-  }
   if (creature.trait !== undefined) {
     if (typeof creature.trait !== "object" || creature.trait === null) {
       return false;
@@ -448,8 +453,9 @@ function isValidPartyMember(value: unknown): boolean {
       return false;
     }
   }
-  // Companion fields (#367) never invalidate a save: applyWorldSnapshot
-  // sanitizes them (clamp bond, drop bad nicknames, re-roll unknown traits).
+  // Companion fields (#367) and the rare flag (#368) never invalidate a save:
+  // applyWorldSnapshot sanitizes them (clamp bond, drop bad nicknames, re-roll
+  // unknown traits, drop a non-true rare).
   return true;
 }
 
@@ -824,16 +830,9 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
       }
     }
   }
-  if (s.storySparLosses !== undefined) {
-    // Unknown ids are filtered on apply (setStorySparLosses), not fatal (#382 review).
-    if (!Array.isArray(s.storySparLosses)) return false;
-  }
-  if (s.storySparLossStreaks !== undefined) {
-    // Unknown ids / bad counts are filtered on apply, not fatal.
-    if (typeof s.storySparLossStreaks !== "object" || s.storySparLossStreaks === null || Array.isArray(s.storySparLossStreaks)) {
-      return false;
-    }
-  }
+  // Wow Pass optional fields (storyRelicBundleGiven, storySparLosses,
+  // storySparLossStreaks, companionSitesClaimed, storyFinaleCardShown,
+  // firstEvolutionCelebrated) are filtered on apply, never fatal (#399).
   if (s.brynGroveStartersGifted !== undefined) {
     if (!Array.isArray(s.brynGroveStartersGifted)) return false;
     for (const creatureId of s.brynGroveStartersGifted) {
@@ -1084,6 +1083,8 @@ export function exportWorldSnapshot(
     storyRelicBundleGiven: worldState.storyRelicBundleGiven,
     storySparLosses: getStorySparLosses(),
     storySparLossStreaks: getStorySparLossStreaks(),
+    storyFinaleCardShown: worldState.storyFinaleCardShown,
+    firstEvolutionCelebrated: worldState.firstEvolutionCelebrated,
     sovereignPlateActive: worldState.sovereignPlateActive,
     sparWinsBySpecies: { ...sparWinsBySpecies },
     firstIslandLanded: worldState.firstIslandLanded,
@@ -1133,6 +1134,7 @@ export function sanitizeCompanionFields(
   }
   if (creature.bond === undefined) Reflect.deleteProperty(creature, "bond");
   if (creature.nickname === undefined) Reflect.deleteProperty(creature, "nickname");
+  if (creature.rare !== undefined && creature.rare !== true) Reflect.deleteProperty(creature, "rare");
   return creature;
 }
 
@@ -1214,8 +1216,16 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
   // Filtered, never rejected: a malformed flag just means "not given yet".
   worldState.storyRelicBundleGiven = snapshot.storyRelicBundleGiven === true;
-  setStorySparLosses(snapshot.storySparLosses ?? []);
-  setStorySparLossStreaks(snapshot.storySparLossStreaks ?? {});
+  worldState.storyFinaleCardShown = snapshot.storyFinaleCardShown === true;
+  worldState.firstEvolutionCelebrated = snapshot.firstEvolutionCelebrated === true;
+  setStorySparLosses(
+    Array.isArray(snapshot.storySparLosses)
+      ? snapshot.storySparLosses.filter((id): id is string => typeof id === "string")
+      : [],
+  );
+  setStorySparLossStreaks(
+    isPlainRecord(snapshot.storySparLossStreaks) ? snapshot.storySparLossStreaks : {},
+  );
   setClaimedSites(
     Array.isArray(snapshot.companionSitesClaimed)
       ? snapshot.companionSitesClaimed.filter(isCompanionSiteId)

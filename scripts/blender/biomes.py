@@ -50,6 +50,14 @@ GROUND_STYLES: dict[str, dict] = {
         "flecks": ("#8a7c70", "#968a7e", "ash_dark"),
         "path": "cinder",
     },
+    # Archipelago islands (#399): pale sandy turf. Kept light and low-contrast
+    # on purpose: IsometricScene multiplies a per-island biome tint (lush /
+    # barren / other) over it, so the tile supplies texture, not hue.
+    "isle": {
+        "base": "#e4dcb4", "patches": ("#d6d6a4", "#ece2c0"),
+        "blades": ("#c4cc98", "#dfe4b8"), "blade_count": 22,
+        "path": "flag", "shore": "sand",
+    },
     # Moonwake Harbor: cobbled quay.
     "harbor": {
         "base": "quay_mortar", "cobble": ("cobble", "#c2baa8", "#cfc7b4", "#b8b09e"),

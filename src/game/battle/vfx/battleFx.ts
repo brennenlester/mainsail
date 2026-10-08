@@ -799,12 +799,28 @@ export class BattleFx {
       const punch = zoomPunchFor(finisher, mode);
       if (punch > 1) {
         const cam = s.cameras.main;
-        const base = this.frameZoom();
-        // Chain on ZOOM_COMPLETE: starting a zoom from the progress callback gets cancelled.
-        cam.once(Phaser.Cameras.Scene2D.Events.ZOOM_COMPLETE, () => {
-          cam.zoomTo(base, 300, "Sine.easeInOut", true);
+        // Re-read the framing zoom every frame (like cameraPush): a resize
+        // during the 70 ms punch or its settle must not land on a stale zoom (#399).
+        const at = (k: number): void => {
+          cam.setZoom(this.frameZoom() * (1 + (punch - 1) * k));
+        };
+        s.tweens.addCounter({
+          from: 0,
+          to: 1,
+          duration: 70,
+          ease: "Quad.easeOut",
+          onUpdate: (tw) => at(tw.getValue() ?? 1),
+          onComplete: () => {
+            s.tweens.addCounter({
+              from: 1,
+              to: 0,
+              duration: 300,
+              ease: "Sine.easeInOut",
+              onUpdate: (tw) => at(tw.getValue() ?? 0),
+              onComplete: () => at(0),
+            });
+          },
         });
-        cam.zoomTo(base * punch, 70, "Quad.easeOut", true);
       }
     };
     if (pause > 0) {

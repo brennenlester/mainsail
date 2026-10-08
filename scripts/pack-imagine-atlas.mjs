@@ -14,6 +14,7 @@
  *
  * Usage: node scripts/pack-imagine-atlas.mjs
  */
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,13 @@ const SKIP_ATLAS_KEYS = new Set([
   "creature-cairn-sovereign",
   "creature-horizon-sovereign",
   "creature-eclipse-sovereign",
+  // Boss-only arena: storyBattleUi.preloadStoryArena loads these standalone
+  // when the Matriarch fight starts, so they never cost atlas pages (#399).
+  "arena-ember-sky",
+  "arena-ember-hills",
+  "arena-ember-platform",
+  // Cottage zones load this standalone under per-cottage keys (PreloadScene).
+  "boundary-cottage",
 ]);
 
 function collectPngs() {
@@ -104,6 +112,8 @@ async function loadFrame(file) {
     .toBuffer();
   return {
     ...file,
+    // Identical source pixels share one slot (#399: idle_00 == base pose).
+    hash: crypto.createHash("sha1").update(`${info.width}x${info.height}`).update(data).digest("hex"),
     sourceW: info.width,
     sourceH: info.height,
     trim: bounds,
@@ -226,7 +236,22 @@ async function main() {
   for (const file of files) {
     items.push(await loadFrame(file));
   }
-  const pages = packPages(items);
+  // Pack each distinct image once; duplicate keys alias the same rect.
+  const byHash = new Map();
+  for (const it of items) {
+    const prev = byHash.get(it.hash);
+    if (!prev || it.key.localeCompare(prev.key) < 0) byHash.set(it.hash, it);
+  }
+  const unique = [...byHash.values()];
+  const pages = packPages(unique);
+  for (const it of items) {
+    const owner = byHash.get(it.hash);
+    if (owner !== it) {
+      Object.assign(it, { page: owner.page, x: owner.x, y: owner.y });
+      pages[owner.page].items.push(it);
+      it.alias = true;
+    }
+  }
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   for (const stale of fs.readdirSync(OUT_DIR)) {
@@ -243,7 +268,9 @@ async function main() {
     await sharp({
       create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
     })
-      .composite(page.items.map((it) => ({ input: it.buffer, left: it.x, top: it.y })))
+      .composite(
+        page.items.filter((it) => !it.alias).map((it) => ({ input: it.buffer, left: it.x, top: it.y })),
+      )
       // 256-color quantized pages (libimagequant, deterministic): ~70% smaller
       // with no visible change on toon renders; keeps the atlas budget (#361).
       .png({ palette: true, quality: 95, effort: 10, dither: 0.6, compressionLevel: 9 })
@@ -285,7 +312,7 @@ async function main() {
 
   const rendered = items.filter((it) => it.rendered).length;
   console.log(
-    `Packed ${items.length} frames (${rendered} rendered) into ${pages.length} page(s): ${textures
+    `Packed ${items.length} frames (${rendered} rendered, ${items.length - unique.length} aliased) into ${pages.length} page(s): ${textures
       .map((t) => `${t.image} ${t.size.w}x${t.size.h}`)
       .join(", ")}; ${anims.length} anim(s)`,
   );

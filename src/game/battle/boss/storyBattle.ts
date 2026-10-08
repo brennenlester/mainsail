@@ -48,6 +48,8 @@ export type StoryBattleOptions = {
   partyAverage: number;
   /** Hearth Ward multiplier on opposition HP and damage (1 = none). */
   ward?: number;
+  /** Losses until the ward strengthens again (null / missing = no next step). */
+  wardNextIn?: number | null;
   /** Standing companions at battle start (the boss scales to challengers, up to 3). */
   partySize: number;
   rematch: boolean;
@@ -98,6 +100,11 @@ export class StoryBattle {
   /** Hearth Ward multiplier in effect (1 = none). */
   get ward(): number {
     return this.options.ward ?? 1;
+  }
+
+  /** Losses until the ward strengthens again, or null. */
+  get wardNextIn(): number | null {
+    return this.options.wardNextIn ?? null;
   }
 
   /** Bespoke art key for the foe right now (may not be loaded yet). */

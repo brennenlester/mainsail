@@ -105,6 +105,10 @@ import {
 } from "../story/questProgress";
 import { QUEST_ORDER } from "../story/quests";
 import { getSovereignVoyageStep } from "../story/sovereignVoyage";
+import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
+import { launchFinaleCard } from "../finale/launchFinaleCard";
+import { claimFinaleCard } from "../finale/finaleTrigger";
+import { playerParty } from "../creatures/party";
 import { consumeAchievementToast } from "../progression/achievements";
 import {
   flashInviteStatus,
@@ -322,6 +326,22 @@ export class IsometricScene extends Phaser.Scene {
       this.celebrateResume(false);
     }
   };
+  /**
+   * Shrine finale dialogue closed (#385): show the credits card once per save
+   * (#393, #399), then hand back to the world and its Sovereign voyage hook.
+   */
+  private onFinaleComplete = (): void => {
+    if (isVisitorMode() || !claimFinaleCard()) {
+      return;
+    }
+    launchFinaleCard(this, {
+      playerName: getPlayerName(),
+      party: playerParty.creatures,
+      // The quest-complete toast + HUD voyage hint (#369) are the hook; make
+      // sure the dock shows them as soon as the world resumes.
+      onContinue: () => updateStatusPanel(getZone(this.currentZoneId)),
+    });
+  };
   private layoutLocked = false;
   private isMoving = false;
   /** Distance-driven gait phase (cycles); advances only when a step applies. */
@@ -418,6 +438,7 @@ export class IsometricScene extends Phaser.Scene {
     this.fx.notePartyBaseline();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdown());
     window.addEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
+    this.game.events.on(FINALE_COMPLETE_EVENT, this.onFinaleComplete);
     this.companions = this.createCompanions();
 
     this.loadZone(this.currentZoneId);
@@ -489,6 +510,7 @@ export class IsometricScene extends Phaser.Scene {
     this.unbindPlayerName = undefined;
     this.fx?.destroy();
     window.removeEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
+    this.game.events.off(FINALE_COMPLETE_EVENT, this.onFinaleComplete);
     setCopyInviteHandler(null);
     this.input.keyboard?.off("keydown", this.onGodCheatKeyDown);
     document.removeEventListener("focusin", this.onDomFocusChange);

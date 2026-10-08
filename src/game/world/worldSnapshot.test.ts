@@ -124,18 +124,22 @@ describe("isValidWorldSnapshot", () => {
     expect(isValidWorldSnapshot(snapshot)).toBe(true);
     applyWorldSnapshot(snapshot);
     expect(getStorySparLosses()).toEqual(["rival-wren"]);
+    // A non-array is ignored, not fatal (#399; full fixtures in worldSnapshot.hostileOptional.test.ts).
     expect(
       isValidWorldSnapshot(validSnapshot({ storySparLosses: "rival-wren" as unknown as string[] })),
-    ).toBe(false);
+    ).toBe(true);
     setStorySparLosses([]);
   });
 
-  it("accepts the optional rare variant flag only as true (#368)", () => {
+  it("keeps the optional rare variant flag only as true (#368, #399)", () => {
     expect(
       isValidWorldSnapshot(validSnapshot({ party: [partyMember({ rare: true })] })),
     ).toBe(true);
     const bad = { ...partyMember(), rare: "yes" } as unknown as CreatureInstance;
-    expect(isValidWorldSnapshot(validSnapshot({ party: [bad] }))).toBe(false);
+    // Dropped on apply instead of rejecting the save.
+    expect(isValidWorldSnapshot(validSnapshot({ party: [bad] }))).toBe(true);
+    applyWorldSnapshot(validSnapshot({ party: [bad] }));
+    expect(playerParty.creatures[0]!.rare).toBeUndefined();
   });
 
   it("accepts optional playerName when normalized", () => {

@@ -12,6 +12,7 @@ import { RIVAL_NPC_ID } from "../../story/storySpars";
 import { getNpcById } from "../../world/npcs";
 import type { BattleFx } from "../vfx/battleFx";
 import type { AssistAction, IntentNote, StoryBattle } from "./storyBattle";
+import { WARD_CHIP_FONT_PX, WARD_CHIP_TEXT, WARD_HINT_FONT_PX, wardHintText } from "./wardHint";
 
 /**
  * Story battle presentation (#385): boss bar with phase pips, VS banner,
@@ -151,7 +152,47 @@ export class StoryBattleUi {
         .setDepth(5);
     }
     this.syncPhase();
+    this.createWardRow();
     return { name, hp, bar, chips: [], chipX: x + 12, chipY: y + 52, barWidth };
+  }
+
+  /**
+   * Hearth Ward chip by the boss bar (#399): it changes the foe, so it sits
+   * with the foe's plate, sized to stay >= 11 CSS px on a 360 px phone
+   * (640 design px -> 0.5625x), plus a quiet "tries until it strengthens" line.
+   */
+  private createWardRow(): void {
+    if (this.battle.ward >= 1) {
+      return;
+    }
+    const s = this.scene;
+    const y = BOSS_BAR.y - 18;
+    const chip = s.add
+      .text(BOSS_BAR.x, y, WARD_CHIP_TEXT, {
+        color: "#101820",
+        backgroundColor: "#ffd27a",
+        fontFamily: HUD_FONT,
+        fontSize: `${WARD_CHIP_FONT_PX}px`,
+        fontStyle: "bold",
+        padding: { x: 8, y: 2 },
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(6);
+    const hint = wardHintText(this.battle.wardNextIn);
+    if (hint) {
+      s.add
+        .text(BOSS_BAR.x + chip.width + 10, y, hint, {
+          color: "#ffe8c8",
+          fontFamily: HUD_FONT,
+          fontSize: `${WARD_HINT_FONT_PX}px`,
+          fontStyle: "italic",
+          stroke: "#140c14",
+          strokeThickness: 4,
+        })
+        .setOrigin(0, 0.5)
+        .setAlpha(0.8)
+        .setDepth(6);
+    }
   }
 
   /** Phase label + spent pips after a transformation. */
@@ -164,10 +205,10 @@ export class StoryBattleUi {
     this.pips.forEach((pip, i) => pip.setAlpha(i < this.battle.formIndex ? 0.35 : 1));
   }
 
-  /** Story chips: Hearth Ward on your side, Doused on a soaked Cinder form. */
+  /** Story chips on the foe plate: Doused on a soaked Cinder form (the ward has its own row). */
   extraChips(side: "wild" | "player"): { text: string; color: string }[] {
     if (side === "player") {
-      return this.battle.ward < 1 ? [{ text: "HEARTH WARD", color: "#ffd27a" }] : [];
+      return [];
     }
     return this.battle.isDoused ? [{ text: "DOUSED", color: "#9ad8ff" }] : [];
   }
