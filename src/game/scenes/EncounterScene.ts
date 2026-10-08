@@ -67,6 +67,7 @@ import { getIngredientIconSrc, getMaterialName } from "../inventory/materials";
 import { getItemCount } from "../inventory/playerInventory";
 import type { ZoneId } from "../world/zoneTypes";
 import { isVisitorMode } from "../world/worldSession";
+import { discoverOnEncounter } from "../encounters/encounterDiscovery";
 import { markCreatureDiscovered } from "../world/worldState";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { unlockCodexHud } from "../ui/hudChrome";
@@ -150,14 +151,11 @@ export class EncounterScene extends Phaser.Scene {
     bindOverlayPixelRatio(this);
     ensureCreatureTextures(this);
     playEncounterSfx(this);
-    const def = getCreatureDefinition(this.creatureId);
     const profile = profileForEncounter(this.zoneId, this.creatureId);
     const concealed = shouldConcealReveal(profile, this.creatureId);
     this.revealed = !concealed;
 
-    if (!def.excludeFromCodex && this.revealed) {
-      markCreatureDiscovered(this.creatureId);
-    }
+    discoverOnEncounter(this.creatureId);
 
     document.body.classList.add("encounter-active");
     // Screen-reader mirror of the card (odds + event lines).

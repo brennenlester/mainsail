@@ -38,6 +38,8 @@ export type ShareCreature = {
   presence: boolean;
   /** Bond hearts 0..SHARE_BOND_MAX; null for v1 links that predate bond. */
   bond: number | null;
+  /** Local-only display name for the rendered card; never encoded in links (#401). */
+  nickname?: string;
 };
 
 export type ShareSnapshot = {

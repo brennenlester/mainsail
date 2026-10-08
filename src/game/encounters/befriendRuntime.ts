@@ -3,9 +3,9 @@
  * habitat state into `BefriendInputs`, and owns the session offering choice.
  * The odds math itself lives in befriendChance.ts.
  */
+import { displayName } from "../creatures/displayName";
 import { bondTier } from "../companions/bond";
 import { getFavoriteMaterial } from "../companions/favorites";
-import { getCreatureDefinition } from "../creatures/catalog";
 import { getActiveCreatures } from "../creatures/party";
 import type { CreatureInstance, StatusInstance } from "../creatures/types";
 import {
@@ -152,7 +152,7 @@ export function befriendOddsFor(state: BefriendState): BefriendOdds {
     offering,
     leadBondTier: lead ? bondTier(lead.bond) : 0,
     leadPersonality: lead?.personality,
-    leadName: lead ? lead.nickname ?? getCreatureDefinition(lead.definitionId).name : undefined,
+    leadName: lead ? displayName(lead) : undefined,
     habitatEdge: habitatEdge(state.zoneId, creatureId),
   });
 }
