@@ -82,7 +82,7 @@ describe("hunter matchup teach (#269)", () => {
   });
 
   it("advertised multiplier equals folkloreTypes HUNTER_MULTIPLIER", () => {
-    expect(HUNTER_MULTIPLIER).toBe(1.5);
+    expect(HUNTER_MULTIPLIER).toBe(1.3);
     expect(formatHunterMultiplierLabel()).toBe(`×${HUNTER_MULTIPLIER}`);
     expect(QUESTS["first-spar"].hint).toContain(`×${HUNTER_MULTIPLIER}`);
     expect(formatHunterMatchupTeach("water", "ember")).toContain(

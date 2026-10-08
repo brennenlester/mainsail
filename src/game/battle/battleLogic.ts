@@ -6,11 +6,14 @@ import {
   type MatchupResult,
 } from "../creatures/folkloreTypes";
 import {
+  FINISHER_DAMAGE_MULT,
   FINISHER_STATUS_BONUS,
   GUARD_DAMAGE_TAKEN,
+  GUARD_FINISHER_DAMAGE_TAKEN,
   moveCooldown,
   moveRole,
 } from "./kits";
+import { statMultForLevel } from "../progression/leveling";
 import {
   applyStatus,
   canApplyStatus,
@@ -71,7 +74,7 @@ export function calcDamage(
   if (outcome.kind === "hit") {
     return outcome.damage;
   }
-  return baseDamage(attacker, move, defender);
+  return Math.max(1, Math.round(baseDamage(attacker, move, defender)));
 }
 
 function baseDamage(
@@ -84,12 +87,32 @@ function baseDamage(
     attacker.damageBuff &&
     attacker.damageBuff.moveId === move.id
   ) {
-    power = Math.round(power * attacker.damageBuff.multiplier);
+    power *= attacker.damageBuff.multiplier;
   }
-  const defense = defender.defenseDisabled ? 0 : defender.defense;
-  // Defense can blunt a hit but never erase it: low-attack creatures still matter.
-  const floor = Math.ceil((power + attacker.attack) * MIN_DAMAGE_FRACTION);
-  return Math.max(1, floor, power + attacker.attack - defense);
+  if (defender.defenseDisabled) {
+    // Sovereigns keep their own tuning: flat power, no defense, no battle bulk.
+    return power + attacker.attack;
+  }
+  const scaledPower = power * statMultForLevel(attacker.level ?? 1);
+  return (
+    (scaledPower + attacker.attack) *
+    defenseFactor(attacker, defender) *
+    BATTLE_DAMAGE_SCALE
+  );
+}
+
+/**
+ * Share of a hit that gets through defense: K / (K + defense), with defense
+ * and K both measured at their creature's level so equal-level spars play
+ * the same at Lv 1 and Lv 40. Smooth: every point of defense matters and no
+ * hit is ever erased (replaces `power + atk − def` with a 60% floor).
+ */
+export function defenseFactor(
+  attacker: Pick<BattleCombatant, "level">,
+  defender: Pick<BattleCombatant, "level" | "defense">,
+): number {
+  const k = DEFENSE_CURVE_K * statMultForLevel(attacker.level ?? 1);
+  return k / (k + defender.defense * statMultForLevel(defender.level ?? 1));
 }
 
 /** Status / guard / finisher modifiers stacked on top of the matchup. */
@@ -105,11 +128,16 @@ function situationalMultiplier(
   if (hasStatus(attacker, "rooted")) {
     mult *= ROOTED_DAMAGE_DEALT;
   }
-  if (moveRole(move) === "finisher" && hasAnyStatus(defender)) {
-    mult *= FINISHER_STATUS_BONUS;
+  const finisher = moveRole(move) === "finisher";
+  if (finisher) {
+    mult *= FINISHER_DAMAGE_MULT;
+    if (hasAnyStatus(defender)) {
+      mult *= FINISHER_STATUS_BONUS;
+    }
   }
   if (defender.guarding) {
-    mult *= GUARD_DAMAGE_TAKEN;
+    // Reading the telegraph pays: a guarded finisher is parried.
+    mult *= finisher ? GUARD_FINISHER_DAMAGE_TAKEN : GUARD_DAMAGE_TAKEN;
   }
   return mult;
 }
@@ -130,29 +158,30 @@ export function resolveAttack(
     return { kind: "immune", matchup: "immune", damage: 0 };
   }
 
-  let damage = baseDamage(attacker, move, defender);
   const mult = matchupMultiplier(matchup) * situationalMultiplier(attacker, move, defender);
-  if (mult !== 1) {
-    damage = Math.max(1, Math.round(damage * mult));
-  }
+  const damage = Math.max(1, Math.round(baseDamage(attacker, move, defender) * mult));
 
   return { kind: "hit", matchup, damage };
 }
 
 /**
  * Sovereign pattern hits have fixed damage, but still respect the attacker's
- * Dazed (miss chance) and Rooted, and the defender's Guard.
+ * Dazed (miss chance) and Rooted, and the defender's Guard. Every beat of a
+ * sovereign pattern is telegraphed, so a guard always parries it (and heals
+ * the guard user before the hit lands; the caller applies the damage).
  */
 export function resolveFixedAttack(
   attacker: BattleCombatant,
   fixedDamage: number,
   defender: BattleCombatant,
   rng: () => number = Math.random,
-): { kind: "miss" } | { kind: "hit"; damage: number } {
+): { kind: "miss" } | { kind: "hit"; damage: number; parryHealed: number } {
   if (hasStatus(attacker, "dazed") && rng() * 100 < DAZED_ACCURACY_PENALTY) {
     return { kind: "miss" };
   }
-  return { kind: "hit", damage: previewFixedDamage(attacker, fixedDamage, defender) };
+  const damage = previewFixedDamage(attacker, fixedDamage, defender);
+  const parryHealed = defender.guarding ? parryHeal(defender) : 0;
+  return { kind: "hit", damage, parryHealed };
 }
 
 export function previewFixedDamage(
@@ -165,7 +194,7 @@ export function previewFixedDamage(
     mult *= ROOTED_DAMAGE_DEALT;
   }
   if (defender.guarding) {
-    mult *= GUARD_DAMAGE_TAKEN;
+    mult *= GUARD_FINISHER_DAMAGE_TAKEN;
   }
   return Math.max(1, Math.round(fixedDamage * mult));
 }
@@ -232,7 +261,23 @@ export type MoveResult = {
   healed: number;
   guarded: boolean;
   status?: StatusApplyResult;
+  /** HP the target's guard restored by parrying this finisher. */
+  parryHealed?: number;
 };
+
+/** A parried finisher lets the guard user patch up by its guard move's heal. */
+function parryHeal(target: BattleCombatant): number {
+  const heal = target.moves.find((m) => moveRole(m) === "guard")?.heal ?? 0;
+  if (heal <= 0) {
+    return 0;
+  }
+  const before = target.currentHp;
+  target.currentHp = Math.min(
+    target.maxHp,
+    target.currentHp + Math.max(1, Math.round(target.maxHp * heal)),
+  );
+  return target.currentHp - before;
+}
 
 /**
  * Resolve one action end to end: drops the user's previous guard, rolls the
@@ -252,14 +297,6 @@ export function executeMove(
   if (role === "guard") {
     user.guarding = true;
     result.guarded = true;
-    if (move.heal && move.heal > 0) {
-      const before = user.currentHp;
-      user.currentHp = Math.min(
-        user.maxHp,
-        user.currentHp + Math.max(1, Math.round(user.maxHp * move.heal)),
-      );
-      result.healed = user.currentHp - before;
-    }
   }
 
   if (move.power > 0) {
@@ -267,6 +304,9 @@ export function executeMove(
     result.attack = outcome;
     if (outcome.kind === "hit") {
       applyDamage(target, outcome.damage);
+      if (target.guarding && role === "finisher" && target.currentHp > 0) {
+        result.parryHealed = parryHeal(target);
+      }
       // A guard soaks one hit, then drops.
       target.guarding = false;
       if (move.inflicts && target.currentHp > 0) {
@@ -292,11 +332,24 @@ export type Intent = {
  * Weighted by role and situation, scaled by matchup vs the current player
  * creature, and rolled with the injected rng so tests are deterministic.
  */
-/** Share of (power + attack) that always gets through defense. */
-export const MIN_DAMAGE_FRACTION = 0.6;
+/** Defense curve: a defender whose defense equals K halves (power + attack). */
+export const DEFENSE_CURVE_K = 10;
+/**
+ * Battle-only bulk (#378): creature-vs-creature hits are scaled down so a
+ * spar lasts ~5-8 turns without touching saved HP. Sovereigns (defense
+ * disabled, fixed patterns) keep their own tuned numbers.
+ */
+export const BATTLE_DAMAGE_SCALE = 0.5;
 
 /** Story 2 tutorial spar: wild hits are softened so a new player can win it. */
-export const TUTORIAL_WILD_DAMAGE_SCALE = 0.75;
+export const TUTORIAL_WILD_DAMAGE_SCALE = 0.6;
+/**
+ * Every other wild hits a little harder than its stats, offsetting the
+ * player's first move and telegraph read: equal-level 1v1 lands at ~40%
+ * random / ~60% max-damage / ~77% skilled (sparBalance.test.ts). Parties
+ * keep the overworld soft.
+ */
+export const WILD_DAMAGE_SCALE = 1.08;
 
 export type WildBattleTuning = { damageScale: number; matchupAware: boolean };
 
@@ -304,7 +357,7 @@ export type WildBattleTuning = { damageScale: number; matchupAware: boolean };
 export function wildBattleTuning(tutorial: boolean): WildBattleTuning {
   return tutorial
     ? { damageScale: TUTORIAL_WILD_DAMAGE_SCALE, matchupAware: false }
-    : { damageScale: 1, matchupAware: true };
+    : { damageScale: WILD_DAMAGE_SCALE, matchupAware: true };
 }
 
 export type IntentOptions = {
@@ -346,21 +399,36 @@ function intentWeight(
 ): number {
   const role = moveRole(move);
   const hpRatio = enemy.currentHp / enemy.maxHp;
+  // A ready status move that would stick: set up before cashing the finisher.
+  const setupReady = readyMoves(enemy).some(
+    (m) =>
+      moveRole(m) === "status" &&
+      m.inflicts !== undefined &&
+      !hasAnyStatus(player) &&
+      canApplyStatus(player, m.inflicts),
+  );
   let weight: number;
   switch (role) {
     case "guard":
-      weight = hpRatio < 0.5 ? 2.5 : 0.4;
+      // Raise the guard for the turn the player's finisher comes off cooldown.
+      weight =
+        (hpRatio < 0.5 ? 1.2 : 0.3) +
+        (player.moves.some(
+          (m) => moveRole(m) === "finisher" && getCooldown(player, m.id) === 1,
+        )
+          ? 2
+          : 0);
       break;
     case "status":
       weight =
         move.inflicts &&
         !hasStatus(player, move.inflicts) &&
         canApplyStatus(player, move.inflicts)
-          ? 2.5
+          ? 3
           : 0.2;
       break;
     case "finisher":
-      weight = hasAnyStatus(player) ? 4 : 3;
+      weight = hasAnyStatus(player) ? 5 : setupReady ? 1.5 : 3;
       break;
     default:
       weight = 1.5;

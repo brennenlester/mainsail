@@ -50,6 +50,7 @@ import {
 import {
   FINISHER_STATUS_BONUS,
   GUARD_DAMAGE_TAKEN,
+  GUARD_FINISHER_DAMAGE_TAKEN,
   getBattleKit,
   moveRole,
 } from "../battle/kits";
@@ -241,6 +242,7 @@ export class BattleScene extends Phaser.Scene {
     const wildAttack = scaledStat(wildDef.attack, wildLevel);
     this.wild = primeOpeningCooldowns({
       name: wildDef.name,
+      level: wildLevel,
       maxHp: wildMaxHp,
       currentHp: wildMaxHp,
       attack: wildAttack,
@@ -506,6 +508,7 @@ export class BattleScene extends Phaser.Scene {
     const trait = partyCreature.trait;
     const combatant: BattleCombatant = {
       name: def.name,
+      level: partyCreature.level,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
       attack: getEffectiveAttack(partyCreature),
@@ -678,6 +681,9 @@ export class BattleScene extends Phaser.Scene {
     if (role === "finisher") {
       details.push(`×${FINISHER_STATUS_BONUS} vs status`);
     }
+    if (role === "guard") {
+      details.push(`other hits −${Math.round((1 - GUARD_DAMAGE_TAKEN) * 100)}%`);
+    }
     if (!ready) {
       details.push(`ready in ${cooldown}`);
     }
@@ -713,8 +719,8 @@ export class BattleScene extends Phaser.Scene {
             Math.max(1, Math.round(this.player.maxHp * move.heal)),
           )
         : 0;
-      const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      return heal > 0 ? `−${pct}% hit · +${heal} HP` : `−${pct}% next hit`;
+      const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
+      return heal > 0 ? `parry −${parry}% +${heal} HP` : `parry −${parry}%`;
     }
     if (move.power <= 0) {
       return "";
@@ -1100,6 +1106,9 @@ export class BattleScene extends Phaser.Scene {
         targetSide === "wild" ? "#ff8866" : "#ffaa44",
       );
       this.flashCombatant(targetSide, attack.damage);
+      if (result.parryHealed) {
+        line += ` Parried! ${target.name} +${result.parryHealed} HP.`;
+      }
     } else {
       line += ".";
     }
@@ -1182,8 +1191,9 @@ export class BattleScene extends Phaser.Scene {
     const style = ROLE_STYLE[role];
     let detail = "";
     if (role === "guard") {
+      const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
       const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      detail = `blocks ${pct}% of your next hit`;
+      detail = `parries a finisher −${parry}%, other hits −${pct}%`;
     } else {
       const matchup = getMatchup(move, this.player);
       const damage =

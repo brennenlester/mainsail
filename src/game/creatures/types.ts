@@ -66,6 +66,8 @@ export type CreatureInstance = {
 
 export type BattleCombatant = {
   name: string;
+  /** Creature level; scales move power and defense in battle. Missing = 1. */
+  level?: number;
   maxHp: number;
   currentHp: number;
   attack: number;

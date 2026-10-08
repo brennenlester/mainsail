@@ -70,8 +70,13 @@ describe("resolveAttack", () => {
     const outcome = resolveAttack(attacker, emberSpit, defender, () => 0);
     expect(outcome.kind).toBe("hit");
     if (outcome.kind === "hit") {
-      const base = Math.max(1, emberSpit.power + 8 - 4);
-      expect(outcome.damage).toBe(Math.round(base * HUNTER_MULTIPLIER));
+      const neutral = calcDamage(
+        attacker,
+        emberSpit,
+        combatant({ folkloreType: "earth", defense: 4 }),
+      );
+      expect(outcome.damage).toBeGreaterThan(neutral);
+      expect(outcome.damage / neutral).toBeCloseTo(HUNTER_MULTIPLIER, 0);
       expect(outcome.matchup).toBe("hunter");
     }
   });
