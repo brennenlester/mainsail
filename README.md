@@ -83,7 +83,7 @@ Ward the Crossing needs at least one living **active** companion. Overworld HP d
 
 Every creature you befriend has a **personality** (Bold, Shy, Greedy, Sleepy, Curious, Loyal, Playful, or Gentle), rolled once when it joins. A skippable prompt lets you give new friends a **nickname** (rename any time from **Party**). Personality shows up in the overworld: followers bark short lines when you stop, bold ones walk ahead, shy and sleepy ones lag behind, loyal ones stay close, and curious ones drift toward anything interesting nearby.
 
-**Bond** grows from battling together (the fighter gains most), gifting a companion its **favorite material** (Party → select → Gift; the Codex lists each species' favorite once you have met it), and using overworld abilities. Five tiers — Wary, Friendly, Close, Devoted, Kindred — each add a brighter aura under the follower and a small battle bonus; a tier-up gets a heart-and-sparkle celebration. Loyal companions gain extra bond from battles, Shy and Greedy ones from gifts, Curious and Playful ones from abilities.
+**Bond** grows from battling together (the fighter gains most), gifting a companion its **favorite material** (Party → select → Gift; the Codex lists each species' favorite once you have met it), and using overworld abilities. Five tiers — Wary, Friendly, Close, Devoted, Kindred — each add a brighter aura under the follower (cosmetic for now; a small battle bonus is planned but not yet active); a tier-up gets a heart-and-sparkle celebration. Loyal companions gain extra bond from battles, Shy and Greedy ones from gifts, Curious and Playful ones from abilities.
 
 **Overworld abilities** use **E** with the right companion in the active party (fainted companions can't help):
 

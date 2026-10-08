@@ -25,6 +25,17 @@ export function isNicknamePromptOpen(): boolean {
   return open;
 }
 
+/** Open a queued prompt only when nothing else owns the player's attention. */
+export function canOpenNicknamePrompt(state: {
+  queued: number;
+  promptOpen: boolean;
+  /** Dialogue, minigame, shrine, or encounter in progress. */
+  busy: boolean;
+  topOverlay: string | null;
+}): boolean {
+  return state.queued > 0 && !state.promptOpen && !state.busy && state.topOverlay === null;
+}
+
 function ensureRoot(): HTMLElement {
   let root = document.getElementById("nickname-overlay");
   if (root) {

@@ -14,6 +14,7 @@ import {
   findSiteInteraction,
   grantsAbilityBond,
   isletTiles,
+  siteHintYields,
   persistablePosition,
   revealedSiteProps,
 } from "./abilities";
@@ -41,6 +42,7 @@ import {
   resetCompanionStateForTests,
 } from "./companionState";
 import { FAVORITE_MATERIALS, getFavoriteMaterial } from "./favorites";
+import { canOpenNicknamePrompt } from "../ui/nicknamePrompt";
 import {
   curiousDetour,
   hashSeed,
@@ -275,6 +277,21 @@ describe("abilities", () => {
     const brush = findSiteInteraction("overworld", 2, 2, new Set())!;
     expect(grantsAbilityBond(brush, new Set())).toBe(true);
     expect(grantsAbilityBond(brush, new Set(["fields-brush"]))).toBe(false);
+  });
+
+  it("site hints yield E to gathering only when no companion can act", () => {
+    expect(siteHintYields(false, true)).toBe(true);
+    expect(siteHintYields(false, false)).toBe(false);
+    expect(siteHintYields(true, true)).toBe(false);
+  });
+
+  it("defers the nickname prompt while anything else is open", () => {
+    const base = { queued: 1, promptOpen: false, busy: false, topOverlay: null };
+    expect(canOpenNicknamePrompt(base)).toBe(true);
+    expect(canOpenNicknamePrompt({ ...base, queued: 0 })).toBe(false);
+    expect(canOpenNicknamePrompt({ ...base, promptOpen: true })).toBe(false);
+    expect(canOpenNicknamePrompt({ ...base, busy: true })).toBe(false);
+    expect(canOpenNicknamePrompt({ ...base, topOverlay: "party" })).toBe(false);
   });
 
   it("persists islet stands at the ford shore", () => {

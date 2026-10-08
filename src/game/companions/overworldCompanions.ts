@@ -7,6 +7,7 @@ import { MAX_FOLLOWERS } from "../render/partyOverworldFollowers";
 import type { OverworldFx } from "../render/fx/overworldFx";
 import { selectOverworldFollowers } from "../shrine/presence";
 import {
+  canOpenNicknamePrompt,
   isNicknamePromptOpen,
   promptNickname,
   setNicknameKeyboardHandler,
@@ -20,6 +21,7 @@ import {
   findAbilityUser,
   findSiteInteraction,
   grantsAbilityBond,
+  siteHintYields,
   nearestCuriousSpot,
   sitesInZone,
   type AbilityId,
@@ -219,7 +221,7 @@ export class OverworldCompanions {
     if (hit.kind === "ford-back") return "Press E — Ford back to shore";
     const ability = ABILITIES[hit.site.ability];
     const user = findAbilityUser(getActiveCreatures(), hit.site.ability);
-    if (!user) return gatherNearby ? undefined : ability.needHint;
+    if (!user) return siteHintYields(false, gatherNearby) ? undefined : ability.needHint;
     return `Press E — ${displayName(user)}: ${ability.verb}`;
   }
 
@@ -348,10 +350,12 @@ export class OverworldCompanions {
       }
     }
     if (
-      this.nicknameQueue.length > 0 &&
-      !isNicknamePromptOpen() &&
-      !this.host.isBusy() &&
-      getTopOverlayId() === null
+      canOpenNicknamePrompt({
+        queued: this.nicknameQueue.length,
+        promptOpen: isNicknamePromptOpen(),
+        busy: this.host.isBusy(),
+        topOverlay: getTopOverlayId(),
+      })
     ) {
       const creature = getCreatureInstance(this.nicknameQueue.shift()!);
       if (creature) {

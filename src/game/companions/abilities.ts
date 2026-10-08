@@ -223,6 +223,14 @@ export function findSiteInteraction(
 }
 
 /**
+ * Whether an ability site's hint should give way: with no companion able to
+ * act, a nearby gather node keeps the prompt and the E press.
+ */
+export function siteHintYields(hasAbleCompanion: boolean, gatherNearby: boolean): boolean {
+  return !hasAbleCompanion && gatherNearby;
+}
+
+/**
  * Ability bond is paid once per site, on the claim: burn/sense claim on use,
  * ford claims when the islet stash opens. Re-fording an emptied islet pays
  * nothing, so bond can't be farmed on the 1.5s ford cooldown.
