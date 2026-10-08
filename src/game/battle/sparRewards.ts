@@ -1,3 +1,4 @@
+import { playLevelUpSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { getActiveCreatures } from "../creatures/party";
 import { getMaterialForCreature, getMaterialName } from "../inventory/materials";
@@ -172,6 +173,10 @@ export function grantSparRewards(
         summary.creatureName = firstUp.creatureName;
       }
     }
+  }
+
+  if (summary.leveledUp) {
+    playLevelUpSfx(1400);
   }
 
   recordQuestEvent({ type: "win_spar" });
