@@ -104,7 +104,14 @@ import {
   recordQuestEvent,
 } from "../story/questProgress";
 import { QUEST_ORDER } from "../story/quests";
-import { getSovereignVoyageStep } from "../story/sovereignVoyage";
+import {
+  getSovereignVoyageHint,
+  getSovereignVoyageStep,
+} from "../story/sovereignVoyage";
+import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
+import { launchFinaleCard } from "../finale/launchFinaleCard";
+import { claimFinaleCard } from "../finale/finaleTrigger";
+import { playerParty } from "../creatures/party";
 import { consumeAchievementToast } from "../progression/achievements";
 import {
   flashInviteStatus,
@@ -322,6 +329,20 @@ export class IsometricScene extends Phaser.Scene {
       this.celebrateResume(false);
     }
   };
+  /**
+   * Shrine finale dialogue closed (#385): show the credits card once per save
+   * (#393, #399), then hand back to the world with the Sovereign voyage hook.
+   */
+  private onFinaleComplete = (): void => {
+    if (isVisitorMode() || !claimFinaleCard()) {
+      return;
+    }
+    launchFinaleCard(this, {
+      playerName: getPlayerName(),
+      party: playerParty.creatures,
+      onContinue: () => this.continueAfterFinale(),
+    });
+  };
   private layoutLocked = false;
   private isMoving = false;
   /** Distance-driven gait phase (cycles); advances only when a step applies. */
@@ -418,6 +439,7 @@ export class IsometricScene extends Phaser.Scene {
     this.fx.notePartyBaseline();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdown());
     window.addEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
+    this.game.events.on(FINALE_COMPLETE_EVENT, this.onFinaleComplete);
     this.companions = this.createCompanions();
 
     this.loadZone(this.currentZoneId);
@@ -489,6 +511,7 @@ export class IsometricScene extends Phaser.Scene {
     this.unbindPlayerName = undefined;
     this.fx?.destroy();
     window.removeEventListener(PARTY_CHANGED_EVENT, this.onPartyChanged);
+    this.game.events.off(FINALE_COMPLETE_EVENT, this.onFinaleComplete);
     setCopyInviteHandler(null);
     this.input.keyboard?.off("keydown", this.onGodCheatKeyDown);
     document.removeEventListener("focusin", this.onDomFocusChange);
@@ -2294,6 +2317,15 @@ export class IsometricScene extends Phaser.Scene {
       x: this.player.x,
       y: this.playerBaseY,
     });
+  }
+
+  /** After the finale card: point at the optional Sovereign voyage (#369 hook). */
+  private continueAfterFinale(): void {
+    updateStatusPanel(getZone(this.currentZoneId));
+    const hint = getSovereignVoyageHint();
+    if (hint) {
+      this.showGatherToast(hint, true, 4200);
+    }
   }
 
   private showGatherToast(message: string, ok: boolean, durationMs = 1800): void {
