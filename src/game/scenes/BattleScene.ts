@@ -6,6 +6,7 @@ import {
   playFaintSfx,
   playGuardSfx,
   playHitPlayerSfx,
+  playDeniedSfx,
   playHitWildSfx,
   playMoveTypeSfx,
   preloadStoryAudio,
@@ -299,6 +300,8 @@ export class BattleScene extends Phaser.Scene {
   private fallbackActions: { fight?: () => void; retreat?: () => void } = {};
   /** Rival / boss battle (#385): rules in battle/boss/storyBattle, art in storyBattleUi. */
   private story: StoryBattle | null = null;
+  private titleOverride: string | undefined;
+  private blockedToast?: Phaser.GameObjects.Container;
   private storyUi: StoryBattleUi | null = null;
   // ponytail: temporary god-spar kill cheat
   private onGodSparKillCheatKeyDown = (event: KeyboardEvent) => {
@@ -335,7 +338,13 @@ export class BattleScene extends Phaser.Scene {
     allowBefriend?: boolean;
     /** Rival / boss battle (#385). Never befriendable. */
     story?: StoryBattleInit;
+    /** Challenge ghost fights: replaces "Training Spar" (the banner lives in-canvas, #409). */
+    title?: string;
+    /** Challenge ghost fights: the sharer's nickname for the foe (display only). */
+    wildNickname?: string;
   }): void {
+    this.titleOverride = data.title;
+    this.blockedToast = undefined;
     this.story = data.story
       ? new StoryBattle(getStorySpar(data.story.sparId), {
           partyAverage: getPartyAverageLevel(),
@@ -390,7 +399,7 @@ export class BattleScene extends Phaser.Scene {
     const wildMaxHp = scaledStat(wildDef.maxHp, wildLevel);
     const wildAttack = scaledStat(wildDef.attack, wildLevel);
     this.wild = primeOpeningCooldowns({
-      name: wildDef.name,
+      name: data.wildNickname || wildDef.name,
       level: wildLevel,
       maxHp: wildMaxHp,
       currentHp: wildMaxHp,
@@ -477,20 +486,33 @@ export class BattleScene extends Phaser.Scene {
     const L = this.layout;
     const ui = L.ui;
 
+    const fastToggle = this.addFastToggle();
     // A warded story battle uses this strip for the Hearth Ward row (#399);
     // its title already ran in the VS banner and the foe bar names the foe.
     if (!this.story || this.story.ward >= 1) {
-      this.add
-        .text((L.topRow.left + L.topRow.right) / 2, L.topRow.y, this.story?.def.title ?? "Training Spar", {
-          color: this.story ? "#ffd8a8" : CARD.creamCss,
-          fontFamily: HUD_FONT,
-          fontSize: `${Math.round(18 * ui)}px`,
-          fontStyle: "bold",
-          stroke: CARD.inkCss,
-          strokeThickness: Math.round(4 * ui),
-        })
+      const title = this.add
+        .text(
+          (L.topRow.left + L.topRow.right) / 2,
+          L.topRow.y,
+          this.titleOverride ?? this.story?.def.title ?? "Training Spar",
+          {
+            color: this.story ? "#ffd8a8" : CARD.creamCss,
+            fontFamily: HUD_FONT,
+            fontSize: `${Math.round(18 * ui)}px`,
+            fontStyle: "bold",
+            stroke: CARD.inkCss,
+            strokeThickness: Math.round(4 * ui),
+          },
+        )
         .setOrigin(0.5)
         .setDepth(6);
+      if (this.titleOverride) {
+        // A long ghost-party title must not run under the Fast toggle: left-align
+        // it and step the font down / ellipsize into the room beside the toggle.
+        const room = fastToggle.x - fastToggle.width - 8 * ui - L.topRow.left;
+        fitText(title, room, Math.round(12 * ui));
+        title.setOrigin(0, 0.5).setX(L.topRow.left);
+      }
     }
 
     this.wildSprite = fitDisplay(
@@ -555,7 +577,6 @@ export class BattleScene extends Phaser.Scene {
     }
     this.fx.setHome("wild", L.wildHome.x, L.wildHome.y);
     this.fx.setHome("player", L.playerHome.x, L.playerHome.y);
-    this.addFastToggle();
 
     // Plates up top, each on its creature's side (#404); a story foe gets the wide bar.
     this.wildHud = this.storyUi?.createHud(L.foePlate) ?? this.createHpHud(L.foePlate, true);
@@ -731,11 +752,19 @@ export class BattleScene extends Phaser.Scene {
     }
     if (digit > 0) {
       this.moveCards[digit - 1]?.activate();
-    } else if (key === "s" && this.switchButton) {
-      this.showSwitchMenu();
-    } else if (key === "b" && this.befriendButton) {
-      // A key press is deliberate: no tap-to-confirm step.
-      this.attemptBefriend();
+    } else if (key === "s") {
+      if (this.switchButton) {
+        this.showSwitchMenu();
+      } else if (!this.forcedSwitch) {
+        this.notifyBlocked("No one to switch to");
+      }
+    } else if (key === "b") {
+      if (this.befriendButton) {
+        // A key press is deliberate: no tap-to-confirm step.
+        this.attemptBefriend();
+      } else if (!this.forcedSwitch) {
+        this.notifyBlocked("Can't befriend this foe");
+      }
     }
   };
 
@@ -755,7 +784,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** "Fast" toggle: skips lunges, particles, pauses (#365). */
-  private addFastToggle(): void {
+  private addFastToggle(): Phaser.GameObjects.Text {
     const L = this.layout;
     const ui = L.ui;
     const btn = this.add
@@ -783,6 +812,7 @@ export class BattleScene extends Phaser.Scene {
       btn.setText(fastBattleLabel(next));
       this.refreshHp();
     });
+    return btn;
   }
 
   private showHunterMatchupTeachIfNeeded(): void {
@@ -1101,7 +1131,43 @@ export class BattleScene extends Phaser.Scene {
         }
         this.playerTurn(move);
       },
+      () => {
+        if (!this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
+          return;
+        }
+        const turns = getCooldown(this.player, move.id);
+        this.notifyBlocked(`${move.name}: ready in ${turns}`);
+      },
     );
+  }
+
+  /** "Not yet" feedback (#409): short toast over the arena, a log line, a quiet tick. */
+  private notifyBlocked(message: string): void {
+    playDeniedSfx(this);
+    this.log(message);
+    this.blockedToast?.destroy();
+    const L = this.layout;
+    // The hunter-matchup teach tip lives at the same anchor: sit just below it.
+    const lift = this.matchupTeachText?.active ? this.matchupTeachText.displayHeight + 8 * L.ui : 0;
+    const toast = addToast(this, L.tip.x, L.tip.y + lift, message, {
+      ui: L.ui,
+      maxW: Math.min(L.arenaRegion.w - 24 * L.ui, 360 * L.ui),
+      originY: 0,
+      depth: 13,
+    });
+    this.blockedToast = toast;
+    this.tweens.add({
+      targets: toast,
+      alpha: 0,
+      delay: 900,
+      duration: 300,
+      onComplete: () => {
+        toast.destroy();
+        if (this.blockedToast === toast) {
+          this.blockedToast = undefined;
+        }
+      },
+    });
   }
 
   // --- Befriend mid-spar (#366) ---------------------------------------------

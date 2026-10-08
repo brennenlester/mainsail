@@ -12,6 +12,7 @@ import { popOverlay, pushOverlay } from "./overlayStack";
  * `CreatureInstance.nickname`. Resolves once the player names or skips.
  */
 let open = false;
+let blocking = false;
 let keyboardHandler: ((captured: boolean) => void) | null = null;
 
 /** The overworld lends its keyboard gate so typed letters reach the input. */
@@ -23,6 +24,11 @@ export function setNicknameKeyboardHandler(
 
 export function isNicknamePromptOpen(): boolean {
   return open;
+}
+
+/** True only for the modal (Party panel) prompt; the ambient one never blocks the world. */
+export function isNicknamePromptBlocking(): boolean {
+  return open && blocking;
 }
 
 /** Open a queued prompt only when nothing else owns the player's attention. */
@@ -62,7 +68,20 @@ function ensureRoot(): HTMLElement {
   return root;
 }
 
-export function promptNickname(creature: CreatureInstance): Promise<void> {
+export type NicknamePromptOptions = {
+  /**
+   * Ambient prompts (a companion just joined) are non-blocking: no backdrop,
+   * no auto-focus, movement keys keep walking until the player clicks the
+   * input. Explicit prompts (Party panel "Rename") focus the input.
+   */
+  ambient?: boolean;
+};
+
+export function promptNickname(
+  creature: CreatureInstance,
+  options: NicknamePromptOptions = {},
+): Promise<void> {
+  const ambient = options.ambient === true;
   const root = ensureRoot();
   const form = root.querySelector("form") as HTMLFormElement;
   const title = root.querySelector("#nickname-title") as HTMLElement;
@@ -78,6 +97,7 @@ export function promptNickname(creature: CreatureInstance): Promise<void> {
   body.textContent = trait
     ? `Seems ${trait.label.toLowerCase()} — ${trait.blurb.charAt(0).toLowerCase()}${trait.blurb.slice(1)} Give it a nickname?`
     : "Give it a nickname?";
+  root.classList.toggle("nickname-overlay--ambient", ambient);
   input.value = "";
   input.placeholder = def.name;
   error.textContent = "";
@@ -88,12 +108,27 @@ export function promptNickname(creature: CreatureInstance): Promise<void> {
     const finish = (): void => {
       form.removeEventListener("submit", onSubmit);
       skip.removeEventListener("click", finish);
+      input.removeEventListener("focus", onFocus);
+      input.removeEventListener("blur", onBlur);
+      form.removeEventListener("keydown", onKeyDown);
       popOverlay("nickname");
       root.hidden = true;
       open = false;
+      blocking = false;
       keyboardHandler?.(true);
-      previouslyFocused?.focus();
+      if (!ambient) {
+        previouslyFocused?.focus();
+      }
       resolve();
+    };
+    // Typing in the box must not walk the player; leaving it hands keys back.
+    const onFocus = (): void => keyboardHandler?.(false);
+    const onBlur = (): void => keyboardHandler?.(true);
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish();
+      }
     };
     const onSubmit = (event: Event): void => {
       event.preventDefault();
@@ -110,9 +145,16 @@ export function promptNickname(creature: CreatureInstance): Promise<void> {
     };
     form.addEventListener("submit", onSubmit);
     skip.addEventListener("click", finish);
-    pushOverlay("nickname", finish);
-    root.hidden = false;
     open = true;
+    blocking = !ambient;
+    root.hidden = false;
+    if (ambient) {
+      input.addEventListener("focus", onFocus);
+      input.addEventListener("blur", onBlur);
+      form.addEventListener("keydown", onKeyDown);
+      return;
+    }
+    pushOverlay("nickname", finish);
     keyboardHandler?.(false);
     window.requestAnimationFrame(() => input.focus());
   });

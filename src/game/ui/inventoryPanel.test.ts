@@ -3,6 +3,7 @@ import {
   canShowInventoryConsumableUse,
   closeInventory,
   listInventoryLines,
+  neighborTile,
   openInventory,
   useInventoryConsumable,
   usePortableMoonshrine,
@@ -47,7 +48,7 @@ describe("openInventory", () => {
     document.body.replaceChildren();
   });
 
-  it("renders ingredient icons with names above images", () => {
+  it("renders ingredient icons with the name before the image (revealed on hover / focus)", () => {
     setInventoryFromSnapshot({ wood: 1, "folklore-dust": 1 }, { boat: 1 });
     openInventory();
     const woodImg = document.querySelector(
@@ -70,6 +71,46 @@ describe("openInventory", () => {
         ?.closest(".inventory-line-visual")
         ?.querySelector(".material-icon-name")?.textContent,
     ).toBe("Boat");
+  });
+
+  it("lays materials and items out as a grid of labelled, keyboard-navigable tiles", () => {
+    setInventoryFromSnapshot({ wood: 3, stone: 2 }, { boat: 1 });
+    openInventory();
+    expect(document.querySelectorAll("ul.inventory-grid")).toHaveLength(2);
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>(".inventory-tile"));
+    expect(tiles).toHaveLength(3);
+    expect(tiles.map((t) => t.getAttribute("aria-label"))).toEqual(
+      expect.arrayContaining(["Wood, 3 owned", "Stone, 2 owned", "Boat, 1 owned"]),
+    );
+    // Roving tabindex: exactly one tab stop.
+    expect(tiles.filter((t) => t.tabIndex === 0)).toHaveLength(1);
+    expect(tiles[0]?.querySelector(".inventory-count")?.textContent).toMatch(/^×[0-9]+$/);
+  });
+
+  it("moves focus between tiles with the arrow keys", () => {
+    setInventoryFromSnapshot({ wood: 3, stone: 2, "folklore-dust": 1 }, {});
+    openInventory();
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>(".inventory-tile"));
+    tiles[0]!.focus();
+    tiles[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(document.activeElement).toBe(tiles[1]);
+    expect(tiles[1]!.tabIndex).toBe(0);
+    expect(tiles[0]!.tabIndex).toBe(-1);
+    tiles[1]!.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(document.activeElement).toBe(tiles[2]);
+    tiles[2]!.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+    expect(document.activeElement).toBe(tiles[0]);
+  });
+
+  it("peeks a tile's name on tap", () => {
+    setInventoryFromSnapshot({ wood: 3, stone: 2 }, {});
+    openInventory();
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>(".inventory-tile"));
+    tiles[0]!.click();
+    expect(tiles[0]!.classList.contains("is-peek")).toBe(true);
+    tiles[1]!.click();
+    expect(tiles[0]!.classList.contains("is-peek")).toBe(false);
+    expect(tiles[1]!.classList.contains("is-peek")).toBe(true);
   });
 
   it("does not show the craft grid until a Portable Moonshrine is owned", () => {
@@ -113,6 +154,24 @@ describe("openInventory", () => {
     expect(
       document.querySelector('[data-inventory-use="brook-tonic"]'),
     ).toBeNull();
+  });
+});
+
+describe("neighborTile", () => {
+  function tile(rect: Partial<DOMRect>): HTMLElement {
+    const node = document.createElement("li");
+    node.getBoundingClientRect = () => ({ left: 0, top: 0, width: 88, height: 88, ...rect }) as DOMRect;
+    return node;
+  }
+
+  it("uses reading order for left / right and position for up / down", () => {
+    // 2 columns x 2 rows.
+    const grid = [tile({ left: 0, top: 0 }), tile({ left: 100, top: 0 }), tile({ left: 0, top: 100 }), tile({ left: 100, top: 100 })];
+    expect(neighborTile(grid, grid[0]!, "ArrowRight")).toBe(grid[1]);
+    expect(neighborTile(grid, grid[0]!, "ArrowLeft")).toBeNull();
+    expect(neighborTile(grid, grid[0]!, "ArrowDown")).toBe(grid[2]);
+    expect(neighborTile(grid, grid[3]!, "ArrowUp")).toBe(grid[1]);
+    expect(neighborTile(grid, grid[2]!, "ArrowDown")).toBeNull();
   });
 });
 

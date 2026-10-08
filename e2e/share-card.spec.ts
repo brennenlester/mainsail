@@ -66,7 +66,7 @@ test("an existing save stays byte-identical through card preview, Challenge, and
   await expect(page.locator("#title-menu")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Challenge" }).click();
-  await expect(page.locator("#share-banner")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator("#share-banner")).toContainText("Rival's ghost party", { timeout: 10_000 });
   await expect(page.locator("#title-new-game")).toHaveCount(0);
 
   // Even calling the wipe paths directly is a no-op inside the sandbox.

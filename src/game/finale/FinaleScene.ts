@@ -16,7 +16,11 @@ import {
 } from "../share/shareActions";
 import {
   buildFinaleRecap,
+  FINALE_CELL_GAP,
+  FINALE_CELL_H,
+  FINALE_ROW_LIMIT,
   finaleShareParty,
+  planFinaleLayout,
   type FinaleCompanion,
   type FinaleRecap,
 } from "./finaleRecap";
@@ -36,8 +40,8 @@ const SANS = '"Source Sans 3", system-ui, sans-serif';
 const GOLD = 0xf0c878;
 const NAVY = 0x1a3048;
 const CELL_W = 136;
-const CELL_H = 150;
-const CELL_GAP = 12;
+const CELL_H = FINALE_CELL_H;
+const CELL_GAP = FINALE_CELL_GAP;
 const FAST_INPUT_GRACE_MS = 800;
 
 /** Credits-style closing card with a companion recap and Share (#393). */
@@ -86,7 +90,9 @@ export class FinaleScene extends Phaser.Scene {
       });
     }
 
-    const header = this.add.container(0, 0, [
+    // One block, centred vertically: a small party leaves no empty band (#409).
+    const plan = planFinaleLayout(this.recap.companions.length, DESIGN_SIZE);
+    const header = this.add.container(0, plan.dy, [
       this.add
         .text(cx, 50, this.recap.title.toUpperCase(), {
           fontFamily: SANS,
@@ -113,8 +119,8 @@ export class FinaleScene extends Phaser.Scene {
         .setOrigin(0.5),
     ]);
 
-    const cells = this.layoutCells(cx, 166);
-    const footerY = 166 + 2 * CELL_H + CELL_GAP + 26;
+    const cells = this.layoutCells(cx, plan.cellsTop);
+    const footerY = plan.summaryY;
     const summaryText = this.recap.overflow > 0
       ? `${this.recap.summary} · +${this.recap.overflow} more`
       : this.recap.summary;
@@ -129,7 +135,7 @@ export class FinaleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const buttons: Phaser.GameObjects.Text[] = [];
-    const btnY = footerY + 52;
+    const btnY = plan.buttonsY;
     const share = isCompanionShareAvailable() && this.recap.companions.length > 0;
     if (share) {
       buttons.push(
@@ -181,13 +187,13 @@ export class FinaleScene extends Phaser.Scene {
 
   private layoutCells(cx: number, top: number): Phaser.GameObjects.Container[] {
     const list = this.recap.companions;
-    const rows = list.length > 4 ? [list.slice(0, 4), list.slice(4)] : [list];
+    const rows = list.length > FINALE_ROW_LIMIT ? [list.slice(0, FINALE_ROW_LIMIT), list.slice(FINALE_ROW_LIMIT)] : [list];
     const out: Phaser.GameObjects.Container[] = [];
     rows.forEach((row, r) => {
       const width = row.length * CELL_W + (row.length - 1) * CELL_GAP;
       row.forEach((companion, i) => {
         const x = cx - width / 2 + CELL_W / 2 + i * (CELL_W + CELL_GAP);
-        const y = top + CELL_H / 2 + r * (CELL_H + CELL_GAP) + (rows.length === 1 ? CELL_H / 2 : 0);
+        const y = top + CELL_H / 2 + r * (CELL_H + CELL_GAP);
         out.push(this.cell(x, y, companion));
       });
     });

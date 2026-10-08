@@ -104,6 +104,9 @@ function openChallengeResult(
 
 /** Invalid / tampered `?card=` — show a blocking notice, never boot from it. */
 export function showInvalidCardScreen(): void {
+  // Same as the invalid-invite screen: the world HUD (quest card, status
+  // panel) is static markup and must not show through behind the notice.
+  document.getElementById("playfield")?.setAttribute("hidden", "");
   const sheet = openShareSheet({
     id: "card-preview",
     title: "This card link is broken",

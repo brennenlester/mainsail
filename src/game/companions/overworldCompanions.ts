@@ -361,7 +361,7 @@ export class OverworldCompanions {
     ) {
       const creature = getCreatureInstance(this.nicknameQueue.shift()!);
       if (creature) {
-        void promptNickname(creature);
+        void promptNickname(creature, { ambient: true });
       }
     }
   }

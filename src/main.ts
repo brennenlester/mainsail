@@ -67,12 +67,19 @@ function showInvalidInviteScreen(): void {
   });
 }
 
+/** Any decode failure, even an unexpected throw, lands on the broken-card screen. */
+function readShareParamSafely(): ReturnType<typeof readShareParam> {
+  try {
+    return readShareParam();
+  } catch {
+    return { status: "invalid" };
+  }
+}
+
 const inviteResult = parseInviteParam();
 // ?join= always wins; a ?card= share link is only read without an invite.
 const shareResult =
-  inviteResult.status === "absent"
-    ? readShareParam()
-    : ({ status: "absent" } as const);
+  inviteResult.status === "absent" ? readShareParamSafely() : ({ status: "absent" } as const);
 if (inviteResult.status === "invalid") {
   // Blocking error — do not boot, clear saves, or write quest progress.
   showInvalidInviteScreen();

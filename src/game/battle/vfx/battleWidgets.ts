@@ -158,6 +158,7 @@ export class MoveCard {
   private dimmed = false;
   private readonly data: MoveCardData;
   private readonly onActivate: () => void;
+  private readonly onBlocked?: () => void;
 
   constructor(
     scene: Phaser.Scene,
@@ -165,10 +166,13 @@ export class MoveCard {
     ui: number,
     data: MoveCardData,
     onActivate: () => void,
+    /** Cooling-down card pressed (tap or its 1-5 key): the card already shook. */
+    onBlocked?: () => void,
   ) {
     this.scene = scene;
     this.data = data;
     this.onActivate = onActivate;
+    this.onBlocked = onBlocked;
     this.ui = ui;
     const w = (this.w = rect.w / ui);
     const h = (this.h = rect.h / ui);
@@ -215,9 +219,20 @@ export class MoveCard {
       // (the effect colour still says hunter / resisted).
       effect.setText(data.effect.split("  ")[0] ?? data.effect);
     }
-    // Last resort: ellipsize the name so it never touches the effect.
-    fitText(title, room(), 13);
-    const subTop = -h / 2 + 29;
+    // Still tight: wrap the name onto a second line (never below 13px) rather
+    // than cutting "Bark Hide" to "Bar…". Only a name that cannot wrap into two
+    // lines inside the room is ellipsized.
+    let titleLines = 1;
+    if (title.width > room()) {
+      title.setWordWrapWidth(room(), true);
+      if (title.getWrappedText(title.text).length <= 2 && title.width <= room()) {
+        titleLines = 2;
+      } else {
+        title.setWordWrapWidth(null);
+        fitText(title, room(), 13);
+      }
+    }
+    const subTop = -h / 2 + (titleLines === 2 ? 40 : 29);
     const lines = Math.max(1, Math.floor((h / 2 - 3 - subTop) / 16));
     const sub = scene.add
       .text(left, subTop, data.sub, {
@@ -238,6 +253,11 @@ export class MoveCard {
     parts.push(title, effect, sub);
     this.container = scene.add.container(rect.x + rect.w / 2, rect.y + rect.h / 2, parts);
     this.container.setScale(ui).setDepth(6).setSize(w, h);
+    if (!ready) {
+      // A cooling-down card still answers a tap: shake + "ready in N" (#409).
+      this.container.setInteractive(new Phaser.Geom.Rectangle(-2, -3, w + 4, h + 6), Phaser.Geom.Rectangle.Contains);
+      this.container.on("pointerup", () => this.activate());
+    }
     if (ready) {
       // Hit area: the face plus a little slack, measured from the size box's top-left.
       this.container.setInteractive(new Phaser.Geom.Rectangle(-2, -3, w + 4, h + 6), Phaser.Geom.Rectangle.Contains);
@@ -275,7 +295,12 @@ export class MoveCard {
 
   /** Keyboard / tap: pop + run (ignored on cooldown or while dimmed). */
   activate(): void {
-    if (!this.data.ready || this.dimmed) {
+    if (this.dimmed) {
+      return;
+    }
+    if (!this.data.ready) {
+      this.shake();
+      this.onBlocked?.();
       return;
     }
     this.scene.tweens.add({
@@ -285,6 +310,24 @@ export class MoveCard {
       ease: "Back.easeOut",
     });
     this.onActivate();
+  }
+
+  /** Quick side-to-side jiggle: "not yet". Restores the exact resting x. */
+  shake(): void {
+    const restX = this.container.x;
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.x = restX;
+    this.scene.tweens.add({
+      targets: this.container,
+      x: { from: restX - 6 * this.ui, to: restX + 6 * this.ui },
+      duration: 45,
+      yoyo: true,
+      repeat: 2,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        this.container.x = restX;
+      },
+    });
   }
 
   /** Turn in progress: fade and ignore input until the cards are rebuilt. */

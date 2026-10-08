@@ -1,0 +1,605 @@
+/* Inventory + Party panels (#409): navy / cream like the Moon Shrine panel
+   (#402), with 44px touch targets and quoted fonts. */
+.menu-root {
+  --mp-panel: #14243a;
+  --mp-deep: #0e1b2c;
+  --mp-raise: #1d3250;
+  --mp-raise-hi: #26405f;
+  --mp-line: #2f4a68;
+  --mp-line-hi: #6e8db0;
+  --mp-cream: #fff3dc;
+  --mp-muted: #a9bfd4;
+  --mp-gold: #ffd98a;
+  --mp-good: #7fd8a0;
+  --mp-warn: #ffd98a;
+  --mp-bad: #ff9a8a;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: #0b1626d1;
+  color: var(--mp-cream);
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  line-height: 1.35;
+}
+
+.menu-root[hidden] {
+  display: none;
+}
+
+.menu-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--mp-width, 560px), 100%);
+  max-height: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1a2e48 0%, var(--mp-panel) 100%);
+  border: 2px solid var(--mp-line);
+  border-radius: 20px;
+  box-shadow:
+    0 18px 48px #0009,
+    inset 0 1px 0 #ffffff14;
+}
+
+.menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 6px 18px;
+}
+
+.menu-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--mp-cream);
+}
+
+.menu-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-btn,
+.menu-close {
+  min-height: 44px;
+  border: 2px solid var(--mp-line-hi);
+  border-radius: 999px;
+  background: var(--mp-raise);
+  color: var(--mp-cream);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    transform 0.12s;
+}
+
+.menu-btn {
+  padding: 8px 18px;
+}
+
+.menu-close {
+  flex: none;
+  width: 44px;
+  font-size: 22px;
+}
+
+.menu-btn:hover:not(:disabled),
+.menu-close:hover {
+  background: var(--mp-raise-hi);
+}
+
+.menu-btn:active:not(:disabled),
+.menu-close:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+.menu-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.menu-root :focus-visible {
+  outline: 3px solid var(--mp-cream);
+  outline-offset: 2px;
+}
+
+.menu-intro {
+  padding: 0 0 10px;
+  font-size: 14px;
+  color: var(--mp-muted);
+}
+
+.menu-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--mp-line);
+}
+
+.menu-body h3 {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-gold);
+}
+
+.menu-hint {
+  min-height: 1em;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--mp-muted);
+}
+
+.menu-empty {
+  font-size: 14px;
+  color: var(--mp-muted);
+}
+
+/* ---- Inventory ---------------------------------------------------------- */
+.inventory-root {
+  --mp-width: 600px;
+}
+
+.inventory-craft {
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.inventory-craft[hidden] {
+  display: none;
+}
+
+.inventory-body {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+  list-style: none;
+}
+
+.inventory-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  min-height: 88px;
+  border: 2px solid var(--mp-line);
+  border-radius: 14px;
+  background: var(--mp-raise);
+  outline-offset: 2px;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.inventory-tile:hover,
+.inventory-tile:focus-visible,
+.inventory-tile.is-peek {
+  border-color: var(--mp-line-hi);
+  background: var(--mp-raise-hi);
+}
+
+.inventory-line-visual {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+}
+
+.inventory-tile .material-icon {
+  width: 44px;
+  height: 44px;
+}
+
+/* The name is a caption that slides over the tile on hover / focus / long-press. */
+.inventory-tile .material-icon-name {
+  position: absolute;
+  inset: auto 4px 4px;
+  z-index: 2;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: var(--mp-deep);
+  border: 1px solid var(--mp-line-hi);
+  color: var(--mp-cream);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.12s,
+    transform 0.12s;
+  pointer-events: none;
+}
+
+/* No icon art (yet): the name is the tile's face, always visible. */
+.inventory-line-visual:not(:has(img)) .material-icon-name {
+  position: static;
+  opacity: 1;
+  transform: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.inventory-tile:hover .material-icon-name,
+.inventory-tile:focus-visible .material-icon-name,
+.inventory-tile.is-peek .material-icon-name {
+  opacity: 1;
+  transform: none;
+}
+
+.inventory-count {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--mp-deep);
+  border: 1px solid var(--mp-line-hi);
+  color: var(--mp-gold);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.inventory-use {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 2px solid var(--mp-line-hi);
+  border-radius: 999px;
+  background: var(--mp-cream);
+  color: var(--mp-panel);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.inventory-use[aria-pressed="false"] {
+  background: var(--mp-raise);
+  color: var(--mp-cream);
+}
+
+.inventory-use:hover {
+  filter: brightness(1.06);
+}
+
+/* ---- Party -------------------------------------------------------------- */
+.party-root {
+  --mp-width: 640px;
+}
+
+.party-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .party-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.party-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.party-card {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.party-creature-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 2px solid var(--mp-line);
+  border-radius: 14px;
+  background: var(--mp-raise);
+  color: var(--mp-cream);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.party-creature-btn:hover:not(:disabled) {
+  background: var(--mp-raise-hi);
+}
+
+.party-creature-btn:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.party-creature-selected {
+  border-color: var(--mp-cream);
+  background: var(--mp-raise-hi);
+  box-shadow: 0 0 0 2px #fff3dc33;
+}
+
+.party-portrait {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 70%, #2f4a68 0%, var(--mp-deep) 100%);
+  overflow: hidden;
+}
+
+.party-portrait .codex-art {
+  display: block;
+  background: none;
+}
+
+.party-card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.party-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.party-rare {
+  color: #d4b0ff;
+}
+
+.party-card-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mp-gold);
+}
+
+.party-chip {
+  --chip: var(--mp-muted);
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--chip);
+  color: var(--chip);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.party-chip[data-type="woodland"] { --chip: #8fd36a; }
+.party-chip[data-type="ember"] { --chip: #ff9a5c; }
+.party-chip[data-type="water"] { --chip: #6cc4ff; }
+.party-chip[data-type="earth"] { --chip: #d4b07a; }
+.party-chip[data-type="mist"] { --chip: #c9d6e8; }
+.party-chip[data-type="storm"] { --chip: #ffe06a; }
+.party-chip[data-type="hearth"] { --chip: #ffb38a; }
+.party-chip[data-type="twilight"] { --chip: #b79cff; }
+.party-chip[data-type="fen"] { --chip: #9ccf8a; }
+.party-chip[data-type="will-o-wisp"] { --chip: #9ff0e0; }
+
+.party-card-hp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-card-hp-bar {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mp-deep);
+  border: 1px solid var(--mp-line);
+  overflow: hidden;
+}
+
+.party-card-hp-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mp-good);
+}
+
+.party-card-hp[data-state="hurt"] .party-card-hp-fill {
+  background: var(--mp-warn);
+}
+
+.party-card-hp[data-state="low"] .party-card-hp-fill,
+.party-card-hp[data-state="fainted"] .party-card-hp-fill {
+  background: var(--mp-bad);
+}
+
+.party-card-hp-text {
+  flex: none;
+  min-width: 52px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--mp-muted);
+}
+
+.party-hearts {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #f08a8a;
+}
+
+.party-heart-empty {
+  color: #fff3dc47;
+}
+
+.party-card-rename {
+  flex: none;
+  width: 44px;
+  border: 2px solid var(--mp-line);
+  border-radius: 14px;
+  background: var(--mp-raise);
+  color: var(--mp-cream);
+  font: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.party-card-rename:hover:not(:disabled) {
+  background: var(--mp-raise-hi);
+  border-color: var(--mp-line-hi);
+}
+
+.party-card-rename:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.party-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.party-detail {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 2px solid var(--mp-line);
+  border-radius: 14px;
+  background: var(--mp-deep);
+  font-size: 14px;
+}
+
+.party-detail-empty {
+  color: var(--mp-muted);
+}
+
+.party-detail-name {
+  margin: 0 0 4px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--mp-cream);
+}
+
+.party-detail-trait,
+.party-detail-fav {
+  margin: 4px 0;
+  color: var(--mp-muted);
+}
+
+.party-bond {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  font-weight: 700;
+}
+
+.party-bond-meter {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--mp-raise);
+  border: 1px solid var(--mp-line);
+  overflow: hidden;
+}
+
+.party-bond-fill {
+  display: block;
+  height: 100%;
+  background: #9ad8b0;
+  transition: width 240ms ease-out;
+}
+
+.party-bond-tier-2 { background: #f0c860; }
+.party-bond-tier-3 { background: #f09ac8; }
+.party-bond-tier-4 { background: linear-gradient(90deg, #c8b0ff, #f09ac8, #f0c860); }
+
+.party-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.party-detail-note {
+  min-height: 1em;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--mp-bad);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-btn,
+  .menu-close,
+  .inventory-tile .material-icon-name,
+  .party-bond-fill {
+    transition: none;
+  }
+}
+
+/* The docked "name your new friend" prompt steps aside while a panel is open. */
+body:has(.menu-root:not([hidden])) .nickname-overlay--ambient {
+  display: none;
+}
+
+@media (max-width: 380px) {
+  .menu-head {
+    padding-left: 14px;
+    padding-right: 10px;
+  }
+
+  .menu-title {
+    font-size: 20px;
+  }
+
+  .menu-btn {
+    padding: 8px 12px;
+  }
+
+  .menu-body {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
