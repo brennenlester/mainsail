@@ -222,6 +222,41 @@ export function findSiteInteraction(
   return undefined;
 }
 
+/**
+ * Ability bond is paid once per site, on the claim: burn/sense claim on use,
+ * ford claims when the islet stash opens. Re-fording an emptied islet pays
+ * nothing, so bond can't be farmed on the 1.5s ford cooldown.
+ */
+export function grantsAbilityBond(
+  hit: SiteInteraction,
+  claimed: ReadonlySet<string>,
+): boolean {
+  if (claimed.has(hit.site.id)) return false;
+  if (hit.kind === "stash") return true;
+  return hit.kind === "use" && hit.site.ability !== "ford";
+}
+
+/**
+ * Position to persist for a stand. Islets are only reachable by ford, and
+ * pre-#367 builds read them as water, so saves record the ford shore instead
+ * (rollback-safe); the islet itself is only re-entered via the ability.
+ */
+export function persistablePosition(
+  zoneId: ZoneId,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  const tx = Math.round(x);
+  const ty = Math.round(y);
+  for (const site of sitesInZone(zoneId)) {
+    const onIslet =
+      (site.landing && site.landing.x === tx && site.landing.y === ty) ||
+      (site.stash && site.stash.x === tx && site.stash.y === ty);
+    if (onIslet) return { x: site.x, y: site.y };
+  }
+  return { x, y };
+}
+
 /** Sense sites already revealed become ordinary gather props. */
 export function revealedSiteProps(
   zoneId: ZoneId,

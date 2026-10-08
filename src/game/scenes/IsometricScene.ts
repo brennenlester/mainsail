@@ -1703,7 +1703,7 @@ export class IsometricScene extends Phaser.Scene {
       npc: npc ? `Press E — Talk to ${npc.name}` : undefined,
       dock,
       sailing: !dock && isSailing() ? "Sailing" : undefined,
-      companion: this.companions?.promptLabel(),
+      companion: this.companions?.promptLabel(Boolean(gather)),
       gather: gather ? this.formatGatherPrompt(gather) : undefined,
     });
     const label = picked?.label;
@@ -2031,6 +2031,8 @@ export class IsometricScene extends Phaser.Scene {
       },
       spawnProp: (x, y, kind) =>
         this.spawnPropSprite(x, y, kind, true, this.currentZoneId),
+      isBusy: () =>
+        this.inDialogue || this.inMinigame || this.inShrine || this.inEncounter,
       setKeyboardCaptured: (captured) =>
         applyNameIntroKeyboardGate(
           this.input.keyboard,

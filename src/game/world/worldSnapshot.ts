@@ -121,7 +121,7 @@ import { BOND_MAX } from "../companions/bond";
 import { isCompanionSiteId } from "../companions/abilities";
 import {
   getClaimedSiteList,
-  isValidNickname,
+  normalizeNickname,
   setClaimedSites,
 } from "../companions/companionState";
 import { isVisitorMode } from "./worldSession";
@@ -422,19 +422,8 @@ function isValidPartyMember(value: unknown): boolean {
       return false;
     }
   }
-  // Companion fields (#367) are optional; older saves lack all three.
-  if (creature.personality !== undefined && !isPersonalityId(creature.personality)) {
-    return false;
-  }
-  if (
-    creature.bond !== undefined &&
-    (!isFiniteNumber(creature.bond) || creature.bond < 0 || creature.bond > BOND_MAX)
-  ) {
-    return false;
-  }
-  if (creature.nickname !== undefined && !isValidNickname(creature.nickname)) {
-    return false;
-  }
+  // Companion fields (#367) never invalidate a save: applyWorldSnapshot
+  // sanitizes them (clamp bond, drop bad nicknames, re-roll unknown traits).
   return true;
 }
 
@@ -896,13 +885,6 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
     return false;
   }
 
-  if (s.companionSitesClaimed !== undefined) {
-    if (!Array.isArray(s.companionSitesClaimed)) return false;
-    for (const siteId of s.companionSitesClaimed) {
-      if (!isCompanionSiteId(siteId)) return false;
-    }
-  }
-
   const pos = s.position as Record<string, unknown> | undefined;
   if (
     !pos ||
@@ -1083,6 +1065,38 @@ export function exportWorldSnapshot(
   };
 }
 
+/**
+ * Companion fields (#367) are soft: hostile or future-version values are
+ * repaired instead of rejecting the save. Pre-#367 saves (and unknown traits)
+ * get the same deterministic personality on every load until re-saved.
+ */
+export function sanitizeCompanionFields(
+  member: CreatureInstance,
+  playerName: string | undefined,
+): CreatureInstance {
+  const creature = { ...member };
+  const speciesId = creature.speciesId ?? creature.definitionId;
+  if (!isPersonalityId(creature.personality)) {
+    creature.personality = rollPersonality(
+      personalitySeed(playerName, creature.instanceId, speciesId),
+    );
+  }
+  if (creature.bond !== undefined) {
+    if (isFiniteNumber(creature.bond)) {
+      creature.bond = Math.max(0, Math.min(BOND_MAX, Math.floor(creature.bond)));
+    } else {
+      creature.bond = undefined;
+    }
+  }
+  if (creature.nickname !== undefined) {
+    creature.nickname =
+      typeof creature.nickname === "string" ? normalizeNickname(creature.nickname) : undefined;
+  }
+  if (creature.bond === undefined) Reflect.deleteProperty(creature, "bond");
+  if (creature.nickname === undefined) Reflect.deleteProperty(creature, "nickname");
+  return creature;
+}
+
 export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   if (!isValidWorldSnapshot(snapshot)) {
     throw new Error("Invalid world snapshot schema");
@@ -1113,16 +1127,10 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   // encounters (#192).
   const party = snapshot.party.map((member) => {
     const speciesId = member.speciesId ?? member.definitionId;
-    const creature = {
-      ...member,
-      speciesId,
-      // Pre-#367 saves: rebuild the same trait every load until re-saved.
-      personality:
-        member.personality ??
-        rollPersonality(
-          personalitySeed(snapshot.playerName, member.instanceId, speciesId),
-        ),
-    };
+    const creature = sanitizeCompanionFields(
+      { ...member, speciesId },
+      snapshot.playerName,
+    );
     migrateLegacyPresenceCharmBuffs(creature);
     return creature;
   });
@@ -1165,7 +1173,11 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   );
   setHarborBefriendUsed(snapshot.harborBefriendUsed ?? []);
   setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
-  setClaimedSites(snapshot.companionSitesClaimed ?? []);
+  setClaimedSites(
+    Array.isArray(snapshot.companionSitesClaimed)
+      ? snapshot.companionSitesClaimed.filter(isCompanionSiteId)
+      : [],
+  );
   setSovereignPlateActive(snapshot.sovereignPlateActive === true, false);
   setSparWinsBySpecies(snapshot.sparWinsBySpecies ?? {}, false);
   setFirstIslandLanded(snapshot.firstIslandLanded === true, false);

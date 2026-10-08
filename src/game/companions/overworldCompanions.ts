@@ -19,6 +19,7 @@ import {
   ABILITIES,
   findAbilityUser,
   findSiteInteraction,
+  grantsAbilityBond,
   nearestCuriousSpot,
   sitesInZone,
   type AbilityId,
@@ -43,6 +44,8 @@ export type CompanionHost = {
   spawnProp(x: number, y: number, kind: PropKind): void;
   /** Hand keyboard focus to the DOM (nickname prompt) and back. */
   setKeyboardCaptured(captured: boolean): void;
+  /** Dialogue, minigame, shrine, or encounter in progress. */
+  isBusy(): boolean;
 };
 
 const TEX = {
@@ -205,15 +208,18 @@ export class OverworldCompanions {
     return findSiteInteraction(this.host.zoneId(), x, y, getClaimedSites());
   }
 
-  /** Interact prompt label, or undefined when no site is in reach. */
-  promptLabel(): string | undefined {
+  /**
+   * Interact prompt label, or undefined when no site is in reach. Without an
+   * able companion the hint yields to a nearby gather node.
+   */
+  promptLabel(gatherNearby = false): string | undefined {
     const hit = this.current();
     if (!hit) return undefined;
     if (hit.kind === "stash") return "Press E — Open stash";
     if (hit.kind === "ford-back") return "Press E — Ford back to shore";
     const ability = ABILITIES[hit.site.ability];
     const user = findAbilityUser(getActiveCreatures(), hit.site.ability);
-    if (!user) return ability.needHint;
+    if (!user) return gatherNearby ? undefined : ability.needHint;
     return `Press E — ${displayName(user)}: ${ability.verb}`;
   }
 
@@ -236,8 +242,8 @@ export class OverworldCompanions {
     const ability = ABILITIES[hit.site.ability];
     const user = findAbilityUser(getActiveCreatures(), hit.site.ability);
     if (!user) {
-      this.host.toast(ability.needHint, false);
-      return true;
+      // No able companion: leave E for gathering (hint stays in the prompt).
+      return false;
     }
     const until = this.cooldownUntil[ability.id] ?? 0;
     if (now < until) {
@@ -246,7 +252,9 @@ export class OverworldCompanions {
     }
     this.cooldownUntil[ability.id] = now + ability.cooldownMs;
     playAbilitySfx(this.host.scene);
-    const bond = addBond(user, BOND_GAIN.ability, "ability");
+    const bondTierUp = grantsAbilityBond(hit, getClaimedSites())
+      ? addBond(user, BOND_GAIN.ability, "ability").tierUp
+      : undefined;
     const site = hit.site;
 
     if (site.ability === "ford" && site.landing) {
@@ -265,13 +273,18 @@ export class OverworldCompanions {
       const what = site.ability === "burn" ? "burns away the brush" : "sniffs out a hidden node";
       this.host.toast(`${displayName(user)} ${what}!${loot ? `\n${loot}` : ""}`, true);
     }
-    if (bond.tierUp === undefined) {
+    if (bondTierUp === undefined) {
       this.cheer(user);
     }
     return true;
   }
 
   private openStash(site: CompanionSite): void {
+    // The ford bond lands here, once, when the islet stash is claimed.
+    const carrier = findAbilityUser(getActiveCreatures(), site.ability);
+    if (carrier && grantsAbilityBond({ kind: "stash", site }, getClaimedSites())) {
+      addBond(carrier, BOND_GAIN.ability, "ability");
+    }
     const loot = claimSite(site.id);
     if (!loot || !site.stash) return;
     this.clearSite(site.id, true);
@@ -334,7 +347,12 @@ export class OverworldCompanions {
         this.knownIds = new Set(playerParty.creatures.map((c) => c.instanceId));
       }
     }
-    if (this.nicknameQueue.length > 0 && !isNicknamePromptOpen() && getTopOverlayId() === null) {
+    if (
+      this.nicknameQueue.length > 0 &&
+      !isNicknamePromptOpen() &&
+      !this.host.isBusy() &&
+      getTopOverlayId() === null
+    ) {
       const creature = getCreatureInstance(this.nicknameQueue.shift()!);
       if (creature) {
         void promptNickname(creature);

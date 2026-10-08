@@ -71,6 +71,8 @@ export function promptNickname(creature: CreatureInstance): Promise<void> {
   input.placeholder = def.name;
   error.textContent = "";
 
+  const previouslyFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
   return new Promise((resolve) => {
     const finish = (): void => {
       form.removeEventListener("submit", onSubmit);
@@ -79,6 +81,7 @@ export function promptNickname(creature: CreatureInstance): Promise<void> {
       root.hidden = true;
       open = false;
       keyboardHandler?.(true);
+      previouslyFocused?.focus();
       resolve();
     };
     const onSubmit = (event: Event): void => {

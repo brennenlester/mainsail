@@ -12,7 +12,9 @@ import {
   COMPANION_SITES,
   findAbilityUser,
   findSiteInteraction,
+  grantsAbilityBond,
   isletTiles,
+  persistablePosition,
   revealedSiteProps,
 } from "./abilities";
 import {
@@ -258,6 +260,28 @@ describe("abilities", () => {
     claimed.add("fields-west-islet");
     expect(findSiteInteraction("overworld", 2, 14, claimed)?.kind).toBe("ford-back");
     expect(findSiteInteraction("overworld", 7, 7, claimed)).toBeUndefined();
+  });
+
+  it("pays ability bond once per site (no ford farming)", () => {
+    const claimed = new Set<string>();
+    const ford = findSiteInteraction("overworld", 2, 12, claimed)!;
+    // Fording itself never pays; the stash claim does, once.
+    expect(grantsAbilityBond(ford, claimed)).toBe(false);
+    const stash = findSiteInteraction("overworld", 2, 14, claimed)!;
+    expect(grantsAbilityBond(stash, claimed)).toBe(true);
+    claimed.add("fields-west-islet");
+    expect(grantsAbilityBond(findSiteInteraction("overworld", 2, 12, claimed)!, claimed)).toBe(false);
+    expect(grantsAbilityBond(findSiteInteraction("overworld", 2, 14, claimed)!, claimed)).toBe(false);
+    const brush = findSiteInteraction("overworld", 2, 2, new Set())!;
+    expect(grantsAbilityBond(brush, new Set())).toBe(true);
+    expect(grantsAbilityBond(brush, new Set(["fields-brush"]))).toBe(false);
+  });
+
+  it("persists islet stands at the ford shore", () => {
+    expect(persistablePosition("overworld", 3, 14)).toEqual({ x: 2, y: 12 });
+    expect(persistablePosition("overworld", 12.2, 13.8)).toEqual({ x: 12, y: 12 });
+    expect(persistablePosition("overworld", 7, 7)).toEqual({ x: 7, y: 7 });
+    expect(persistablePosition("grove", 2, 14)).toEqual({ x: 2, y: 14 });
   });
 
   it("claims once and reveals sensed gather nodes", () => {

@@ -3,7 +3,8 @@ import { playerParty } from "../creatures/party";
 import type { CreatureInstance } from "../creatures/types";
 import { QUEST_ORDER } from "../story/quests";
 import type { QuestId, QuestStatus } from "../story/questTypes";
-import { loadHostSave } from "../world/worldSave";
+import { loadHostSave, updateHostPosition } from "../world/worldSave";
+import { flushPendingHostSave } from "../world/worldSaveSchedule";
 import {
   applyWorldSnapshot,
   exportWorldSnapshot,
@@ -124,20 +125,52 @@ describe("companion save migration (#367)", () => {
     expect(getClaimedSites().has("fields-brush")).toBe(true);
   });
 
-  it("rejects malformed companion fields", () => {
-    const bad = (party: Partial<CreatureInstance>) =>
-      isValidWorldSnapshot(legacySnapshot({ party: [member(party)] }));
-    expect(bad({ personality: "grumpy" as never })).toBe(false);
-    expect(bad({ bond: -1 })).toBe(false);
-    expect(bad({ bond: BOND_MAX + 1 })).toBe(false);
-    expect(bad({ bond: Number.NaN })).toBe(false);
-    expect(bad({ nickname: "" })).toBe(false);
-    expect(bad({ nickname: "x".repeat(40) })).toBe(false);
-    expect(bad({ personality: PERSONALITY_IDS[0], bond: 0, nickname: "Ok" })).toBe(true);
-    expect(isValidWorldSnapshot(legacySnapshot({ companionSitesClaimed: ["nope"] }))).toBe(false);
+  it("repairs hostile / future-version companion fields instead of rejecting the save", () => {
+    const hostile = legacySnapshot({
+      party: [
+        member({ personality: "grumpy" as never, bond: 9999, nickname: "  Pip  " }),
+        member({ instanceId: "c-2", bond: -5, nickname: "x".repeat(40) }),
+        member({ instanceId: "c-3", bond: "lots" as never, nickname: 7 as never }),
+      ],
+      companionSitesClaimed: ["fields-brush", "future-site", 3 as never],
+    });
+    expect(isValidWorldSnapshot(hostile)).toBe(true);
+    localStorage.setItem("ivyward-save-v1", JSON.stringify(hostile));
+    const loaded = loadHostSave();
+    expect(loaded).not.toBeNull();
+    applyWorldSnapshot(loaded!);
+    const [a, b, c] = playerParty.creatures;
+    expect(PERSONALITY_IDS).toContain(a!.personality);
+    expect(a!.bond).toBe(BOND_MAX);
+    expect(a!.nickname).toBe("Pip");
+    expect(b!.bond).toBe(0);
+    expect(b!.nickname).toBeUndefined();
+    expect(c!.bond).toBeUndefined();
+    expect(c!.nickname).toBeUndefined();
+    expect([...getClaimedSites()]).toEqual(["fields-brush"]);
+    // A non-array site list is ignored, not fatal.
     expect(
       isValidWorldSnapshot(legacySnapshot({ companionSitesClaimed: "fields-brush" as never })),
-    ).toBe(false);
+    ).toBe(true);
+    applyWorldSnapshot(legacySnapshot({ companionSitesClaimed: "fields-brush" as never }));
+    expect(getClaimedSites().size).toBe(0);
+  });
+
+  it("saves an islet stand as the ford shore (rollback-safe)", () => {
+    updateHostPosition("overworld", 2, 14);
+    flushPendingHostSave();
+    const saved = JSON.parse(localStorage.getItem("ivyward-save-v1")!) as WorldSnapshot;
+    expect(saved.position).toEqual({ zoneId: "overworld", x: 2, y: 12 });
+    updateHostPosition("overworld", 11, 14);
+    flushPendingHostSave();
+    expect(
+      (JSON.parse(localStorage.getItem("ivyward-save-v1")!) as WorldSnapshot).position,
+    ).toEqual({ zoneId: "overworld", x: 12, y: 12 });
+    updateHostPosition("overworld", 5.4, 6.2);
+    flushPendingHostSave();
+    expect(
+      (JSON.parse(localStorage.getItem("ivyward-save-v1")!) as WorldSnapshot).position,
+    ).toEqual({ zoneId: "overworld", x: 5.4, y: 6.2 });
   });
 
   it("accepts a stand on a ford islet", () => {
