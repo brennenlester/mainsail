@@ -29,7 +29,7 @@ import {
   consumeQuestToast,
   createEmptyQuestProgress,
   getActiveQuestId,
-  getGateStatusText,
+  getStoryStatusLine,
   getQuestHint,
   getQuestNpcLine,
   getQuestSummary,
@@ -272,11 +272,15 @@ describe("optional side threads never move the main arc", () => {
     expect(worldState.villageGateUnlocked).toBe(true);
   });
 
-  it("reports the Mistwood region gate in the status line", () => {
+  it("writes the status line as player-facing story progress", () => {
+    restoreQuestProgress(progressAt("shrine-craft"));
+    expect(getStoryStatusLine()).toBe(
+      "Story 3/8 — next: Craft a relic at Moon Shrine",
+    );
     restoreQuestProgress(progressAt("rival-wren"));
-    expect(getGateStatusText()).toContain("Mistwood: LOCKED (Story 5/8)");
-    restoreQuestProgress(progressAt("reach-mistwood"));
-    expect(getGateStatusText()).toContain("Mistwood: OPEN");
+    expect(getStoryStatusLine()).toMatch(/^Story 5\/8 — next: /);
+    // No debug-style gate dump.
+    expect(getStoryStatusLine()).not.toMatch(/LOCKED|OPEN|Overworld:/);
   });
 });
 

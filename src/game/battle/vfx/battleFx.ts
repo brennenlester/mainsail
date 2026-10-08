@@ -517,7 +517,18 @@ export class BattleFx {
       return;
     }
     cam.setZoom(base * 1.14);
-    cam.zoomTo(base, t.entrance + t.entranceStagger + 260, "Cubic.easeOut");
+    // Drive the zoom from a counter that re-reads the framing zoom every frame:
+    // a resize mid-push must not leave the tween easing toward a stale target.
+    this.scene.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: t.entrance + t.entranceStagger + 260,
+      ease: "Cubic.easeOut",
+      onUpdate: (tween) => {
+        cam.setZoom(this.frameZoom() * (1 + 0.14 * (1 - (tween.getValue() ?? 1))));
+      },
+      onComplete: () => cam.setZoom(this.frameZoom()),
+    });
   }
 
   /** The overlay framing zoom (same formula as applyOverlayPixelRatio), read fresh after resizes. */

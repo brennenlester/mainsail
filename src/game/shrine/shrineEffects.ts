@@ -1,3 +1,4 @@
+import { getCreatureDefinition } from "../creatures/catalog";
 import type { FolkloreType } from "../creatures/folkloreTypes";
 import type { MoveDefinition } from "../creatures/types";
 
@@ -114,4 +115,28 @@ export function hasAppliedEffect(
 
 export function effectKey(creatureId: string, itemId: string): string {
   return `${creatureId}:${itemId}`;
+}
+
+/**
+ * Player-facing line for one fusion effect, e.g.
+ * "Ember Wisp (Lv 3+): +8 max HP" — never the raw "ember-wisp @ Lv.3: health-buff".
+ */
+export function describeShrineEffect(
+  effect: ShrineEffect,
+  nameOf: (creatureId: string) => string = (id) => getCreatureDefinition(id).name,
+): string {
+  const who = `${nameOf(effect.creatureId)} (Lv ${effect.minLevel}+)`;
+  switch (effect.effectType) {
+    case "health-buff":
+      return `${who}: +${effect.hpBonus ?? 0} max HP`;
+    case "attack-buff": {
+      const move = effect.secondaryMove?.name;
+      const bonus = effect.attackBonus ? `+${effect.attackBonus} attack` : "stronger attacks";
+      return `${who}: ${bonus}${move ? `, learns ${move}` : ""}`;
+    }
+    case "evolution":
+      return `${who}: evolves into ${effect.evolvesTo ? nameOf(effect.evolvesTo) : "a new form"}`;
+    case "presence":
+      return `${who}: gains a lasting presence (+attack, +HP)`;
+  }
 }

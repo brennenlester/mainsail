@@ -1,7 +1,7 @@
 import { getItemName, getMaterialName } from "../inventory/materials";
 import { appendMaterialVisual } from "./materialIcon";
 import { openRecipes } from "./recipePanel";
-import { applyShrineCraftOverlayRect } from "./shrinePanel";
+import { applyShrineCraftOverlayRect, getOverlayDesignBox } from "./shrinePanel";
 import {
   clearCraftSpotlight,
   isCraftSpotlightActive,
@@ -61,7 +61,7 @@ export function showShrineCraftingHud(options: {
     shrineHost.id = "shrine-craft-overlay";
     shrineHost.className = "shrine-craft-overlay";
     const parent =
-      document.getElementById("game") ?? document.getElementById("app");
+      getOverlayDesignBox() ?? document.getElementById("app");
     parent?.appendChild(shrineHost);
     shrineHud = mountCraftingHud(shrineHost, {
       context: options.context,

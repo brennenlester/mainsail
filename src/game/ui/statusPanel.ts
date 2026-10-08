@@ -1,4 +1,7 @@
-import { getGateStatusText } from "../story/questProgress";
+import {
+  getStoryStatusLine,
+  peekQuestCompletionMessage,
+} from "../story/questProgress";
 import { getHostLabel, isVisitorMode } from "../world/worldSession";
 import { isHostSaveLocked, resetHostGame } from "../world/worldSave";
 import type { ZoneDefinition } from "../world/zoneTypes";
@@ -87,7 +90,7 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
     legendEl.textContent = CONTROL_LEGEND_TEXT;
   }
   if (gateEl) {
-    gateEl.textContent = getGateStatusText();
+    gateEl.textContent = peekQuestCompletionMessage() ?? getStoryStatusLine();
   }
   if (partyEl) {
     renderPartyHpHud(partyEl);
@@ -188,6 +191,71 @@ export function hideManualInviteUrl(): void {
   }
 }
 
+const MENU_GAP = 6;
+const MENU_EDGE = 8;
+
+export type MenuPlacement = {
+  side: "above" | "below";
+  /** CSS px from the viewport edge on that side. */
+  offset: number;
+  /** Room on that side; the menu scrolls inside it when taller. */
+  maxHeight: number;
+};
+
+/**
+ * Choose the side of the "…" button with room for the menu (#391): above by
+ * default (the dock sits at the bottom), below when above is too short —
+ * phone landscape, where the dock is a right-hand column — else the roomier side.
+ */
+export function chooseMenuPlacement(input: {
+  anchorTop: number;
+  anchorBottom: number;
+  viewportHeight: number;
+  menuHeight: number;
+}): MenuPlacement {
+  const above = Math.max(0, input.anchorTop - MENU_GAP - MENU_EDGE);
+  const below = Math.max(0, input.viewportHeight - input.anchorBottom - MENU_GAP - MENU_EDGE);
+  const useAbove =
+    input.menuHeight <= above || (input.menuHeight > below && above >= below);
+  return useAbove
+    ? {
+        side: "above",
+        offset: input.viewportHeight - input.anchorTop + MENU_GAP,
+        maxHeight: above,
+      }
+    : {
+        side: "below",
+        offset: input.anchorBottom + MENU_GAP,
+        maxHeight: below,
+      };
+}
+
+function placeOverflowMenu(button: HTMLElement, menu: HTMLElement): void {
+  const root = document.documentElement;
+  const viewportHeight = window.visualViewport?.height ?? root.clientHeight;
+  const anchor = button.getBoundingClientRect();
+  // Measure at natural height before capping.
+  menu.style.maxHeight = "";
+  const placement = chooseMenuPlacement({
+    anchorTop: anchor.top,
+    anchorBottom: anchor.bottom,
+    viewportHeight,
+    menuHeight: menu.scrollHeight,
+  });
+  menu.style.right = `${Math.max(MENU_EDGE, root.clientWidth - anchor.right)}px`;
+  menu.style.top = placement.side === "below" ? `${placement.offset}px` : "auto";
+  menu.style.bottom = placement.side === "above" ? `${placement.offset}px` : "auto";
+  menu.style.maxHeight = `${Math.floor(placement.maxHeight)}px`;
+}
+
+function firstMenuControl(menu: HTMLElement): HTMLElement | null {
+  return (
+    Array.from(menu.querySelectorAll<HTMLElement>("button, input")).find(
+      (el) => !el.hidden && !(el as HTMLButtonElement).disabled && el.offsetParent !== null,
+    ) ?? null
+  );
+}
+
 let statusControlsInitialized = false;
 
 export function initStatusPanelControls(): void {
@@ -206,38 +274,58 @@ export function initStatusPanelControls(): void {
 
   const overflowBtn = document.getElementById("status-overflow-btn");
   const overflowMenu = document.getElementById("status-overflow-menu");
-  const closeOverflow = () => {
+  const isOpen = () => overflowMenu?.dataset.open === "1";
+  const closeOverflow = (returnFocus = false) => {
     if (!overflowMenu || !overflowBtn) {
       return;
     }
+    const wasOpen = isOpen();
     overflowMenu.hidden = true;
     overflowMenu.dataset.open = "0";
     overflowBtn.setAttribute("aria-expanded", "false");
+    if (wasOpen && returnFocus) {
+      overflowBtn.focus();
+    }
   };
   if (overflowBtn && overflowMenu) {
+    const place = () => {
+      if (isOpen()) {
+        placeOverflowMenu(overflowBtn, overflowMenu);
+      }
+    };
     overflowBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      const open = overflowMenu.dataset.open === "1";
-      if (open) {
+      if (isOpen()) {
         closeOverflow();
         return;
       }
       overflowMenu.hidden = false;
       overflowMenu.dataset.open = "1";
       overflowBtn.setAttribute("aria-expanded", "true");
+      placeOverflowMenu(overflowBtn, overflowMenu);
+      // Keyboard activation (detail 0) moves focus in; a pointer open leaves it
+      // to the canvas hand-back (#390).
+      if (event.detail === 0) {
+        firstMenuControl(overflowMenu)?.focus();
+      }
     });
     document.addEventListener("click", () => closeOverflow());
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isOpen()) {
+        event.stopPropagation();
+        closeOverflow(true);
+      }
+    }, true);
+    // The anchor moves with the viewport: re-place instead of drifting off-screen.
+    window.addEventListener("resize", place);
+    window.addEventListener("orientationchange", place);
+    window.visualViewport?.addEventListener("resize", place);
     overflowMenu.addEventListener("click", (event) => event.stopPropagation());
   }
 
   const resetBtn = document.getElementById("reset-game-btn");
   if (resetBtn) {
-    if (isVisitorMode()) {
-      resetBtn.hidden = true;
-      if (overflowBtn) {
-        overflowBtn.hidden = true;
-      }
-    }
+    resetBtn.hidden = isVisitorMode();
     resetBtn.addEventListener("click", () => {
       if (isVisitorMode()) {
         return;

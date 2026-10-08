@@ -13,6 +13,7 @@ import {
 import { isRareVariant } from "./rareVariant";
 import {
   buildShareUrl,
+  cardSiteLabel,
   SHARE_PARTY_LIMIT,
   todayShareDay,
   type ShareSnapshot,
@@ -66,7 +67,7 @@ export function syncShareButton(): void {
 }
 
 export function siteLabel(): string {
-  return window.location.host || "Ivyward";
+  return cardSiteLabel(window.location.host);
 }
 
 /** Render a card PNG for a snapshot using the game's loaded textures. */

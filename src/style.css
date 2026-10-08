@@ -11,36 +11,46 @@ body,
   height: 100%;
   height: 100dvh;
   overflow: hidden;
-  background: #d8efe8;
+  /* Letterbox backdrop (#391): navy deepening to forest, never pale mint. */
+  background: #0f1c2e;
+}
+
+body {
+  background:
+    radial-gradient(120% 80% at 50% 0%, #1b3a42 0%, #12263a 55%, #0b1626 100%)
+      #0f1c2e;
 }
 
 #app {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 12px;
-  padding: max(12px, env(safe-area-inset-top, 0px))
-    max(12px, env(safe-area-inset-right, 0px))
-    max(12px, env(safe-area-inset-bottom, 0px))
-    max(12px, env(safe-area-inset-left, 0px));
+  background: transparent;
 }
 
+/* Full-bleed: the stage and the status dock fill the viewport. Device
+   safe-area insets pad the playfield (the dock adds its own bottom inset). */
 #playfield {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
-  max-height: calc(100dvh - 24px);
   position: relative;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0
+    env(safe-area-inset-left, 0px);
+  overflow: hidden;
 }
 
 #game {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   overflow: hidden;
   line-height: 0;
   position: relative;
+  background: #0f1c2e;
 }
 
 #game canvas {
@@ -65,8 +75,24 @@ body,
 
 /* Spars own the whole board; the quest card would cover the foe's HP plate. */
 body.battle-active #quest-hud,
-body.encounter-active #quest-hud {
+body.encounter-active #quest-hud,
+body.cutscene-active #quest-hud {
   display: none;
+}
+
+/* Full-screen scenes own the canvas (#391): no story caption over them, and
+   the dock (made inert by ui/hudLock.ts) steps back. */
+body.battle-active .opening-caption,
+body.encounter-active .opening-caption,
+body.cutscene-active .opening-caption {
+  display: none;
+}
+
+body.battle-active #status-panel,
+body.encounter-active #status-panel,
+body.cutscene-active #status-panel {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .quest-hud-summary {
@@ -101,33 +127,38 @@ body.encounter-active #quest-hud {
   display: none;
 }
 
+/* Status dock (#391): one compact bar under the stage. Same cream/teal card
+   language as the overlays, flush to the bottom edge. */
 #status-panel {
-  flex: 0 1 auto;
-  margin-top: 8px;
-  padding: 14px 16px;
+  flex: 0 0 auto;
+  align-self: center;
+  width: min(100%, 980px);
+  margin: 0;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
   background:
     linear-gradient(160deg, #fff8ec 0%, #eef8f2 62%, #dff3ea 100%);
   border: 3px solid #6eb8a8;
-  border-radius: 18px;
+  border-bottom: 0;
+  border-radius: 18px 18px 0 0;
   box-shadow:
     inset 0 0 0 1px #ffffffaa,
-    0 8px 18px #3a786633;
+    0 -6px 18px #0b162666;
   font-family: "Source Sans 3", sans-serif;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  max-height: min(46vh, 360px);
-  max-height: min(46dvh, 360px);
+  overflow: visible;
 }
 
 .status-line {
-  line-height: 1.45;
+  line-height: 1.4;
   word-wrap: break-word;
   overflow-wrap: anywhere;
 }
 
 .status-line + .status-line {
-  margin-top: 6px;
+  margin-top: 4px;
+}
+
+.status-line:empty {
+  display: none;
 }
 
 .status-zone {
@@ -145,8 +176,9 @@ body.encounter-active #quest-hud {
 }
 
 .status-gate {
-  color: #5a7888;
-  font-size: 13px;
+  color: #3f6272;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .status-party {
@@ -159,19 +191,80 @@ body.encounter-active #quest-hud {
   font-size: 12px;
 }
 
-.status-actions {
-  margin-top: 0;
-  margin-bottom: 10px;
-  display: flex;
+/* Party HP chips flow on a row instead of a tall column. */
+.status-party .party-hp {
+  flex-direction: row;
   flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 8px;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding-bottom: 4px;
-  background:
-    linear-gradient(160deg, #fff8ec 0%, #eef8f2 62%, #dff3ea 100%);
+  gap: 2px 14px;
+}
+
+.status-actions {
+  margin: 0 0 8px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* One stable row: primary buttons share the width, the menu sits at the end. */
+.status-actions .status-codex-btn,
+.status-actions .status-share-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Five labels + the menu must share one row on a 360px phone (#391). */
+@media (max-width: 420px) {
+  .status-actions .status-codex-btn,
+  .status-actions .status-share-btn {
+    font-size: 12px;
+    padding: 6px 2px;
+  }
+
+  /* Visible label shortens; the accessible name stays "Inventory". */
+  #inventory-btn {
+    font-size: 0;
+  }
+
+  #inventory-btn::after {
+    content: "Items";
+    font-size: 12px;
+  }
+}
+
+.status-actions .status-overflow-btn {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 6px 10px;
+}
+
+.status-menu-audio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.status-menu-audio .status-volume {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.status-overflow-menu .status-invite-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.status-overflow-menu .status-invite-btn[hidden] {
+  display: none;
 }
 
 .invite-url-box {
@@ -483,13 +576,72 @@ body.encounter-active #quest-hud {
   .status-control-legend {
     display: none;
   }
+
+  /* The dock carries the story line here (#391); the floating card would
+     cover the world on a phone. */
+  #quest-hud {
+    display: none;
+  }
+
+  .status-gate {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .status-actions .status-codex-btn,
+  .status-actions .status-share-btn,
+  .status-actions .status-overflow-btn {
+    min-height: 44px;
+  }
+}
+
+/* Wide pointer screens: the story lives in the top-right card, so the dock
+   becomes info on the left and the button row on the right. */
+@media (min-width: 821px) and (hover: hover) {
+  #status-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 18px;
+    align-items: center;
+    padding-top: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .status-actions {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    margin: 0;
+  }
+
+  .status-actions .status-codex-btn,
+  .status-actions .status-share-btn {
+    flex: 0 0 auto;
+    min-width: 84px;
+    padding: 6px 14px;
+  }
+
+  #status-panel > :not(.status-actions) {
+    grid-column: 1;
+  }
+
+  #status-panel > .invite-url-box {
+    grid-column: 1 / -1;
+    grid-row: 5;
+  }
+
+  .status-gate {
+    display: none;
+  }
 }
 
 .touch-stick-pad {
   pointer-events: auto;
   position: absolute;
-  left: 12px;
-  bottom: 12px;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
   width: 108px;
   height: 108px;
   border-radius: 999px;
@@ -516,8 +668,8 @@ body.encounter-active #quest-hud {
 .touch-interact {
   pointer-events: auto;
   position: absolute;
-  right: 12px;
-  bottom: 18px;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
   width: 64px;
   height: 64px;
   border-radius: 999px;
@@ -542,49 +694,64 @@ body.encounter-active #quest-hud {
 
 /* Battle/encounter cards are tap-driven; the stick would sit over the move cards (#388). */
 body.battle-active .touch-controls,
-body.encounter-active .touch-controls {
+body.encounter-active .touch-controls,
+body.cutscene-active .touch-controls {
   display: none !important;
 }
 
-/* Phone landscape: game | status side-by-side so the square board stays playable.
-   Kept after base status/touch rules so compact overrides win on equal specificity. */
+/* Phone landscape: stage | status dock side-by-side so the world keeps the
+   full height. Kept after base status/touch rules so compact overrides win on
+   equal specificity. */
 @media (orientation: landscape) and (max-height: 520px) {
   #playfield {
     flex-direction: row;
     align-items: stretch;
-    width: calc(100vw - 24px);
   }
 
   #game {
     flex: 0 0 auto;
     width: auto;
-    align-self: center;
+    align-self: stretch;
   }
 
   #status-panel {
+    display: block;
     flex: 1 1 200px;
-    margin-top: 0;
-    margin-left: 8px;
+    align-self: stretch;
+    width: auto;
     max-width: min(320px, 42vw);
-    max-height: calc(100vh - 24px);
-    max-height: calc(100dvh - 24px);
+    margin: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    border: 3px solid #6eb8a8;
+    border-right: 0;
+    border-radius: 18px 0 0 18px;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 10px 12px;
+  }
+
+  .status-actions {
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .status-actions .status-codex-btn,
+  .status-actions .status-share-btn {
+    flex: 1 1 40%;
   }
 
   .status-zone {
     font-size: 16px;
   }
 
-  .status-actions {
-    justify-content: flex-start;
+  .status-gate {
+    display: block;
+    font-size: 13px;
   }
 
   .touch-stick-pad {
     width: 84px;
     height: 84px;
-    left: 8px;
+    left: max(8px, env(safe-area-inset-left, 0px));
     bottom: 8px;
   }
 
@@ -619,7 +786,7 @@ body.encounter-active .touch-controls {
 }
 
 .codex-panel {
-  width: min(440px, 100%);
+  width: min(560px, 100%);
   max-height: min(560px, 90vh);
   overflow: auto;
   padding: 18px 18px 16px;
@@ -686,11 +853,46 @@ body.encounter-active .touch-controls {
   margin-bottom: 4px;
 }
 
-.codex-zone ul {
+.codex-grid {
   list-style: none;
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
   font-size: 13px;
+}
+
+.codex-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1.5px solid #cfe5dc;
+  border-radius: 14px;
+  background: #ffffffb3;
+}
+
+.codex-entry--unknown {
+  background: #e6efec99;
+  border-style: dashed;
+  color: #6c8794;
+}
+
+.codex-art {
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 70%, #dff3ea 0%, #c4e2d6 100%);
+}
+
+.codex-entry--unknown .codex-art {
+  background: #d3e2dd;
+}
+
+.codex-entry-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.25;
 }
 
 .codex-type {
@@ -1415,6 +1617,18 @@ body.encounter-active .touch-controls {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Square the size of the 640 overlay design box, centered in the stage. */
+.overlay-design-box {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--stage-design, 100%);
+  height: var(--stage-design, 100%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 6;
 }
 
 .shrine-craft-overlay {

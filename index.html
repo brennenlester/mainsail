@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Ivyward</title>
     <meta
       name="description"
@@ -104,14 +104,6 @@
         </div>
         <div id="status-panel" aria-label="Player status">
           <div id="status-actions" class="status-actions">
-            <button
-              id="copy-invite-btn"
-              type="button"
-              class="status-invite-btn"
-              hidden
-            >
-              Copy invite link
-            </button>
             <button id="party-btn" type="button" class="status-codex-btn">
               Party
             </button>
@@ -127,43 +119,50 @@
             <button id="codex-btn" type="button" class="status-codex-btn" hidden>
               Codex
             </button>
-            <button id="mute-audio-btn" type="button" class="status-mute-btn">
-              Mute
-            </button>
-            <input
-              id="volume-audio-range"
-              class="status-volume"
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              value="80"
-              aria-label="Volume"
-              title="Volume"
-            />
             <div class="status-overflow">
               <button
                 id="status-overflow-btn"
                 type="button"
                 class="status-overflow-btn"
-                aria-haspopup="menu"
                 aria-expanded="false"
                 aria-controls="status-overflow-menu"
-                aria-label="More"
+                aria-label="More: sound, invite, reset"
               >
                 …
               </button>
               <div
                 id="status-overflow-menu"
                 class="status-overflow-menu"
-                role="menu"
                 hidden
               >
+                <button
+                  id="copy-invite-btn"
+                  type="button"
+                  class="status-invite-btn"
+                  hidden
+                >
+                  Copy invite link
+                </button>
+                <div class="status-menu-audio">
+                  <button id="mute-audio-btn" type="button" class="status-mute-btn">
+                    Mute
+                  </button>
+                  <input
+                    id="volume-audio-range"
+                    class="status-volume"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value="80"
+                    aria-label="Volume"
+                    title="Volume"
+                  />
+                </div>
                 <button
                   id="reset-game-btn"
                   type="button"
                   class="status-reset-btn"
-                  role="menuitem"
                 >
                   Reset game
                 </button>

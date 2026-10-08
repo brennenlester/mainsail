@@ -77,8 +77,14 @@ export function refreshHudChromeButtons(): void {
   if (codexBtn) {
     codexBtn.hidden = !codexUnlocked;
   }
+  // The menu also carries Mute / Volume (#391), so it stays for visitors;
+  // only the destructive Reset hides.
   if (overflowBtn) {
-    overflowBtn.hidden = isVisitorMode();
+    overflowBtn.hidden = false;
+  }
+  const resetBtn = document.getElementById("reset-game-btn");
+  if (resetBtn) {
+    resetBtn.hidden = isVisitorMode();
   }
   if (overflowMenu && overflowMenu.dataset.open !== "1") {
     overflowMenu.hidden = true;

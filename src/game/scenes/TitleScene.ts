@@ -9,6 +9,7 @@ import {
 } from "../audio/gameAudio";
 import { getBootContext } from "../opening/bootRoute";
 import { startOpeningBeat } from "../opening/openingCaption";
+import { layoutStage } from "../ui/stageLayout";
 import { TitleMenu, navFromKey, type NavInput } from "../opening/titleMenu";
 import {
   effectsEnabled,
@@ -16,6 +17,7 @@ import {
   setEffectsEnabled,
 } from "../render/fx/fxSettings";
 import {
+  addOverlayLetterbox,
   bindOverlayPixelRatio,
   DESIGN_SIZE,
   resizeGameForDisplay,
@@ -41,7 +43,17 @@ const S = DESIGN_SIZE;
 /** Procedural textures are drawn at 2x so HiDPI zoom stays crisp. */
 const TEX_SCALE = 2;
 const NAVY = 0x0d1424;
-const SCREEN_MARGIN = 12;
+/** CSS px under the art kept free for the title menu on tall stages. */
+const TITLE_MENU_RESERVE = 130;
+/** Phone landscape lays the menu out as a single short row. */
+const TITLE_MENU_RESERVE_COMPACT = 64;
+
+function titleMenuReserveCss(): number {
+  const compact =
+    typeof window !== "undefined" &&
+    window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+  return compact ? TITLE_MENU_RESERVE_COMPACT : TITLE_MENU_RESERVE;
+}
 
 const TEX = {
   sky: "title-sky",
@@ -106,7 +118,8 @@ export class TitleScene extends Phaser.Scene {
     this.motion = !prefersReducedMotion();
     document.body.classList.add("title-active");
     this.layoutBoard();
-    bindOverlayPixelRatio(this);
+    // Art slides up on tall phones so the DOM menu sits below it, not on it.
+    bindOverlayPixelRatio(this, { letterbox: false, reserveBottomCss: titleMenuReserveCss });
     this.cameras.main.setBackgroundColor(NAVY);
 
     this.makeTextures();
@@ -117,6 +130,7 @@ export class TitleScene extends Phaser.Scene {
     this.buildCompanions();
     this.buildFireflies();
     this.add.image(S / 2, S / 2, TEX.vignette).setScale(1 / TEX_SCALE).setDepth(50);
+    this.frameArt();
     void this.buildLogo();
     this.buildPrompt();
     this.mountMenu();
@@ -145,21 +159,35 @@ export class TitleScene extends Phaser.Scene {
   // Layout
   // ------------------------------------------------------------------
 
-  /** Square board sized to the viewport (no HUD on the title). */
+  /**
+   * The diorama is a 640 square on a rectangular stage (#391): hide the parallax
+   * layers' overhang outside it and melt the square's edges into the navy
+   * backdrop so it reads as a lit vignette, not a pasted box.
+   */
+  private frameArt(): void {
+    addOverlayLetterbox(this, 1, { depth: 60, color: NAVY });
+    const fade = 56;
+    const g = this.add.graphics().setDepth(55);
+    const edge = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      alphas: [number, number, number, number],
+    ): void => {
+      g.fillGradientStyle(NAVY, NAVY, NAVY, NAVY, ...alphas);
+      g.fillRect(x, y, w, h);
+    };
+    edge(0, 0, S, fade, [1, 1, 0, 0]);
+    edge(0, S - fade, S, fade, [0, 0, 1, 1]);
+    edge(0, 0, fade, S, [1, 0, 1, 0]);
+    edge(S - fade, 0, fade, S, [0, 1, 0, 1]);
+  }
+
+  /** Stage fills the viewport (no HUD on the title). */
   private layoutBoard(): void {
-    const vw = window.visualViewport?.width ?? window.innerWidth;
-    const vh = window.visualViewport?.height ?? window.innerHeight;
-    const size = Math.max(1, Math.floor(Math.min(vw, vh) - SCREEN_MARGIN * 2));
-    const playfield = document.getElementById("playfield");
-    const gameEl = document.getElementById("game");
-    if (playfield) {
-      playfield.style.width = `${size}px`;
-    }
-    if (gameEl) {
-      gameEl.style.width = `${size}px`;
-      gameEl.style.height = `${size}px`;
-    }
-    resizeGameForDisplay(this, size);
+    const stage = layoutStage();
+    resizeGameForDisplay(this, stage.width, stage.height);
     this.scale.refresh();
   }
 

@@ -183,7 +183,7 @@ describe("crafting HUD", () => {
     expect(getMaterialCount("wood")).toBe(1);
   });
 
-  it("mounts the shrine overlay on the game board and frames it", () => {
+  it("mounts the shrine overlay in the square design box on the game board and frames it", () => {
     const app = document.createElement("div");
     app.id = "app";
     const game = document.createElement("div");
@@ -193,7 +193,11 @@ describe("crafting HUD", () => {
     showShrineCraftingHud({ context: "altar" });
     const overlay = game.querySelector("#shrine-craft-overlay");
     expect(overlay).toBeInstanceOf(HTMLElement);
-    expect(overlay?.parentElement).toBe(game);
+    // The % rect is relative to the 640 design square, which is centered in
+    // the (rectangular) stage: the overlay lives in that box, not the stage.
+    const box = overlay?.parentElement as HTMLElement;
+    expect(box.id).toBe("overlay-design-box");
+    expect(box.parentElement).toBe(game);
     expect((overlay as HTMLElement).style.left).toMatch(/%$/);
     expect((overlay as HTMLElement).style.top).toMatch(/%$/);
     expect((overlay as HTMLElement).style.width).toMatch(/%$/);

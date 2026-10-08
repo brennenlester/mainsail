@@ -444,18 +444,18 @@ export function recordQuestEvent(event: QuestEvent): boolean {
   return true;
 }
 
-export function getGateStatusText(): string {
-  const sparIndex = QUEST_ORDER.indexOf("first-spar") + 1;
-  const rivalIndex = QUEST_ORDER.indexOf("rival-wren") + 1;
-  const overworld =
-    questProgress["first-spar"] === "complete"
-      ? "Overworld: OPEN"
-      : `Overworld: LOCKED (Story ${sparIndex}/${STORY_QUEST_COUNT})`;
-  const village = worldState.villageGateUnlocked
-    ? "Village: OPEN"
-    : "Village: LOCKED (story)";
-  const mistwood = worldState.mistwoodPathOpen
-    ? "Mistwood: OPEN"
-    : `Mistwood: LOCKED (Story ${rivalIndex}/${STORY_QUEST_COUNT})`;
-  return `${overworld} · ${village} · ${mistwood}`;
+/**
+ * Player-facing story line for the status dock (#391), e.g.
+ * "Story 3/8 — next: Craft a relic at Moon Shrine". Replaces the old
+ * debug-style gate dump ("Overworld: LOCKED (Story 2/8) · …").
+ */
+export function getStoryStatusLine(): string {
+  const activeId = getActiveQuestId();
+  if (!activeId) {
+    return isMainStoryComplete()
+      ? "Story complete — explore freely"
+      : "";
+  }
+  const index = QUEST_ORDER.indexOf(activeId) + 1;
+  return `Story ${index}/${STORY_QUEST_COUNT} — next: ${QUESTS[activeId].title}`;
 }

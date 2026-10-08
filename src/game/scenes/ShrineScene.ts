@@ -21,7 +21,7 @@ import {
   MAX_HORIZON_FUSIONS,
   MAX_SOVEREIGN_COPIES,
 } from "../world/worldState";
-import { getEffectsForItem } from "../shrine/shrineEffects";
+import { describeShrineEffect, getEffectsForItem } from "../shrine/shrineEffects";
 import {
   applyConsumable,
   CONSUMABLE_ITEM_IDS,
@@ -432,12 +432,7 @@ export class ShrineScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
 
-      btn.on("pointerdown", () => {
-        this.activeTab = tab.id;
-        this.selectedItemId = null;
-        this.refreshTabs();
-        this.renderTabContent();
-      });
+      btn.on("pointerdown", () => this.switchTab(tab.id));
       this.tabButtons.push(btn);
       x += 90;
     }
@@ -563,34 +558,12 @@ export class ShrineScene extends Phaser.Scene {
     }
 
     const effects = getEffectsForItem(itemId);
-    const effectDesc = effects
-      .map((e) => `${e.creatureId} @ Lv.${e.minLevel}: ${e.effectType}`)
-      .join("; ");
-
-    const header = this.add
-      .text(cx, contentTop + 8, `${getItemName(itemId)} — ${effectDesc}`, {
-        color: MOON_MUTED,
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "12px",
-        align: "center",
-        wordWrap: { width: 400 },
-      })
-      .setOrigin(0.5);
-    this.contentContainer.add(header);
-
-    const back = this.add
-      .text(cx - 180, contentTop + 8, "← Back", {
-        color: MOON_TEXT,
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "13px",
-      })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
-    this.onContentTap(back, () => {
-      this.selectedItemId = null;
-      this.renderTabContent();
-    });
-    this.contentContainer.add(back);
+    const effectLines = effects.map((e) => describeShrineEffect(e)).join("\n");
+    const listTop = this.addDetailChrome(
+      contentTop,
+      cx,
+      `${getItemName(itemId)}\n${effectLines}`,
+    );
 
     const eligible = getEligibleCreaturesForItem(itemId).filter(
       (entry) => entry.eligible,
@@ -604,7 +577,7 @@ export class ShrineScene extends Phaser.Scene {
         ? "Fusion already applied to all eligible creatures."
         : "No creatures at the required level.";
       const none = this.add
-        .text(cx, contentTop + 56, message, {
+        .text(cx, listTop + 8, message, {
           color: MOON_MUTED,
           fontFamily: "system-ui, sans-serif",
           fontSize: "14px",
@@ -614,7 +587,7 @@ export class ShrineScene extends Phaser.Scene {
       return;
     }
 
-    let y = contentTop + 48;
+    let y = listTop + 16;
     for (const entry of eligible) {
       const label = `${entry.name} Lv.${entry.level}`;
 
@@ -662,6 +635,26 @@ export class ShrineScene extends Phaser.Scene {
       this.renderTabContent();
     });
     this.contentContainer.add(back);
+  }
+
+  /**
+   * "← Back" on its own row with the title wrapped beneath it, so a long
+   * header can never run under the button (#391). Returns the y below the title.
+   */
+  private addDetailChrome(contentTop: number, cx: number, title: string): number {
+    this.addFusionBackButton(contentTop, cx);
+    const header = this.add
+      .text(cx, contentTop + 34, title, {
+        color: MOON_MUTED,
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "13px",
+        align: "center",
+        lineSpacing: 4,
+        wordWrap: { width: 420 },
+      })
+      .setOrigin(0.5, 0);
+    this.contentContainer.add(header);
+    return contentTop + 34 + header.height + 12;
   }
 
   private addFusionChrome(contentTop: number, cx: number, title: string): void {
@@ -828,6 +821,59 @@ export class ShrineScene extends Phaser.Scene {
     this.contentContainer.add(btn);
   }
 
+  /** Nothing to use yet: say what lives here and how to get it (#391). */
+  private renderUseEmptyState(cx: number, contentTop: number): void {
+    const title = this.add
+      .text(cx, contentTop + 14, "Nothing to use yet", {
+        color: MOON_TEXT,
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "16px",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5, 0);
+    const options = CONSUMABLE_ITEM_IDS.map((id) => {
+      const consumable = getConsumable(id);
+      return consumable
+        ? `${getItemName(id)} — ${getUseEffectLabel(consumable.effectType)}`
+        : getItemName(id);
+    }).join("\n");
+    const body = this.add
+      .text(
+        cx,
+        contentTop + 46,
+        `Tonics and draughts you craft land here, ready to heal or revive a companion.\n\nCraft one on the Craft tab:\n${options}`,
+        {
+          color: MOON_MUTED,
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "14px",
+          align: "center",
+          lineSpacing: 4,
+          wordWrap: { width: 400 },
+        },
+      )
+      .setOrigin(0.5, 0);
+    const go = this.add
+      .text(cx, contentTop + 56 + body.height + 22, "Go to Craft", {
+        color: "#1a1a2e",
+        backgroundColor: "#ffedb0",
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "14px",
+        padding: { x: 16, y: 8 },
+      })
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    this.onContentTap(go, () => this.switchTab("craft"));
+    this.contentContainer.add([title, body, go]);
+    this.contentHeight = shrineTabContentHeight(go.y + go.height + 12, contentTop);
+  }
+
+  private switchTab(tab: Tab): void {
+    this.activeTab = tab;
+    this.selectedItemId = null;
+    this.refreshTabs();
+    this.renderTabContent();
+  }
+
   private renderUseTab(): void {
     const cx = this.panelCenter.x;
     const contentTop = this.contentBounds.top;
@@ -837,14 +883,7 @@ export class ShrineScene extends Phaser.Scene {
     );
 
     if (consumableIds.length === 0) {
-      const empty = this.add
-        .text(cx, contentTop + 24, "Craft a shrine consumable first.", {
-          color: MOON_MUTED,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: "15px",
-        })
-        .setOrigin(0.5);
-      this.contentContainer.add(empty);
+      this.renderUseEmptyState(cx, contentTop);
       return;
     }
 
@@ -893,30 +932,11 @@ export class ShrineScene extends Phaser.Scene {
     const consumable = getConsumable(itemId)!;
     const effectLabel = getUseEffectLabel(consumable.effectType, true);
 
-    const header = this.add
-      .text(cx, contentTop + 8, `${getItemName(itemId)} — ${effectLabel}`, {
-        color: MOON_MUTED,
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "12px",
-        align: "center",
-        wordWrap: { width: 400 },
-      })
-      .setOrigin(0.5);
-    this.contentContainer.add(header);
-
-    const back = this.add
-      .text(cx - 180, contentTop + 8, "← Back", {
-        color: MOON_TEXT,
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "13px",
-      })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
-    this.onContentTap(back, () => {
-      this.selectedItemId = null;
-      this.renderTabContent();
-    });
-    this.contentContainer.add(back);
+    const listTop = this.addDetailChrome(
+      contentTop,
+      cx,
+      `${getItemName(itemId)} — ${effectLabel}`,
+    );
 
     const eligible = getEligibleCreaturesForConsumable(itemId).filter(
       (entry) => entry.eligible,
@@ -929,7 +949,7 @@ export class ShrineScene extends Phaser.Scene {
             ? "No fainted creatures to revive."
             : "All party members are already at max level 50.";
       const none = this.add
-        .text(cx, contentTop + 56, message, {
+        .text(cx, listTop + 8, message, {
           color: MOON_MUTED,
           fontFamily: "system-ui, sans-serif",
           fontSize: "14px",
@@ -939,7 +959,7 @@ export class ShrineScene extends Phaser.Scene {
       return;
     }
 
-    let y = contentTop + 48;
+    let y = listTop + 16;
     for (const entry of eligible) {
       const hpLabel =
         entry.currentHp <= 0

@@ -68,7 +68,6 @@ export function bindEffectsToggle(onChange: (enabled: boolean) => void): void {
     btn.id = TOGGLE_ID;
     btn.type = "button";
     btn.className = "status-mute-btn";
-    btn.setAttribute("role", "menuitemcheckbox");
     menu.prepend(btn);
     btn.addEventListener("click", () => {
       const next = !effectsEnabled();
@@ -83,5 +82,5 @@ export function bindEffectsToggle(onChange: (enabled: boolean) => void): void {
 function syncButton(btn: HTMLButtonElement): void {
   const enabled = effectsEnabled();
   btn.textContent = toggleLabel(enabled);
-  btn.setAttribute("aria-checked", enabled ? "true" : "false");
+  btn.setAttribute("aria-pressed", enabled ? "true" : "false");
 }

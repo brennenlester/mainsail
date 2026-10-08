@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { NPC_DISPLAY } from "../render/displaySizes";
-import { bindOverlayPixelRatio, DESIGN_SIZE } from "../render/pixelRatio";
+import { RENDER_DPR } from "../render/pixelRatio";
 import { applyNpcSprite } from "../render/worldTextures";
 import { getNpcById, type NpcDefinition } from "../world/npcs";
 import {
@@ -19,17 +19,22 @@ import {
 import type { StoryCue } from "../story/finaleScene";
 import { playStoryCue } from "../story/storyCueFx";
 
-const PANEL_WIDTH = 470;
-const PANEL_HEIGHT = 220;
-const PANEL_PADDING = 26;
+const PANEL_MAX_WIDTH = 560;
+const PANEL_PADDING = 22;
+const PANEL_EDGE = 12;
+const BUTTON_ROW = 52;
 
 const TEXT_STYLE = {
-  fontFamily: "Source Sans 3, system-ui, sans-serif",
+  fontFamily: "'Source Sans 3', system-ui, sans-serif",
 } as const;
 
 /**
  * Villager conversation overlay. Pauses IsometricScene the same way the
  * encounter and shrine overlays do, and resumes it on close.
+ *
+ * Unlike the 640 design-space overlays, this scene lays out in stage CSS px
+ * (camera zoom = DPR) so the type stays 20px+ on a phone instead of shrinking
+ * with the design square (#391).
  */
 export class DialogueScene extends Phaser.Scene {
   private npc!: NpcDefinition;
@@ -40,10 +45,15 @@ export class DialogueScene extends Phaser.Scene {
   private endEvent: string | undefined;
   private prompt: ConversationPrompt = { kind: "advance" };
   private lineIndex = 0;
+  private veil!: Phaser.GameObjects.Rectangle;
+  private panel!: Phaser.GameObjects.Graphics;
+  private portrait!: Phaser.GameObjects.Sprite;
+  private nameText!: Phaser.GameObjects.Text;
   private bodyText!: Phaser.GameObjects.Text;
   private advanceButton!: Phaser.GameObjects.Text;
   private declineButton!: Phaser.GameObjects.Text;
   private closing = false;
+  private onStageResize = (): void => this.layout();
 
   constructor() {
     super({ key: "DialogueScene" });
@@ -65,36 +75,19 @@ export class DialogueScene extends Phaser.Scene {
   }
 
   create(): void {
-    bindOverlayPixelRatio(this);
     this.cameras.main.fadeIn(140, 255, 255, 255);
 
-    this.add
-      .rectangle(0, 0, DESIGN_SIZE, DESIGN_SIZE, 0x1a3048, 0.5)
+    this.veil = this.add
+      .rectangle(0, 0, 10, 10, 0x1a3048, 0.5)
       .setOrigin(0)
       .setInteractive();
-
-    const panelX = DESIGN_SIZE / 2;
-    const panelY = DESIGN_SIZE - PANEL_HEIGHT / 2 - 40;
-    const panelLeft = panelX - PANEL_WIDTH / 2;
-    const panelTop = panelY - PANEL_HEIGHT / 2;
-    const innerWidth = PANEL_WIDTH - PANEL_PADDING * 2;
-
-    const panel = this.add.graphics();
-    panel.fillStyle(0xfff8ec, 0.97);
-    panel.fillRoundedRect(panelLeft, panelTop, PANEL_WIDTH, PANEL_HEIGHT, 20);
-    panel.lineStyle(4, 0xd8a05c, 1);
-    panel.strokeRoundedRect(panelLeft, panelTop, PANEL_WIDTH, PANEL_HEIGHT, 20);
-
-    const portrait = this.add
-      .sprite(
-        panelLeft + PANEL_PADDING + 28,
-        panelTop - 6,
-        this.npc.spriteKey,
-      )
+    this.panel = this.add.graphics();
+    this.portrait = this.add
+      .sprite(0, 0, this.npc.spriteKey)
       .setOrigin(0.5, 1);
     applyNpcSprite(
       this,
-      portrait,
+      this.portrait,
       this.npc,
       {
         width: NPC_DISPLAY.width * 1.8,
@@ -103,32 +96,33 @@ export class DialogueScene extends Phaser.Scene {
       "talk",
     );
 
-    this.add
-      .text(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING, this.npc.name, {
+    this.nameText = this.add
+      .text(0, 0, this.npc.name, {
         ...TEXT_STYLE,
         color: "#8a4a20",
-        fontSize: "20px",
+        fontSize: "22px",
         fontStyle: "bold",
       })
       .setOrigin(0, 0);
 
     this.bodyText = this.add
-      .text(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING + 38, "", {
+      .text(0, 0, "", {
         ...TEXT_STYLE,
-        color: "#2a4050",
-        fontSize: "17px",
-        wordWrap: { width: innerWidth, useAdvancedWrap: true },
+        color: "#1c3140",
+        fontSize: "20px",
+        fontStyle: "600",
+        lineSpacing: 6,
       })
       .setOrigin(0, 0);
 
     this.advanceButton = this.add
-      .text(panelX + PANEL_WIDTH / 2 - PANEL_PADDING, panelTop + PANEL_HEIGHT - PANEL_PADDING, "", {
+      .text(0, 0, "", {
         ...TEXT_STYLE,
         color: "#1a3040",
         backgroundColor: "#f0c878",
-        fontSize: "15px",
+        fontSize: "18px",
         fontStyle: "bold",
-        padding: { x: 16, y: 9 },
+        padding: { x: 20, y: 11 },
       })
       .setOrigin(1, 1)
       .setInteractive({ useHandCursor: true });
@@ -138,13 +132,13 @@ export class DialogueScene extends Phaser.Scene {
     this.advanceButton.on("pointerdown", () => this.advance());
 
     this.declineButton = this.add
-      .text(0, panelTop + PANEL_HEIGHT - PANEL_PADDING, "No", {
+      .text(0, 0, "No", {
         ...TEXT_STYLE,
         color: "#1a3040",
         backgroundColor: "#7ec8e8",
-        fontSize: "15px",
+        fontSize: "18px",
         fontStyle: "bold",
-        padding: { x: 16, y: 9 },
+        padding: { x: 20, y: 11 },
       })
       .setOrigin(1, 1)
       .setVisible(false)
@@ -159,7 +153,77 @@ export class DialogueScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ENTER", () => this.advance());
     this.input.keyboard?.on("keydown-ESC", () => this.close());
 
+    this.scale.on("resize", this.onStageResize);
+    this.events.once("shutdown", () => {
+      this.scale.off("resize", this.onStageResize);
+    });
+
     this.renderLine();
+  }
+
+  /** Stage size in CSS px; the camera maps 1 world unit to 1 CSS px. */
+  private stageCss(): { w: number; h: number } {
+    return {
+      w: this.scale.width / RENDER_DPR,
+      h: this.scale.height / RENDER_DPR,
+    };
+  }
+
+  /** Tallest line decides the panel height so it never jumps between lines. */
+  private bodyHeightFor(width: number): number {
+    let tallest = 0;
+    const probe = this.add
+      .text(0, 0, "", {
+        ...TEXT_STYLE,
+        fontSize: "20px",
+        fontStyle: "600",
+        lineSpacing: 6,
+        wordWrap: { width, useAdvancedWrap: true },
+      })
+      .setVisible(false);
+    for (const line of this.lines) {
+      probe.setText(line);
+      tallest = Math.max(tallest, probe.height);
+    }
+    probe.destroy();
+    return tallest;
+  }
+
+  private layout(): void {
+    if (!this.sys.isActive() && !this.sys.isVisible()) {
+      return;
+    }
+    const { w, h } = this.stageCss();
+    const cam = this.cameras.main;
+    cam.setZoom(RENDER_DPR);
+    cam.centerOn(w / 2, h / 2);
+    this.veil.setSize(w, h);
+
+    const panelW = Math.min(PANEL_MAX_WIDTH, w - PANEL_EDGE * 2);
+    const innerW = panelW - PANEL_PADDING * 2;
+    const bodyH = this.bodyHeightFor(innerW);
+    const panelH = PANEL_PADDING + 30 + 8 + bodyH + 12 + BUTTON_ROW;
+    const panelLeft = (w - panelW) / 2;
+    const panelTop = Math.max(panelH * 0.35, h - panelH - PANEL_EDGE - 10);
+
+    this.panel.clear();
+    this.panel.fillStyle(0xfff8ec, 0.98);
+    this.panel.fillRoundedRect(panelLeft, panelTop, panelW, panelH, 20);
+    this.panel.lineStyle(4, 0xd8a05c, 1);
+    this.panel.strokeRoundedRect(panelLeft, panelTop, panelW, panelH, 20);
+
+    this.portrait.setPosition(panelLeft + panelW - PANEL_PADDING - 28, panelTop + 6);
+    this.nameText.setPosition(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING);
+    this.bodyText.setWordWrapWidth(innerW, true);
+    this.bodyText.setPosition(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING + 38);
+    this.advanceButton.setPosition(
+      panelLeft + panelW - PANEL_PADDING,
+      panelTop + panelH - PANEL_PADDING + 6,
+    );
+    this.declineButton.setPosition(
+      this.advanceButton.x - this.advanceButton.displayWidth - 12,
+      this.advanceButton.y,
+    );
   }
 
   private renderLine(): void {
@@ -182,12 +246,7 @@ export class DialogueScene extends Phaser.Scene {
     );
     this.declineButton.setText(challenging ? "Not yet" : "No");
     this.declineButton.setVisible(confirming || challenging);
-    if (confirming || challenging) {
-      this.declineButton.setPosition(
-        this.advanceButton.x - this.advanceButton.displayWidth - 12,
-        this.advanceButton.y,
-      );
-    }
+    this.layout();
   }
 
   private advance(): void {
