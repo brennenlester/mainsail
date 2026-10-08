@@ -208,6 +208,8 @@ import {
   PORTABLE_MOONSHRINE_ID,
   type OpenPortableShrineDetail,
 } from "../ui/craftingHud";
+import { OverworldFx } from "../render/fx/overworldFx";
+import { floorTintAt } from "../render/fx/floorTint";
 
 const FLOOR_LAYER = 0;
 const PROP_LAYER = 0.45;
@@ -283,6 +285,8 @@ export class IsometricScene extends Phaser.Scene {
   /** Active-party overworld sprites (presence tell). */
   private partyFollowers: PartyOverworldFollowerState =
     createPartyOverworldFollowerState();
+  /** Particles, lighting, follower life, title card (#362). */
+  private fx?: OverworldFx;
   /** Westmost column still holding archipelago stream sprites (exclusive cull). */
   /** Live stream-tagged sprites; culls iterate this, never the full display list (#194). */
   private streamSprites = new Set<Phaser.GameObjects.Image>();
@@ -351,6 +355,7 @@ export class IsometricScene extends Phaser.Scene {
     setCopyInviteHandler(() => this.tryCopyInvite());
     ensureGroveMusic(this);
     this.input.on("pointerdown", () => unlockAudioFromGesture(this));
+    this.fx = new OverworldFx(this);
 
     this.loadZone(this.currentZoneId);
 
@@ -371,6 +376,7 @@ export class IsometricScene extends Phaser.Scene {
       ) {
         grantEncounterImmunity(this.time.now);
       }
+      const fromShrine = this.inShrine;
       this.inEncounter = false;
       this.pendingGodSailEncounter = undefined;
       this.pendingGodLandEncounter = undefined;
@@ -390,6 +396,7 @@ export class IsometricScene extends Phaser.Scene {
       this.playerGridY = y;
       this.syncPlayerToGrid();
       this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+      this.celebrateResume(fromShrine);
     });
     this.events.on("minigame-closed", () => {
       this.inMinigame = false;
@@ -408,6 +415,7 @@ export class IsometricScene extends Phaser.Scene {
   shutdown(): void {
     this.unbindPlayerName?.();
     this.unbindPlayerName = undefined;
+    this.fx?.destroy();
     setCopyInviteHandler(null);
     this.input.keyboard?.off("keydown", this.onGodCheatKeyDown);
     window.removeEventListener("resize", this.onWindowResize);
@@ -420,6 +428,13 @@ export class IsometricScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    this.fx?.update(
+      delta,
+      this.player.x,
+      this.playerBaseY,
+      this.isMoving,
+      this.playerFacing,
+    );
     if (!hasPlayerName()) {
       this.isMoving = false;
       this.playPlayerAnimation();
@@ -511,6 +526,7 @@ export class IsometricScene extends Phaser.Scene {
       this.walkPhase += step * WALK_CYCLES_PER_TILE;
       if (walkFootfallsSince(prevPhase, this.walkPhase) > 0) {
         playStepSfx(this, _time);
+        this.fx?.footstep(this.player.x, this.playerBaseY);
       }
       updateHostPosition(
         this.currentZoneId,
@@ -1145,6 +1161,12 @@ export class IsometricScene extends Phaser.Scene {
     // 0.08 that reads as a dive from map top — snap onto the player immediately.
     this.snapCameraToPlayer();
     this.cameras.main.fadeIn(180, 255, 255, 255);
+    this.fx?.enterZone(
+      zone,
+      this.worldOrigin,
+      this.playerDepth,
+      previousZoneId !== zoneId,
+    );
     this.time.delayedCall(0, () => {
       this.layoutPlayfield(zone);
       this.snapCameraToPlayer();
@@ -1358,6 +1380,12 @@ export class IsometricScene extends Phaser.Scene {
           .setOrigin(0.5, 0.5);
         fitDisplay(tile, FLOOR_DISPLAY);
         this.registerStreamSprite(tile, x, y);
+        if (tileType === TileType.Floor || tileType === TileType.Water) {
+          // Break up the debug-grid checker (#362); biome/gate tints override.
+          tile.setTint(
+            floorTintAt(x, y, light, tileType === TileType.Water ? 0.5 : 1),
+          );
+        }
 
         if (tileType === TileType.Floor && zone.id === "archipelago") {
           const biome = biomeAtIslandTile(x, y);
@@ -2000,20 +2028,25 @@ export class IsometricScene extends Phaser.Scene {
       materialId.includes("fiber") ? 0x91bf66 :
       materialId.includes("stone") ? 0x9a9aa4 : 0xb4aaa0;
     const screen = this.toScreen(gridX, gridY);
-    for (let i = 0; i < 8; i += 1) {
-      const particle = this.add
-        .rectangle(screen.x, screen.y + TILE_HEIGHT / 2 - 18, 4, 4, color)
-        .setDepth(this.playerDepth + 1);
-      this.tweens.add({
-        targets: particle,
-        x: particle.x + (i - 3.5) * 7,
-        y: particle.y - 18 - (i % 3) * 6,
-        alpha: 0,
-        duration: 440,
-        ease: "Cubic.easeOut",
-        onComplete: () => particle.destroy(),
-      });
+    this.fx?.gatherBurst(screen.x, screen.y + TILE_HEIGHT / 2 - 18, color);
+  }
+
+  /** Shrine ritual + level-up/evolve sparkles after a paused scene (#362). */
+  private celebrateResume(fromShrine: boolean): void {
+    if (!this.fx) {
+      return;
     }
+    if (fromShrine) {
+      const altar = getZone(this.currentZoneId).shrineInteract;
+      const at = altar
+        ? this.toScreen(altar.x, altar.y)
+        : { x: this.player.x, y: this.playerBaseY };
+      this.fx.shrineRitual(at.x, altar ? at.y + TILE_HEIGHT / 2 - 4 : at.y);
+    }
+    this.fx.celebratePartyChanges(this.partyFollowers.sprites, {
+      x: this.player.x,
+      y: this.playerBaseY,
+    });
   }
 
   private showGatherToast(message: string, ok: boolean): void {
@@ -2053,6 +2086,11 @@ export class IsometricScene extends Phaser.Scene {
         facing: this.playerFacing,
         depth: this.playerDepth,
       });
+      this.fx?.animateFollowers(
+        this.partyFollowers.sprites,
+        this.partyFollowers.moonDots,
+        this.isMoving,
+      );
     }
     this.syncNameTagPosition();
     // Boat stays on the waterline; only the trainer bobs with gait.
