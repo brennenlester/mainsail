@@ -38,7 +38,7 @@ const result = spawnSync(
     "--background",
     "--factory-startup",
     "--python",
-    path.join(ROOT, "scripts", "blender", "render_assets.py"),
+    path.join(ROOT, "scripts", "blender", process.env.RENDER_ENTRY ?? "render_assets.py"),
     "--",
     ...process.argv.slice(2),
   ],

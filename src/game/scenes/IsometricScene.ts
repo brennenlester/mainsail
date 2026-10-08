@@ -111,6 +111,8 @@ import {
   WALK_HINT_TEXT,
   shouldShowWalkHint,
 } from "../ui/walkHint";
+import { scriptedOpeningCreature } from "../opening/openingScript";
+import { hideOpeningCaption } from "../opening/openingCaption";
 import {
   computeBoardDisplaySize,
   playfieldLayoutMode,
@@ -606,7 +608,10 @@ export class IsometricScene extends Phaser.Scene {
 
     this.travelSinceEncounter = 0;
     const profile = getHabitatProfile(this.currentZoneId);
-    const guaranteed = shouldGuaranteeWildTrigger(profile, this.currentZoneId);
+    // Opening beats (#363) script the first meet / first spar foe.
+    const scripted = scriptedOpeningCreature(this.currentZoneId, isVisitorMode());
+    const guaranteed =
+      scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
     if (!guaranteed && !rollWildTriggerChance(profile)) {
       return;
     }
@@ -615,7 +620,7 @@ export class IsometricScene extends Phaser.Scene {
       this.currentZoneId === "archipelago"
         ? islandIndexAtTile(this.playerGridX, this.playerGridY)
         : null;
-    const creatureId = resolveWildEncounterCreature({
+    const creatureId = scripted ?? resolveWildEncounterCreature({
       zoneId: this.currentZoneId,
       tileX: Math.round(this.playerGridX),
       tileY: Math.round(this.playerGridY),
@@ -627,6 +632,7 @@ export class IsometricScene extends Phaser.Scene {
     }
 
     this.inEncounter = true;
+    hideOpeningCaption();
     setTouchControlsEnabled(false);
     this.cameras.main.fadeOut(140, 255, 255, 255);
     this.time.delayedCall(145, () => {
