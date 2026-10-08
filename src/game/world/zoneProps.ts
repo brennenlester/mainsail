@@ -1,6 +1,8 @@
 import type { ZoneId } from "./zoneTypes";
 import { getArchipelagoProps } from "./archipelagoStream";
 import { VILLAGE_CODE_GATE } from "./villageGate";
+import { revealedSiteProps } from "../companions/abilities";
+import { getClaimedSites } from "../companions/companionState";
 
 export type PropKind =
   | "tree"
@@ -138,7 +140,10 @@ export function getZoneProps(zoneId: ZoneId): ZoneProp[] {
   if (zoneId === "archipelago") {
     return getArchipelagoProps();
   }
-  return ZONE_PROPS[zoneId] ?? [];
+  const base = ZONE_PROPS[zoneId] ?? [];
+  // Gather nodes a companion has sniffed out (#367).
+  const revealed = revealedSiteProps(zoneId, getClaimedSites());
+  return revealed.length > 0 ? [...base, ...revealed] : base;
 }
 
 export function propTextureKey(

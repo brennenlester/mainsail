@@ -1,4 +1,10 @@
-import type Phaser from "phaser";
+import Phaser from "phaser";
+import { bondTier } from "../companions/bond";
+import {
+  curiousDetour,
+  personalityFollowerOffset,
+} from "../companions/personality";
+import { FX_TEX } from "./fx/fxTextures";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { getActiveCreatures } from "../creatures/party";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
@@ -18,12 +24,20 @@ export type Facing = "south" | "north" | "east" | "west";
 export type PartyOverworldFollowerState = {
   sprites: Phaser.GameObjects.Image[];
   moonDots: Phaser.GameObjects.Arc[];
+  /** Bond-tier aura under each follower (#367). */
+  auras: Phaser.GameObjects.Image[];
+  /** 0..1 ease for curious followers drifting toward a nearby spot. */
+  curiousT: number;
+  curiousTarget?: { x: number; y: number };
 };
+
+/** Aura tint per bond tier (index = tier; tier 0 has none). */
+const BOND_AURA_TINTS = [0, 0x9ef0c0, 0xffe070, 0xffa8d8, 0xc8b0ff];
 
 export const MAX_FOLLOWERS = 3;
 
 export function createPartyOverworldFollowerState(): PartyOverworldFollowerState {
-  return { sprites: [], moonDots: [] };
+  return { sprites: [], moonDots: [], auras: [], curiousT: 0 };
 }
 
 /** Call once per zone load before syncing followers. */
@@ -40,8 +54,12 @@ export function destroyPartyOverworldFollowers(
   for (const dot of state.moonDots) {
     dot.destroy();
   }
+  for (const aura of state.auras) {
+    aura.destroy();
+  }
   state.sprites = [];
   state.moonDots = [];
+  state.auras = [];
 }
 
 function followerOffsets(
@@ -70,11 +88,19 @@ function syncFollowerVisual(
   y: number,
   facing: Facing,
   depth: number,
+  curiousTarget: { x: number; y: number } | undefined,
 ): void {
   const def = getCreatureDefinition(creature.definitionId);
-  const { dx, dy } = followerOffsets(facing, index);
-  const px = x + dx;
-  const py = y + dy;
+  const { dx, dy } = personalityFollowerOffset(
+    creature.personality,
+    facing,
+    followerOffsets(facing, index),
+  );
+  let px = x + dx;
+  let py = y + dy;
+  if (creature.personality === "curious" && curiousTarget && state.curiousT > 0) {
+    ({ x: px, y: py } = curiousDetour({ x: px, y: py }, curiousTarget, state.curiousT));
+  }
 
   let sprite = state.sprites[index];
   const [textureKey, textureFrame] = resolveCreaturePoseTexture(
@@ -116,15 +142,67 @@ function syncFollowerVisual(
   } else if (moonDot) {
     moonDot.setVisible(false);
   }
+
+  syncBondAura(scene, state, index, creature, px, py, depth);
+}
+
+function syncBondAura(
+  scene: Phaser.Scene,
+  state: PartyOverworldFollowerState,
+  index: number,
+  creature: CreatureInstance,
+  px: number,
+  py: number,
+  depth: number,
+): void {
+  const tier = bondTier(creature.bond);
+  let aura = state.auras[index];
+  if (tier === 0 || !scene.textures.exists(FX_TEX.halo)) {
+    aura?.setVisible(false);
+    return;
+  }
+  if (!aura) {
+    aura = scene.add
+      .image(px, py, FX_TEX.halo)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    state.auras[index] = aura;
+  }
+  const t = scene.time.now / 1000;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 2.2 + index);
+  // Kindred cycles hue; lower tiers hold a steady tint.
+  const tint =
+    tier >= 4
+      ? Phaser.Display.Color.HSVToRGB((t * 0.15 + index * 0.2) % 1, 0.45, 1).color
+      : BOND_AURA_TINTS[tier]!;
+  aura
+    .setVisible(creature.currentHp > 0)
+    .setPosition(px, py - 4)
+    .setTint(tint)
+    .setScale(0.3 + tier * 0.03, 0.14 + tier * 0.015)
+    .setAlpha((0.25 + tier * 0.08) * (0.75 + 0.25 * pulse))
+    .setDepth(depth - 1.1 - index * 0.01);
 }
 
 /** Draw up to three active party companions behind the player (presence tell included). */
 export function syncPartyOverworldFollowers(
   scene: Phaser.Scene,
   state: PartyOverworldFollowerState,
-  options: { x: number; y: number; facing: Facing; depth: number },
+  options: {
+    x: number;
+    y: number;
+    facing: Facing;
+    depth: number;
+    moving?: boolean;
+    /** Screen point a curious follower may drift toward while idle (#367). */
+    curiousTarget?: { x: number; y: number };
+  },
 ): void {
   const actives = selectOverworldFollowers(getActiveCreatures(), MAX_FOLLOWERS);
+  const wantCurious = Boolean(options.curiousTarget) && !options.moving;
+  state.curiousT = Math.max(0, Math.min(1, state.curiousT + (wantCurious ? 0.02 : -0.12)));
+  if (options.curiousTarget) {
+    state.curiousTarget = options.curiousTarget;
+  }
   for (let i = 0; i < actives.length; i += 1) {
     syncFollowerVisual(
       scene,
@@ -135,10 +213,12 @@ export function syncPartyOverworldFollowers(
       options.y,
       options.facing,
       options.depth,
+      state.curiousTarget,
     );
   }
   while (state.sprites.length > actives.length) {
     state.sprites.pop()?.destroy();
     state.moonDots.pop()?.destroy();
+    state.auras.pop()?.destroy();
   }
 }

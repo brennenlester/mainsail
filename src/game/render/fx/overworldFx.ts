@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { getActiveCreatures } from "../../creatures/party";
 import { screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "../../isometric";
 import { selectOverworldFollowers } from "../../shrine/presence";
+import { pickBark } from "../../companions/personality";
+import type { AbilityId } from "../../companions/abilities";
 import { isSailing } from "../../world/dockBoat";
 import { hasPlayerName } from "../../world/playerName";
 import { getZoneProps } from "../../world/zoneProps";
@@ -56,9 +58,12 @@ type GlowSource = {
 };
 
 type ActiveEmote = {
-  image: Phaser.GameObjects.Image;
+  image: Phaser.GameObjects.Image | Phaser.GameObjects.Text;
   index: number;
 };
+
+/** Share of idle follower moments that speak a personality bark (#367). */
+const BARK_CHANCE = 0.55;
 
 /** Session clock shared across zone loads so time keeps flowing. */
 const SESSION_START_MS = typeof performance !== "undefined" ? performance.now() : 0;
@@ -654,7 +659,109 @@ export class OverworldFx {
       return;
     }
     this.nextEmoteAt = now + nextEmoteDelayMs(Math.random()) + 3000;
-    this.showEmote(sprites, Math.floor(Math.random() * sprites.length), pickEmote(Math.random()));
+    const index = Math.floor(Math.random() * sprites.length);
+    const creature = selectOverworldFollowers(getActiveCreatures(), MAX_FOLLOWERS)[index];
+    if (creature?.personality && creature.currentHp > 0 && Math.random() < BARK_CHANCE) {
+      this.showBark(sprites, index, pickBark(creature.personality, Math.random()));
+      return;
+    }
+    this.showEmote(sprites, index, pickEmote(Math.random()));
+  }
+
+  /** Short personality line in a speech bubble over a follower (#367). */
+  showBark(
+    sprites: readonly Phaser.GameObjects.Image[],
+    index: number,
+    text: string,
+  ): void {
+    const sprite = sprites[index];
+    if (!sprite?.active) {
+      return;
+    }
+    this.emote?.image.destroy();
+    const bubble = this.scene.add
+      .text(sprite.x + 8, sprite.y - sprite.displayHeight - 2, text, {
+        color: "#2a3a48",
+        backgroundColor: "#fffaf0",
+        fontFamily: "Source Sans 3, system-ui, sans-serif",
+        fontSize: "12px",
+        fontStyle: "bold",
+        padding: { x: 6, y: 3 },
+        resolution: Math.min(3, window.devicePixelRatio || 1),
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(this.fxDepth + 0.1)
+      .setAlpha(0);
+    this.emote = { image: bubble, index };
+    this.scene.tweens.add({ targets: bubble, alpha: 1, duration: 160 });
+    this.scene.tweens.add({
+      targets: bubble,
+      alpha: 0,
+      delay: 2200,
+      duration: 300,
+      onComplete: () => {
+        bubble.destroy();
+        if (this.emote?.image === bubble) {
+          this.emote = undefined;
+        }
+      },
+    });
+  }
+
+  /** Ability juice at a tile: flames, a splash, or rustling leaves (#367). */
+  abilityBurst(x: number, y: number, ability: AbilityId): void {
+    const tint =
+      ability === "burn"
+        ? [0xff7a2a, 0xffb040, 0xffe070]
+        : ability === "ford"
+          ? [0x9ad8ff, 0xd8f4ff, 0x5ab0e8]
+          : [0x8fd16a, 0xd8f0a0, 0x5f9a4a];
+    const burst = this.scene.add
+      .particles(x, y, ability === "sense" ? FX_TEX.leaf : FX_TEX.glow, {
+        lifespan: { min: 500, max: 1000 },
+        speedX: { min: -40, max: 40 },
+        speedY: ability === "ford" ? { min: -90, max: -30 } : { min: -70, max: -20 },
+        gravityY: ability === "ford" ? 200 : -20,
+        scale: { start: ability === "sense" ? 1.4 : 0.7, end: 0 },
+        rotate: { start: 0, end: 240 },
+        tint,
+        blendMode: ability === "sense" ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(this.fxDepth);
+    burst.explode(this.quality === "high" ? 26 : 12);
+    this.scene.time.delayedCall(1100, () => burst.destroy());
+    this.puffs?.explode(ability === "burn" ? 6 : 3, x, y);
+    this.pulseRing(x, y, tint[0]!);
+  }
+
+  /** Bond tier-up: hearts + a pink sparkle column on the companion (#367). */
+  bondTierUp(
+    sprites: readonly Phaser.GameObjects.Image[],
+    index: number,
+    fallback: { x: number; y: number },
+  ): void {
+    const sprite = index >= 0 ? sprites[index] : undefined;
+    const x = sprite ? sprite.x : fallback.x;
+    const y = sprite ? sprite.y - sprite.displayHeight / 2 : fallback.y - 20;
+    const burst = this.scene.add
+      .particles(x, y + 10, FX_TEX.spark, {
+        lifespan: { min: 700, max: 1200 },
+        speedX: { min: -30, max: 30 },
+        speedY: { min: -120, max: -50 },
+        scale: { start: 0.9, end: 0 },
+        rotate: { start: 0, end: 200 },
+        tint: [0xffa8d8, 0xfff0f6, 0xffd070],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(this.fxDepth);
+    burst.explode(this.quality === "high" ? 24 : 10);
+    this.scene.time.delayedCall(1300, () => burst.destroy());
+    this.pulseRing(x, y, 0xffa8d8);
+    if (sprite) {
+      this.showEmote(sprites, index, "heart");
+    }
   }
 
   private showEmote(

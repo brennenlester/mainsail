@@ -112,6 +112,18 @@ import {
 import { TileType, type ZoneId } from "./zoneTypes";
 import { ZONES } from "./zones";
 import { CREATURES } from "../creatures/catalog";
+import {
+  isPersonalityId,
+  personalitySeed,
+  rollPersonality,
+} from "../companions/personality";
+import { BOND_MAX } from "../companions/bond";
+import { isCompanionSiteId } from "../companions/abilities";
+import {
+  getClaimedSiteList,
+  isValidNickname,
+  setClaimedSites,
+} from "../companions/companionState";
 import { isVisitorMode } from "./worldSession";
 import {
   PLAYER_NAME_MAX_LENGTH,
@@ -186,6 +198,8 @@ export type WorldSnapshot = {
   eclipseFusionCompleted?: boolean;
   questProgress: Record<QuestId, QuestStatus>;
   party: CreatureInstance[];
+  /** Resolved companion ability sites (#367). Optional for older saves. */
+  companionSitesClaimed?: string[];
   /** Active battle party instance ids (max 7). Optional for older saves. */
   activePartyIds?: string[];
   nextInstanceId: number;
@@ -407,6 +421,19 @@ function isValidPartyMember(value: unknown): boolean {
     } else {
       return false;
     }
+  }
+  // Companion fields (#367) are optional; older saves lack all three.
+  if (creature.personality !== undefined && !isPersonalityId(creature.personality)) {
+    return false;
+  }
+  if (
+    creature.bond !== undefined &&
+    (!isFiniteNumber(creature.bond) || creature.bond < 0 || creature.bond > BOND_MAX)
+  ) {
+    return false;
+  }
+  if (creature.nickname !== undefined && !isValidNickname(creature.nickname)) {
+    return false;
   }
   return true;
 }
@@ -869,6 +896,13 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
     return false;
   }
 
+  if (s.companionSitesClaimed !== undefined) {
+    if (!Array.isArray(s.companionSitesClaimed)) return false;
+    for (const siteId of s.companionSitesClaimed) {
+      if (!isCompanionSiteId(siteId)) return false;
+    }
+  }
+
   const pos = s.position as Record<string, unknown> | undefined;
   if (
     !pos ||
@@ -1039,6 +1073,7 @@ export function exportWorldSnapshot(
     horizonFusionCount: worldState.horizonFusionCount,
     eclipseFusionCompleted: worldState.eclipseFusionCompleted,
     questProgress: { ...questProgress },
+    companionSitesClaimed: getClaimedSiteList(),
     party: structuredClone(playerParty.creatures),
     activePartyIds: [...playerParty.activeInstanceIds],
     nextInstanceId: getNextInstanceId(),
@@ -1077,9 +1112,16 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   // missing value reads owned sovereigns as absent and re-opens their claimed
   // encounters (#192).
   const party = snapshot.party.map((member) => {
+    const speciesId = member.speciesId ?? member.definitionId;
     const creature = {
       ...member,
-      speciesId: member.speciesId ?? member.definitionId,
+      speciesId,
+      // Pre-#367 saves: rebuild the same trait every load until re-saved.
+      personality:
+        member.personality ??
+        rollPersonality(
+          personalitySeed(snapshot.playerName, member.instanceId, speciesId),
+        ),
     };
     migrateLegacyPresenceCharmBuffs(creature);
     return creature;
@@ -1123,6 +1165,7 @@ export function applyWorldSnapshot(snapshot: WorldSnapshot): void {
   );
   setHarborBefriendUsed(snapshot.harborBefriendUsed ?? []);
   setBrynGroveStartersGifted(snapshot.brynGroveStartersGifted ?? []);
+  setClaimedSites(snapshot.companionSitesClaimed ?? []);
   setSovereignPlateActive(snapshot.sovereignPlateActive === true, false);
   setSparWinsBySpecies(snapshot.sparWinsBySpecies ?? {}, false);
   setFirstIslandLanded(snapshot.firstIslandLanded === true, false);
