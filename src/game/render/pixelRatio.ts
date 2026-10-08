@@ -60,8 +60,9 @@ export const OVERLAY_LETTERBOX_COLOR = 0x0f1c2e;
 
 /**
  * Overlay scenes lay out in a 640×640 design square that is centered and
- * zoomed to fit the (now rectangular) stage. Paint the rest navy so the
- * paused world never shows around a battle / shrine / encounter card.
+ * zoomed to fit the (now rectangular) stage. Paint the rest navy, on top, so
+ * neither the paused world nor art that overhangs the square (battle arena)
+ * shows around a battle / shrine / encounter card.
  */
 export function addOverlayLetterbox(
   scene: Phaser.Scene,
@@ -79,7 +80,7 @@ export function addOverlayLetterbox(
     scene.add
       .rectangle(x, y, w, h, style.color ?? OVERLAY_LETTERBOX_COLOR, alpha)
       .setOrigin(0)
-      .setDepth(style.depth ?? -10_000);
+      .setDepth(style.depth ?? 100_000);
   }
 }
 
@@ -90,7 +91,7 @@ export function bindOverlayPixelRatio(
 ): void {
   applyOverlayPixelRatio(scene, options.reserveBottomCss);
   if (options.letterbox !== false) {
-    addOverlayLetterbox(scene, 0.95);
+    addOverlayLetterbox(scene, 1);
   }
   const onResize = (): void => {
     if (!scene.sys.settings.active && !scene.sys.settings.visible) {
@@ -174,7 +175,8 @@ export function placeWorldHudText(
   const avoid = measureHudAvoid(scene);
   const touch = anchor === "bottom" ? avoid.touchInteract : null;
   const pad = (text.padding.left ?? 0) + (text.padding.right ?? 0);
-  const maxCss = touch ? boardCss / 2 - 16 : boardCss - 24;
+  // Capped: on a wide stage a one-line toast would sprawl across the screen.
+  const maxCss = touch ? boardCss / 2 - 16 : Math.min(boardCss - 24, 560);
   const wrap = Math.max(80, Math.floor(maxCss - pad));
   if (text.style.wordWrapWidth !== wrap) {
     text.setWordWrapWidth(wrap, true);

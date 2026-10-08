@@ -228,7 +228,7 @@ describe("share card date (local day, not UTC)", () => {
   it("uses the player's calendar date", () => {
     expect(formatShareDay(todayShareDay(lateUtc, 420))).toBe("Oct 7, 2026");
     expect(formatShareDay(todayShareDay(lateUtc, 0))).toBe("Oct 8, 2026");
-    // Auckland (UTC+13, offset -780) is already Oct 8 at 02:30 UTC... and 13:30 local.
+    // Auckland (UTC+13, offset -780) is already mid-afternoon Oct 8.
     expect(formatShareDay(todayShareDay(lateUtc, -780))).toBe("Oct 8, 2026");
   });
 

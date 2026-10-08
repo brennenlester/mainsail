@@ -75,8 +75,24 @@ body {
 
 /* Spars own the whole board; the quest card would cover the foe's HP plate. */
 body.battle-active #quest-hud,
-body.encounter-active #quest-hud {
+body.encounter-active #quest-hud,
+body.cutscene-active #quest-hud {
   display: none;
+}
+
+/* Full-screen scenes own the canvas (#391): no story caption over them, and
+   the dock (made inert by ui/hudLock.ts) steps back. */
+body.battle-active .opening-caption,
+body.encounter-active .opening-caption,
+body.cutscene-active .opening-caption {
+  display: none;
+}
+
+body.battle-active #status-panel,
+body.encounter-active #status-panel,
+body.cutscene-active #status-panel {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .quest-hud-summary {
@@ -201,6 +217,25 @@ body.encounter-active #quest-hud {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Five labels + the menu must share one row on a 360px phone (#391). */
+@media (max-width: 420px) {
+  .status-actions .status-codex-btn,
+  .status-actions .status-share-btn {
+    font-size: 12px;
+    padding: 6px 2px;
+  }
+
+  /* Visible label shortens; the accessible name stays "Inventory". */
+  #inventory-btn {
+    font-size: 0;
+  }
+
+  #inventory-btn::after {
+    content: "Items";
+    font-size: 12px;
+  }
 }
 
 .status-actions .status-overflow-btn {
@@ -659,7 +694,8 @@ body.encounter-active #quest-hud {
 
 /* Battle/encounter cards are tap-driven; the stick would sit over the move cards (#388). */
 body.battle-active .touch-controls,
-body.encounter-active .touch-controls {
+body.encounter-active .touch-controls,
+body.cutscene-active .touch-controls {
   display: none !important;
 }
 

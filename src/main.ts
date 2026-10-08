@@ -35,6 +35,7 @@ import {
 } from "./game/share/cardPreview";
 import { initShareControls, setShareDisabled } from "./game/share/shareActions";
 import { bindCreatureArt } from "./game/ui/creatureArt";
+import { initHudLock } from "./game/ui/hudLock";
 
 function consumeNewParam(): void {
   const url = new URL(window.location.href);
@@ -136,6 +137,7 @@ if (inviteResult.status === "invalid") {
   initStatusPanelControls();
   initShareControls(game);
   bindCreatureArt(game);
+  initHudLock();
   if (shareResult.status === "ok") {
     // Card links skip the title (route is "play") and never show the name intro.
     openCardPreview(game, shareResult.snapshot);

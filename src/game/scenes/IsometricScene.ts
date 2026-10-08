@@ -126,6 +126,7 @@ import {
   isOpeningCaptionShowing,
 } from "../opening/openingCaption";
 import { layoutStage } from "../ui/stageLayout";
+import { isCutsceneActive } from "../ui/hudLock";
 import {
   areTouchControlsVisible,
   consumeTouchInteract,
@@ -2321,6 +2322,11 @@ export class IsometricScene extends Phaser.Scene {
   }
 
   private updateQuestToast(): void {
+    // Cutscenes (evolution, finale) own the screen: leave the toast queued so
+    // it appears once they end instead of popping over the reveal (#391).
+    if (isCutsceneActive()) {
+      return;
+    }
     const message = consumeQuestToast();
     if (!message) {
       return;

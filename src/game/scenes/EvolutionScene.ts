@@ -25,6 +25,7 @@ import {
 import { effectsEnabled, prefersReducedMotion } from "../render/fx/fxSettings";
 import { ensureFxTextures, FX_TEX } from "../render/fx/fxTextures";
 import { bindOverlayPixelRatio, DESIGN_SIZE } from "../render/pixelRatio";
+import { bindCutscene } from "../ui/hudLock";
 import { presenceTintForCreature } from "../shrine/presence";
 import {
   isCompanionShareAvailable,
@@ -106,6 +107,7 @@ export class EvolutionScene extends Phaser.Scene {
 
   create(): void {
     bindOverlayPixelRatio(this);
+    bindCutscene(this);
     ensureFxTextures(this);
     ensureCreatureTextures(this);
     this.ensureStageTextures();
