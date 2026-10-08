@@ -390,6 +390,16 @@ BIOME_FLOORS = {
         "paths": ["h"],
         "shore": True,
     },
+    # #399: one shared island set; per-island colour comes from the code tint.
+    "archipelago": {
+        "style": "isle",
+        "variants": [
+            {"patches": 3},
+            {"shell": 2, "pebble": 1},
+            {"patches": 2, "tuft": 2},
+            {"pebble": 2, "shell": 1, "tuft": 1},
+        ],
+    },
     "cottage": {
         "style": "cottage",
         "variants": [{}, {"knot": 2}, {"knot": 1, "straw": 2}, {"knot": 3}],

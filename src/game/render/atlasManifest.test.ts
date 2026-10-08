@@ -77,8 +77,21 @@ describe("packed atlas manifest", () => {
     expect(atlas.textures.length).toBeLessThanOrEqual(8);
   });
 
+  it("packs identical images once and aliases the duplicate keys (#399)", () => {
+    const frameRect = (key: string) => {
+      for (const page of atlas.textures) {
+        const f = (page.frames as (Frame & { frame: object })[]).find((x) => x.filename === key);
+        if (f) return `${page.image}:${JSON.stringify(f.frame)}`;
+      }
+      return null;
+    };
+    // The static base pose is the first idle frame.
+    expect(frameRect("creature-mossling")).not.toBeNull();
+    expect(frameRect("creature-mossling")).toBe(frameRect("creature-mossling__idle_00"));
+  });
+
   it("ships the #392 biome kits, Wren and the Fields/Mistwood/Emberfen roster", () => {
-    for (const zone of ["overworld", "mistwood", "emberfen", "harbor", "cottage"]) {
+    for (const zone of ["overworld", "mistwood", "emberfen", "harbor", "cottage", "archipelago"]) {
       for (let v = 0; v < 4; v += 1) {
         expect(frames.has(`floor-${zone}-v${v}`), `${zone} v${v}`).toBe(true);
       }
@@ -102,7 +115,11 @@ describe("packed atlas manifest", () => {
       expect(frames.has(key), key).toBe(true);
     }
     const keys = new Set(anims.anims.map((a) => a.key));
-    expect(frames.has("arena-ember-sky"), "boss arena (#385) is packed").toBe(true);
+    // Boss arena (#385) loads standalone for the Matriarch fight only (#399).
+    for (const layer of ["sky", "hills", "platform"]) {
+      expect(frames.has(`arena-ember-${layer}`), layer).toBe(false);
+      expect(fs.existsSync(path.resolve(ATLAS_DIR, `../world/arena-ember-${layer}.png`)), layer).toBe(true);
+    }
     expect(keys.has("npc-rival-wren__talk") && keys.has("npc-rival-wren-portrait__talk")).toBe(true);
     for (const id of [
       "peat-sprite",
