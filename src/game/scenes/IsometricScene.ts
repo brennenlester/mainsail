@@ -1296,6 +1296,14 @@ export class IsometricScene extends Phaser.Scene {
     teardownHorizon();
     this.islandBakes.clear();
     this.streamSprites.clear();
+    // TileSprites and Text own canvas textures in the texture manager (the
+    // Archipelago backdrop alone is ~2.9 MB of GPU memory per visit, #417);
+    // removeAll(true) would leave them behind.
+    for (const obj of [...this.children.list]) {
+      if (obj instanceof Phaser.GameObjects.TileSprite || obj instanceof Phaser.GameObjects.Text) {
+        obj.destroy();
+      }
+    }
     this.children.removeAll(true);
     destroyPartyOverworldFollowers(this.partyFollowers);
     this.partyFollowers = createPartyOverworldFollowerState();
