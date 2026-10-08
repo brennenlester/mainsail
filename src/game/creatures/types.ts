@@ -1,6 +1,11 @@
 import type { FolkloreType } from "./folkloreTypes";
 import type { CreatureTrait } from "./traits";
 
+/** Battle kit slot. Missing role = plain attack (legacy / wanderer / shrine moves). */
+export type MoveRole = "attack" | "guard" | "status" | "finisher";
+
+export type StatusId = "burn" | "soaked" | "rooted" | "dazed";
+
 export type MoveDefinition = {
   id: string;
   name: string;
@@ -9,7 +14,16 @@ export type MoveDefinition = {
   type: FolkloreType;
   /** Hit chance 0–100. Chip ~90–100; nukes ~70–80. */
   accuracy: number;
+  role?: MoveRole;
+  /** Own turns the move stays unavailable after use (0 / missing = always ready). */
+  cooldown?: number;
+  /** Status applied on hit (status role). */
+  inflicts?: StatusId;
+  /** Guard: fraction of max HP restored on use. */
+  heal?: number;
 };
+
+export type StatusInstance = { id: StatusId; turns: number };
 
 export type CreatureDefinition = {
   id: string;
@@ -64,4 +78,10 @@ export type BattleCombatant = {
   immunityTo?: FolkloreType;
   /** Signature damage-buff, if any. */
   damageBuff?: { moveId: string; multiplier: number };
+  /** Battle-only state (never saved). */
+  statuses?: StatusInstance[];
+  /** moveId -> own turns until ready. */
+  cooldowns?: Record<string, number>;
+  /** Guard up: the next incoming hit is reduced. */
+  guarding?: boolean;
 };

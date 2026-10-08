@@ -157,7 +157,14 @@ Creatures and moves have folklore **types**. Spars use accuracy, hunter matchups
 
 **Types** [inferred: `folkloreTypes.ts`]: woodland, ember, water, earth, mist, storm, hearth, twilight, fen, will-o-wisp.
 
-Hunter chart (attacker → defender it hunts, 1.5×): woodland→fen, ember→woodland, water→ember, earth→storm, mist→twilight, storm→water, hearth→mist, twilight→will-o-wisp, fen→hearth, will-o-wisp→earth.
+Hunter chart (attacker → defender it hunts, 1.5×): woodland→fen, ember→woodland, water→ember, earth→storm, mist→twilight, storm→water, hearth→mist, twilight→will-o-wisp, fen→hearth, will-o-wisp→earth. A hunter **resists** its prey's moves (×0.5).
+
+**Battle v1 (#364)** [`battle/kits.ts`, `battle/statusEffects.ts`, `battle/battleLogic.ts`]:
+- **Kits:** every creature fights with 4 role slots — Attack (no cooldown), Guard (next hit −60%, small heal, cd 2), Status (chip + status, cd 2), Finisher (big hit, ×1.5 vs a statused target, cd 3, starts the spar charging). Starter/overworld species are authored in `catalog.ts`; the rest derive a kit from their existing moves.
+- **Intent:** the foe's next move (role, damage preview, matchup, status) is shown above it one turn ahead. Sovereigns telegraph their fixed pattern; crown blows read as finishers.
+- **Statuses:** Burn (8% max HP per turn, 3 turns; hearth/ember/water immune), Soaked (takes ×1.25, storm ×1.5, douses/blocks Burn, 3 turns; water/fen immune), Rooted (deals ×0.7, 2 turns; storm/mist/will-o-wisp immune), Dazed (accuracy −25, 2 turns; twilight immune). Statuses and cooldowns are battle-only and reset on switch.
+- **Switching:** the first voluntary switch each spar is free; later switches cost the turn.
+- Move buttons and the encounter panel show matchup labels (×1.5 / resists ×0.5 / immune).
 
 Immunities apply only when the defender has rolled an immunity trait (signature creatures), not for every creature of that type. Pair map: mist immune to earth, water to ember, earth to storm, twilight to will-o-wisp.
 
