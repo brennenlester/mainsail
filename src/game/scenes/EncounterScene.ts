@@ -54,6 +54,7 @@ import { isVisitorMode } from "../world/worldSession";
 import { markCreatureDiscovered } from "../world/worldState";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { unlockCodexHud } from "../ui/hudChrome";
+import { openingPersonalityLine } from "../opening/openingScript";
 
 const PANEL_WIDTH = 460;
 const PANEL_HEIGHT = 500;
@@ -124,8 +125,10 @@ export class EncounterScene extends Phaser.Scene {
     const panelLeft = panelX - PANEL_WIDTH / 2;
     const innerLeft = panelLeft + PANEL_PADDING;
     const innerWidth = PANEL_WIDTH - PANEL_PADDING * 2;
+    // Opening beat (#363): one-line personality hint under the title.
+    const personality = this.revealed ? openingPersonalityLine(this.creatureId) : null;
     this.typeLineX = panelX;
-    this.typeLineY = panelY + 102;
+    this.typeLineY = panelY + (personality ? 112 : 102);
     this.typeLineWidth = innerWidth;
 
     const panel = this.add.graphics();
@@ -164,7 +167,7 @@ export class EncounterScene extends Phaser.Scene {
 
     this.titleText = this.addPanelText(
       panelX,
-      panelY + 70,
+      panelY + (personality ? 60 : 70),
       this.revealed
         ? `A wild ${def.name} appeared!`
         : "A wild creature appeared!",
@@ -175,6 +178,14 @@ export class EncounterScene extends Phaser.Scene {
         fontStyle: "bold",
       },
     );
+
+    if (personality) {
+      this.addPanelText(panelX, panelY + 87, personality, innerWidth, {
+        color: "#4a6a68",
+        fontSize: "15px",
+        fontStyle: "italic",
+      });
+    }
 
     const typeLine = encounterTypeLineText(this.revealed, def.folkloreType);
     if (typeLine) {
