@@ -101,8 +101,15 @@ export function openShareSheet(options: {
   // inert does not stop Phaser's window-level key listener: mute it so
   // WASD / E cannot walk or interact behind the sheet.
   const keyboard = options.game?.input?.keyboard ?? null;
+  // Held keys would stay isDown (their keyup never arrives while muted).
+  const resetSceneKeys = (): void => {
+    for (const scene of options.game?.scene.getScenes(true) ?? []) {
+      scene.input.keyboard?.resetKeys();
+    }
+  };
   if (keyboard) {
     keyboard.enabled = false;
+    resetSceneKeys();
   }
   let closed = false;
   const close = (): void => {
@@ -110,11 +117,9 @@ export function openShareSheet(options: {
     closed = true;
     popOverlay(options.id);
     playfield?.removeAttribute("inert");
-    if (keyboard && options.game) {
+    if (keyboard) {
       keyboard.enabled = true;
-      for (const scene of options.game.scene.getScenes(true)) {
-        scene.input.keyboard?.resetKeys();
-      }
+      resetSceneKeys();
     }
     if (image.src.startsWith("blob:")) {
       URL.revokeObjectURL(image.src);
