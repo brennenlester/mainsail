@@ -3,10 +3,12 @@ import {
   FLOOR_VARIANT_COUNT,
   floorVariantKey,
   nearShore,
+  seaCellAt,
   seaTileLayers,
   waterVariantKey,
 } from "./floorVariants";
 import { TileType } from "../world/zoneTypes";
+import { getZone } from "../world/zones";
 
 describe("floorVariantKey (#361)", () => {
   it("is deterministic per tile", () => {
@@ -127,13 +129,19 @@ describe("ocean + shore layers (#412)", () => {
     ]);
   });
 
-  it("foams Harbor water against the quay and keeps other zones plain", () => {
+  it("foams Harbor + Fields bay water against land and keeps other zones plain", () => {
     const harbor = { ...sea, id: "harbor" as const };
     expect(seaTileLayers(harbor, 3, 1)?.overlays.map((l) => l.key)).toEqual([
       "shore-foam-edge-e",
       "shore-foam-edge-n",
     ]);
     expect(seaTileLayers(harbor, 3, 2)).toBeNull();
-    expect(seaTileLayers({ ...sea, id: "overworld" }, 3, 1)).toBeNull();
+    expect(seaTileLayers({ ...sea, id: "overworld" }, 3, 1)?.overlays[0]?.key).toBe("shore-foam-edge-e");
+    expect(seaTileLayers({ ...sea, id: "grove" }, 3, 1)).toBeNull();
+    // Fields bay islets keep their own tile and get no foam box around them.
+    const bay = getZone("overworld");
+    expect(seaTileLayers(bay, 2, 14)).toBeNull();
+    expect(seaCellAt(bay, 2, 14)).toBe("water");
+    expect(seaTileLayers(bay, 4, 13)?.overlays.map((l) => l.key)).toContain("shore-foam-edge-n");
   });
 });

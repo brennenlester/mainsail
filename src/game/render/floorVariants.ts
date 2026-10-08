@@ -105,7 +105,7 @@ export function floorVariantKey(zoneId: ZoneId, x: number, y: number): string {
 // ---------------------------------------------------------------------------
 
 /** Zones drawn with shore pieces and the pier-over-water overlay. */
-export const SEA_ZONES: ReadonlySet<ZoneId> = new Set(["harbor", "archipelago"]);
+export const SEA_ZONES: ReadonlySet<ZoneId> = new Set(["harbor", "archipelago", "overworld"]);
 
 /**
  * Hashed ocean variant (same weights as floors). Deep and shallow sets share
@@ -124,11 +124,16 @@ export type SeaCell = "water" | "pier" | "land";
 export function seaCellAt(zone: Grid, x: number, y: number): SeaCell {
   if (x < 0 || y < 0 || x >= zone.width || y >= zone.height) return "water";
   const tile = zone.tiles[y]![x]!;
-  if (tile === TileType.Water) return "water";
+  // Islet tiles are water with a round sandbar painted in: no foam around them.
+  if (tile === TileType.Water || isIslet(zone, x, y)) return "water";
   if (tile === TileType.Dock || FLOOR_TILE_KEYS[zone.id]?.[`${x},${y}`]?.startsWith("tile-dock")) {
     return "pier";
   }
   return "land";
+}
+
+function isIslet(zone: Grid, x: number, y: number): boolean {
+  return FLOOR_TILE_KEYS[zone.id]?.[`${x},${y}`]?.endsWith("-islet") ?? false;
 }
 
 /** True when any of the 8 neighbours is not open water (shallow variants). */
@@ -190,6 +195,7 @@ export function seaTileLayers(
   y: number,
 ): { base?: string; overlays: SeaLayer[] } | null {
   if (!SEA_ZONES.has(zone.id)) return null;
+  if (isIslet(zone, x, y)) return null; // keeps its own islet tile
   const cell = seaCellAt(zone, x, y);
   const at = (dx: number, dy: number) => seaCellAt(zone, x + dx, y + dy);
   const beach = zone.id === "archipelago";

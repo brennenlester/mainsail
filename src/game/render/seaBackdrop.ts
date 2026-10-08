@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { IMAGINE_ATLAS_KEY, hasImagineFrame } from "./imagineAssets";
 import { TILE_HEIGHT, TILE_WIDTH } from "../isometric";
-import { effectsEnabled, prefersReducedMotion } from "./fx/fxSettings";
+import { EFFECTS_CHANGED_EVENT, effectsEnabled, prefersReducedMotion } from "./fx/fxSettings";
 
 /**
  * Open sea + Archipelago horizon (#412). Drawn in world space on the main
@@ -64,6 +64,7 @@ function seq(i: number, salt: number): number {
  * prefers reduced motion.
  */
 export function drawHorizon(scene: Phaser.Scene, originY: number, minX: number, maxX: number): void {
+  teardownHorizon();
   const left = minX - 1200;
   const width = maxX - minX + 2400;
   const horizonY = originY - HORIZON_OFFSET;
@@ -136,14 +137,37 @@ export function drawHorizon(scene: Phaser.Scene, originY: number, minX: number, 
     }
     x += 420 + seq(c, 12) * 600;
   }
-  if (effectsEnabled() && !prefersReducedMotion()) {
-    scene.tweens.add({
+  if (!prefersReducedMotion()) {
+    const tween = scene.tweens.add({
       targets: clouds,
       x: "+=90",
       duration: 26_000,
       ease: "Sine.easeInOut",
       yoyo: true,
       repeat: -1,
+      paused: !effectsEnabled(),
     });
+    // The Effects toggle starts / stops the drift live.
+    const onToggle = (e: Event) => {
+      if ((e as CustomEvent<boolean>).detail) tween.resume();
+      else tween.pause();
+    };
+    window.addEventListener(EFFECTS_CHANGED_EVENT, onToggle);
+    horizonTeardown = () => {
+      window.removeEventListener(EFFECTS_CHANGED_EVENT, onToggle);
+      tween.remove();
+    };
   }
+}
+
+let horizonTeardown: (() => void) | undefined;
+
+/**
+ * Stop the horizon's cloud drift and its Effects listener. Call before a zone
+ * reload: `children.removeAll(true)` drops display objects without destroying
+ * them, so the infinite tween would otherwise outlive the zone.
+ */
+export function teardownHorizon(): void {
+  horizonTeardown?.();
+  horizonTeardown = undefined;
 }

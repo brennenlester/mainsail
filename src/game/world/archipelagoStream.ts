@@ -26,12 +26,23 @@ export const ARCHIPELAGO_CAMERA_FIT_HEIGHT = 28;
 export const ARCHIPELAGO_CHUNK = 8;
 /** @deprecated Kept for callers; map is fully generated at reset. */
 export const ARCHIPELAGO_LOOKAHEAD = 12;
-/** Cull floor/wall sprites farther west than this distance behind the player. */
-export const ARCHIPELAGO_LOOKBEHIND = 32;
-/** Live visual columns east of the player (camera margin). */
-export const ARCHIPELAGO_VISUAL_AHEAD = 32;
-/** Live visual rows north/south of the player (> half of ARCHIPELAGO_CAMERA_FIT_HEIGHT). */
-export const ARCHIPELAGO_VISUAL_MARGIN_Y = 22;
+/**
+ * Minimum live columns west / east of the player. The window widens to the
+ * camera's half width (+2) on wide stages: see `archipelagoHalfViewCols`.
+ */
+export const ARCHIPELAGO_LOOKBEHIND = 24;
+export const ARCHIPELAGO_VISUAL_AHEAD = 24;
+/** Live visual rows north/south of the player (> half of ARCHIPELAGO_CAMERA_FIT_HEIGHT + bounds). */
+export const ARCHIPELAGO_VISUAL_MARGIN_Y = 18;
+
+/**
+ * Columns from the camera centre to the stage edge for a canvas aspect
+ * (width / height): the camera fits ARCHIPELAGO_CAMERA_FIT_HEIGHT rows plus
+ * the 160 px bounds margin vertically (IsometricScene.layoutPlayfield).
+ */
+export function archipelagoHalfViewCols(aspect: number): number {
+  return Math.ceil((aspect * (ARCHIPELAGO_CAMERA_FIT_HEIGHT * 48 + 160)) / 48 / 2);
+}
 /** West Harbor gate columns that stay drawn (x in [0, GATE)). */
 export const ARCHIPELAGO_GATE_COLUMNS = 3;
 
@@ -56,22 +67,19 @@ export function archipelagoVisualWindow(
   playerY: number,
   mapWidth = ARCHIPELAGO_MAX_WIDTH,
   mapHeight = ARCHIPELAGO_HEIGHT,
+  halfViewCols = 0,
 ): ArchipelagoVisualWindow {
   const px = Math.floor(playerX);
   const py = Math.floor(playerY);
-  let xMin = Math.max(
-    ARCHIPELAGO_GATE_COLUMNS,
-    px - ARCHIPELAGO_LOOKBEHIND,
-  );
-  let xMax = Math.min(
-    mapWidth,
-    Math.max(xMin, px + ARCHIPELAGO_VISUAL_AHEAD + 1),
-  );
+  const behind = Math.max(ARCHIPELAGO_LOOKBEHIND, halfViewCols + 2);
+  const ahead = Math.max(ARCHIPELAGO_VISUAL_AHEAD, halfViewCols + 2);
+  let xMin = Math.max(ARCHIPELAGO_GATE_COLUMNS, px - behind);
+  let xMax = Math.min(mapWidth, Math.max(xMin, px + ahead + 1));
   let yMin = Math.max(0, py - ARCHIPELAGO_VISUAL_MARGIN_Y);
   let yMax = Math.min(mapHeight, py + ARCHIPELAGO_VISUAL_MARGIN_Y + 1);
   // At a map edge the camera clamps and sees past the usual margin on the
   // other side: keep the full span there so islands never pop in (#412).
-  const spanX = ARCHIPELAGO_LOOKBEHIND + ARCHIPELAGO_VISUAL_AHEAD + 1;
+  const spanX = behind + ahead + 1;
   if (xMin === ARCHIPELAGO_GATE_COLUMNS) {
     xMax = Math.min(mapWidth, Math.max(xMax, xMin + spanX));
   } else if (xMax === mapWidth) {
@@ -409,6 +417,32 @@ function islandCoordsAt(
   const localX = tileX - island.x;
   const localY = tileY - island.y;
   return { index, localX, localY, island };
+}
+
+/**
+ * Cells drawn as one baked image per island (#412): the 9×9 Floor, the dock
+ * and the one-tile water ring that carries the shore pieces. Exclusive max.
+ */
+export function islandBakeRegion(island: IslandTemplate): {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+} {
+  return {
+    x0: Math.max(0, island.x - 1),
+    y0: Math.max(0, island.y - 1),
+    x1: Math.min(ARCHIPELAGO_MAX_WIDTH, island.x + ISLAND_WIDTH + 1),
+    y1: Math.min(ARCHIPELAGO_HEIGHT, island.embarkWater.y + 1),
+  };
+}
+
+/** True when (x, y) lies in some island's bake region (not drawn per tile). */
+export function inIslandBakeRegion(x: number, y: number): boolean {
+  return listIslandTemplates(ARCHIPELAGO_MAX_WIDTH).some((island) => {
+    const r = islandBakeRegion(island);
+    return x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1;
+  });
 }
 
 /** Pure: Floor/Dock occupancy for a cell under the island templates. */
