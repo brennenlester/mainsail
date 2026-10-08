@@ -173,9 +173,13 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
       { hp: 1.2, damage: 1.04 },
       { hp: 1.4, damage: 1.1 },
     ],
+    // #417: the rematch already brings a third creature (+50% foe HP pool) and
+    // +1 level, so a duo meets plain x1 scaling: sim pressure (turns x damage
+    // multiplier) is ~1.15-1.2x the first fight instead of ~1.35-1.5x, which
+    // had dropped a casual duo from 97% to 23-41% (storyBattleBalance.test.ts).
     rematchChallengerScale: [
       { hp: 1, damage: 1 },
-      { hp: 1.2, damage: 1.1 },
+      { hp: 1, damage: 1 },
       { hp: 1.4, damage: 1.15 },
     ],
     hearthWard: [
