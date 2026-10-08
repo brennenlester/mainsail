@@ -96,7 +96,7 @@ _Avoid_: Excising frozen content from the client as part of this refocus
 _Avoid_: Power + discovery twin headline; social-hosting-first pitch
 
 **More yours delivery**:
-Ship Growth unlock first as the ownership signal. Add a Bond meter only if ownership still doesn’t read after Growth unlock is in.
+Ship Growth unlock first as the ownership signal. Add a Bond meter only if ownership still doesn’t read after Growth unlock is in. (Done in order: Growth unlock shipped first; bond followed in the Wow Pass, #367.)
 _Avoid_: Building bond + growth systems in parallel up front
 
 **FTUE timing**:
