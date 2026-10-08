@@ -8,6 +8,7 @@ import {
   STRONG_HIT_DAMAGE,
 } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
+import type { MatchupResult } from "../creatures/folkloreTypes";
 import {
   getActiveCreatures,
   getEffectiveAttack,
@@ -24,15 +25,40 @@ import {
 } from "../render/displaySizes";
 import { bindOverlayPixelRatio, DESIGN_SIZE } from "../render/pixelRatio";
 import { ensurePlayerAnims } from "../render/playerAnims";
-import type { BattleCombatant, MoveDefinition } from "../creatures/types";
+import type {
+  BattleCombatant,
+  MoveDefinition,
+  MoveRole,
+} from "../creatures/types";
 import {
   applyDamage,
   calcDamage,
+  chooseEnemyIntent,
+  effectiveAccuracy,
+  executeMove,
+  formatMatchupBadge,
   formatMatchupHint,
+  getCooldown,
+  getMatchup,
   isFainted,
-  pickRandomMove,
-  resolveAttack,
+  previewFixedDamage,
+  primeOpeningCooldowns,
+  resolveFixedAttack,
+  wildBattleTuning,
+  type MoveResult,
 } from "../battle/battleLogic";
+import {
+  FINISHER_STATUS_BONUS,
+  GUARD_DAMAGE_TAKEN,
+  getBattleKit,
+  moveRole,
+} from "../battle/kits";
+import {
+  canApplyStatus,
+  formatStatusChip,
+  STATUS_DEFS,
+  tickStatuses,
+} from "../battle/statusEffects";
 import {
   formatHunterMatchupTeach,
   isHunterMatchupTeachActive,
@@ -71,6 +97,52 @@ import { setPartyEditLocked } from "../ui/partyPanel";
 
 type WandererPartnerData = WandererPartner;
 
+const ROLE_STYLE: Readonly<
+  Record<MoveRole, { letter: string; label: string; color: number; css: string }>
+> = {
+  attack: { letter: "A", label: "ATTACK", color: 0xe8d8a8, css: "#e8d8a8" },
+  guard: { letter: "G", label: "GUARD", color: 0x7ec8e8, css: "#7ec8e8" },
+  status: { letter: "S", label: "STATUS", color: 0xc49cff, css: "#c49cff" },
+  finisher: { letter: "F", label: "FINISHER", color: 0xff7a5c, css: "#ff7a5c" },
+};
+
+const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
+  hunter: "#1f7a2a",
+  neutral: "#7a2a1a",
+  resisted: "#8a6a3a",
+  immune: "#6a6a6a",
+};
+
+const INTENT_MIN_LEFT = 268;
+
+const HUD_FONT = "Source Sans 3, system-ui, sans-serif";
+const HP_BAR_WIDTH = 176;
+const HUD_PLATE_WIDTH = 236;
+
+type HpHud = {
+  name: Phaser.GameObjects.Text;
+  hp: Phaser.GameObjects.Text;
+  bar: Phaser.GameObjects.Rectangle;
+  chips: Phaser.GameObjects.Text[];
+  chipX: number;
+  chipY: number;
+};
+
+/** Intent shown for the enemy's next action (one turn ahead). */
+type WildIntent = {
+  move: MoveDefinition;
+  role: MoveRole;
+  /** Fixed sovereign pattern damage (before guard); undefined = rolled move. */
+  fixedDamage?: number;
+};
+
+/** Modal menus draw above the battle HUD plates. */
+function raiseOverlay(objects: Phaser.GameObjects.GameObject[]): void {
+  for (const object of objects) {
+    (object as unknown as Phaser.GameObjects.Components.Depth).setDepth(20);
+  }
+}
+
 export class BattleScene extends Phaser.Scene {
   private wildCreatureId!: string;
   private wild!: BattleCombatant;
@@ -79,12 +151,23 @@ export class BattleScene extends Phaser.Scene {
   /** Stable id for the active combatant; survives party UI reorders. */
   private partyInstanceId: string | null = null;
   private logText!: Phaser.GameObjects.Text;
-  private playerHpText!: Phaser.GameObjects.Text;
-  private wildHpText!: Phaser.GameObjects.Text;
+  private wildHud!: HpHud;
+  private playerHud!: HpHud;
   private wildSprite!: Phaser.GameObjects.Image;
   private playerSprite!: Phaser.GameObjects.Image;
-  private wildHpBar!: Phaser.GameObjects.Rectangle;
-  private playerHpBar!: Phaser.GameObjects.Rectangle;
+  private wildLevel = 1;
+  private intent: WildIntent | null = null;
+  private intentObjects: Phaser.GameObjects.GameObject[] = [];
+  /** First voluntary switch each battle costs no turn. */
+  private freeSwitchAvailable = true;
+  private rng: () => number = Math.random;
+  /** Story 2 spar: softer wild hits, no matchup-seeking intents. */
+  private tutorialSpar = false;
+  /** Per-battle statuses / cooldowns of benched party creatures, by instanceId. */
+  private benchState = new Map<
+    string,
+    Pick<BattleCombatant, "statuses" | "cooldowns">
+  >();
   private waitingForPlayer = true;
   private forcedSwitch = false;
   private switchMenuOpen = false;
@@ -93,7 +176,7 @@ export class BattleScene extends Phaser.Scene {
   private battleEnded = false;
   private godSparKillCheatBuffer = "";
   private tideSovereignTurnIndex = 0;
-  private actionButtons: Phaser.GameObjects.Text[] = [];
+  private actionButtons: Phaser.GameObjects.GameObject[] = [];
   private switchMenuObjects: Phaser.GameObjects.GameObject[] = [];
   private wandererFallbackObjects: Phaser.GameObjects.GameObject[] = [];
   /** Story 2 pre-move hunter tip; cleared after the first move selection. */
@@ -141,24 +224,32 @@ export class BattleScene extends Phaser.Scene {
     this.actionButtons = [];
     this.switchMenuObjects = [];
     this.wandererFallbackObjects = [];
+    this.intent = null;
+    this.intentObjects = [];
+    this.freeSwitchAvailable = true;
+    this.rng = Math.random;
+    this.tutorialSpar = isHunterMatchupTeachActive();
+    this.benchState = new Map();
 
     const wildDef = getCreatureDefinition(data.wildCreatureId);
     if (!wildDef.excludeFromCodex) {
       markCreatureDiscovered(data.wildCreatureId);
     }
     const wildLevel = getWildEffectiveLevel(data.wildCreatureId);
+    this.wildLevel = wildLevel;
     const wildMaxHp = scaledStat(wildDef.maxHp, wildLevel);
     const wildAttack = scaledStat(wildDef.attack, wildLevel);
-    this.wild = {
+    this.wild = primeOpeningCooldowns({
       name: wildDef.name,
       maxHp: wildMaxHp,
       currentHp: wildMaxHp,
       attack: wildAttack,
       defense: wildDef.defense,
       defenseDisabled: isGodCreature(data.wildCreatureId),
-      moves: wildDef.moves,
+      moves: getBattleKit(wildDef),
       folkloreType: wildDef.folkloreType,
-    };
+      damageScale: wildBattleTuning(this.tutorialSpar).damageScale,
+    });
 
     const actives = getActiveCreatures();
     const activeIndex = actives.findIndex((c) => c.currentHp > 0);
@@ -202,8 +293,11 @@ export class BattleScene extends Phaser.Scene {
 
   create(): void {
     setPartyEditLocked(true);
+    // Quest card sits over the top-right of the board; hide it during spars.
+    document.body.classList.add("battle-active");
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       setPartyEditLocked(false);
+      document.body.classList.remove("battle-active");
     });
     this.scene.bringToTop();
     bindOverlayPixelRatio(this);
@@ -216,18 +310,22 @@ export class BattleScene extends Phaser.Scene {
     const cx = DESIGN_SIZE / 2;
 
     this.add
-      .text(cx, 40, "Training Spar", {
+      .text(cx, 22, "Training Spar", {
         color: "#fff7d8",
         fontFamily: "system-ui, sans-serif",
-        fontSize: "22px",
+        fontSize: "18px",
+        fontStyle: "bold",
+        stroke: "#1a2430",
+        strokeThickness: 4,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(6);
 
     this.wildSprite = fitDisplay(
       this.add
         .image(
           cx + 116,
-          142,
+          150,
           ...resolveCreaturePoseTexture(
             this,
             getCreatureDefinition(this.wildCreatureId).spriteKey,
@@ -244,31 +342,27 @@ export class BattleScene extends Phaser.Scene {
     this.syncPlayerBattleFacing();
     this.syncPlayerPresenceTint();
 
-    this.wildHpText = this.add.text(cx + 18, 72, "", {
-      color: "#f0e6d2",
-      fontFamily: "Source Sans 3, sans-serif",
-      fontSize: "14px",
-    });
-    this.wildHpBar = this.add.rectangle(cx + 82, 96, 132, 8, 0x75b85a).setOrigin(0, 0.5);
+    // Opponent plate top-left, player plate mid-right (clear of both sprites).
+    this.wildHud = this.createHpHud(24, 48);
+    this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 222);
 
-    this.playerHpText = this.add.text(cx - 170, 186, "", {
-      color: "#f0e6d2",
-      fontFamily: "Source Sans 3, sans-serif",
-      fontSize: "14px",
-    });
-    this.playerHpBar = this.add.rectangle(cx - 170, 210, 132, 8, 0x79acc8).setOrigin(0, 0.5);
-
+    this.add
+      .rectangle(cx, 316, 580, 40, 0x101820, 0.78)
+      .setStrokeStyle(1, 0x6eb8a8, 0.6)
+      .setDepth(4);
     this.logText = this.add
-      .text(cx, 286, "", {
-        color: "#c8b8a0",
-        fontFamily: "system-ui, sans-serif",
+      .text(cx, 316, "", {
+        color: "#f4ecd8",
+        fontFamily: HUD_FONT,
         fontSize: "14px",
         align: "center",
-        wordWrap: { width: 380 },
+        wordWrap: { width: 560 },
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5)
+      .setDepth(5);
 
     this.refreshHp();
+    this.refreshIntent();
     // #336: SPAR_WILD_OPENING_TURNS 0 waits for the player's first strike.
     this.log(
       SPAR_WILD_OPENING_TURNS > 0
@@ -301,12 +395,14 @@ export class BattleScene extends Phaser.Scene {
     }
     const cx = DESIGN_SIZE / 2;
     this.matchupTeachText = this.add
-      .text(cx, 318, tip, {
+      .text(cx, 342, tip, {
         color: "#ffe6a8",
-        fontFamily: "system-ui, sans-serif",
+        backgroundColor: "#101820cc",
+        fontFamily: HUD_FONT,
         fontSize: "13px",
         align: "center",
-        wordWrap: { width: 380 },
+        padding: { x: 8, y: 3 },
+        wordWrap: { width: 540 },
       })
       .setOrigin(0.5, 0)
       .setDepth(5);
@@ -402,13 +498,13 @@ export class BattleScene extends Phaser.Scene {
   private combatantFromPartyIndex(index: number): BattleCombatant {
     const partyCreature = getActiveCreatures()[index];
     const def = getCreatureDefinition(partyCreature.definitionId);
-    // Normal kit 3–4 moves; shrine dual may be a one-time 5th slot.
-    const moves = [...def.moves];
+    // 4-slot role kit; shrine dual may be a one-time 5th slot.
+    const moves = getBattleKit(def);
     if (partyCreature.secondaryMove) {
       moves.push(partyCreature.secondaryMove);
     }
     const trait = partyCreature.trait;
-    return {
+    const combatant: BattleCombatant = {
       name: def.name,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
@@ -422,6 +518,25 @@ export class BattleScene extends Phaser.Scene {
           ? { moveId: trait.moveId, multiplier: trait.multiplier }
           : undefined,
     };
+    // Returning from the bench keeps its statuses and cooldowns (no second wind-up).
+    const benched = this.benchState.get(partyCreature.instanceId);
+    if (benched) {
+      combatant.statuses = benched.statuses;
+      combatant.cooldowns = benched.cooldowns;
+      return combatant;
+    }
+    return primeOpeningCooldowns(combatant);
+  }
+
+  /** Remember the outgoing creature's battle state before a switch. */
+  private benchActivePlayer(): void {
+    if (!this.partyInstanceId) {
+      return;
+    }
+    this.benchState.set(this.partyInstanceId, {
+      statuses: this.player.statuses ?? [],
+      cooldowns: this.player.cooldowns ?? {},
+    });
   }
 
   private syncActivePartyHp(): void {
@@ -456,19 +571,29 @@ export class BattleScene extends Phaser.Scene {
     this.hideWandererFallbackMenu();
 
     const cx = DESIGN_SIZE / 2;
-    // Leave room for Story 2 hunter tip above the move list.
-    let buttonY = this.matchupTeachText ? 368 : 300;
+    // 2-column move grid below the log (and the Story 2 hunter tip).
+    const top = 410;
+    const colOffset = 146;
+    const rowStep = 54;
+    let buttonY = top;
 
     if (!this.forcedSwitch) {
-      for (const move of this.player.moves) {
-        this.actionButtons.push(this.addMoveButton(cx, buttonY, move));
-        buttonY += 38;
-      }
+      this.player.moves.forEach((move, i) => {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const x = this.player.moves.length === 1 ? cx : cx + (col === 0 ? -colOffset : colOffset);
+        this.actionButtons.push(...this.addMoveButton(x, top + row * rowStep, move));
+      });
+      buttonY = top + Math.ceil(this.player.moves.length / 2) * rowStep;
     }
 
     if (this.hasSwitchablePartyMembers()) {
+      const label =
+        this.freeSwitchAvailable && !this.forcedSwitch
+          ? "Switch (free this battle)"
+          : "Switch";
       this.actionButtons.push(
-        this.addActionButton(cx, buttonY, "Switch", () => this.showSwitchMenu()),
+        this.addActionButton(cx, buttonY - 4, label, () => this.showSwitchMenu()),
       );
     }
   }
@@ -489,6 +614,7 @@ export class BattleScene extends Phaser.Scene {
         padding: { x: 18, y: 9 },
       })
       .setOrigin(0.5)
+      .setDepth(6)
       .setInteractive({ useHandCursor: true });
 
     btn.on("pointerover", () => btn.setAlpha(0.88));
@@ -497,34 +623,108 @@ export class BattleScene extends Phaser.Scene {
     return btn;
   }
 
+  /** Two-line move card: name + effect on top, role · type · matchup · cooldown below. */
   private addMoveButton(
     x: number,
     y: number,
     move: MoveDefinition,
-  ): Phaser.GameObjects.Text {
-    const damage = calcDamage(this.player, move, this.wild);
-    const label = `${move.name} [${move.type}] −${damage}`;
-    const btn = this.add
-      .text(x, y, label, {
-        color: "#1a3040",
-        backgroundColor: "#dff4ec",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
+  ): Phaser.GameObjects.GameObject[] {
+    const role = moveRole(move);
+    const style = ROLE_STYLE[role];
+    const cooldown = getCooldown(this.player, move.id);
+    const ready = cooldown <= 0;
+    const width = 280;
+    const height = 46;
+
+    const bg = this.add
+      .rectangle(x, y, width, height, ready ? 0xf3fbf6 : 0xb9c2c6, 1)
+      .setStrokeStyle(2, ready ? style.color : 0x8a959a)
+      .setDepth(6);
+    const stripe = this.add
+      .rectangle(x - width / 2 + 3, y, 6, height - 4, ready ? style.color : 0x8a959a)
+      .setDepth(7);
+
+    const matchup = move.power > 0 ? getMatchup(move, this.wild) : "neutral";
+    const effect = this.formatMoveEffect(move);
+    const title = this.add
+      .text(x - width / 2 + 14, y - 11, move.name, {
+        color: ready ? "#1a3040" : "#5a6468",
+        fontFamily: HUD_FONT,
+        fontSize: "15px",
+        fontStyle: "bold",
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(7);
+    const effectText = this.add
+      .text(x + width / 2 - 10, y - 11, effect, {
+        color: ready ? MATCHUP_COLOR[matchup] : "#5a6468",
+        fontFamily: HUD_FONT,
         fontSize: "14px",
         fontStyle: "bold",
-        padding: { x: 14, y: 7 },
       })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+      .setOrigin(1, 0.5)
+      .setDepth(7);
 
-    btn.on("pointerover", () => btn.setAlpha(0.88));
-    btn.on("pointerout", () => btn.setAlpha(1));
-    btn.on("pointerdown", () => {
-      if (!this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
-        return;
+    const details = [style.label, move.type];
+    if (move.power > 0) {
+      const accuracy = effectiveAccuracy(this.player, move);
+      if (accuracy < 100) {
+        details.push(`${accuracy}%`);
       }
-      this.playerTurn(move);
-    });
-    return btn;
+    }
+    if (move.inflicts) {
+      details.push(`→ ${STATUS_DEFS[move.inflicts].label}`);
+    }
+    if (role === "finisher") {
+      details.push(`×${FINISHER_STATUS_BONUS} vs status`);
+    }
+    if (!ready) {
+      details.push(`ready in ${cooldown}`);
+    }
+    const sub = this.add
+      .text(x - width / 2 + 14, y + 11, details.join(" · "), {
+        color: ready ? "#4a6070" : "#5a6468",
+        fontFamily: HUD_FONT,
+        fontSize: "11px",
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(7);
+
+    if (ready) {
+      bg.setInteractive({ useHandCursor: true });
+      bg.on("pointerover", () => bg.setFillStyle(0xdff4ec));
+      bg.on("pointerout", () => bg.setFillStyle(0xf3fbf6));
+      bg.on("pointerdown", () => {
+        if (!this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
+          return;
+        }
+        this.playerTurn(move);
+      });
+    }
+    return [bg, stripe, title, effectText, sub];
+  }
+
+  /** Top-right of a move card: "−12", "Guard +4 HP", "immune". */
+  private formatMoveEffect(move: MoveDefinition): string {
+    if (moveRole(move) === "guard") {
+      const heal = move.heal
+        ? Math.min(
+            this.player.maxHp - this.player.currentHp,
+            Math.max(1, Math.round(this.player.maxHp * move.heal)),
+          )
+        : 0;
+      const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
+      return heal > 0 ? `−${pct}% hit · +${heal} HP` : `−${pct}% next hit`;
+    }
+    if (move.power <= 0) {
+      return "";
+    }
+    const matchup = getMatchup(move, this.wild);
+    if (matchup === "immune") {
+      return "immune";
+    }
+    const badge = formatMatchupBadge(matchup);
+    return `−${calcDamage(this.player, move, this.wild)}${badge ? `  ${badge}` : ""}`;
   }
 
   private showSwitchMenu(): void {
@@ -603,6 +803,7 @@ export class BattleScene extends Phaser.Scene {
       this.hideSwitchMenu();
     });
     this.switchMenuObjects.push(cancel);
+    raiseOverlay(this.switchMenuObjects);
   }
 
   private hideSwitchMenu(): void {
@@ -683,6 +884,7 @@ export class BattleScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     retreat.on("pointerdown", () => this.endBattle(false));
     this.wandererFallbackObjects.push(retreat);
+    raiseOverlay(this.wandererFallbackObjects);
   }
 
   private hideWandererFallbackMenu(): void {
@@ -717,6 +919,7 @@ export class BattleScene extends Phaser.Scene {
       this.showHunterMatchupTeachIfNeeded();
     }
     this.buildActionButtons();
+    this.refreshIntent();
     this.waitingForPlayer = true;
   }
 
@@ -732,6 +935,7 @@ export class BattleScene extends Phaser.Scene {
 
     const voluntarySwitch = !this.forcedSwitch;
     this.syncActivePartyHp();
+    this.benchActivePlayer();
     this.partyInstanceIndex = index;
     this.partyInstanceId = creature.instanceId;
     this.player = this.combatantFromPartyIndex(index);
@@ -742,16 +946,31 @@ export class BattleScene extends Phaser.Scene {
     fitDisplay(this.playerSprite, this.getPlayerBattleDisplay());
     this.syncPlayerBattleFacing();
     this.syncPlayerPresenceTint();
-    this.log(`Go, ${this.player.name}!`);
+    const freeSwitch = voluntarySwitch && this.freeSwitchAvailable;
+    if (freeSwitch) {
+      this.freeSwitchAvailable = false;
+    }
+    this.log(
+      freeSwitch
+        ? `Go, ${this.player.name}! (free switch — no turn spent)`
+        : `Go, ${this.player.name}!`,
+    );
     if (this.matchupTeachText) {
       this.showHunterMatchupTeachIfNeeded();
     }
     this.buildActionButtons();
 
-    if (voluntarySwitch) {
+    if (voluntarySwitch && !freeSwitch) {
+      // The telegraphed move still lands — on the new creature.
+      this.renderIntent();
       this.waitingForPlayer = false;
       this.time.delayedCall(500, () => this.wildTurn());
+    } else if (freeSwitch) {
+      this.renderIntent();
+      this.waitingForPlayer = true;
     } else {
+      // Replacement after a faint: the foe re-reads the new matchup.
+      this.refreshIntent();
       this.waitingForPlayer = true;
     }
   }
@@ -760,107 +979,356 @@ export class BattleScene extends Phaser.Scene {
     playMoveTypeSfx(this, move.type);
     this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
-    const outcome = resolveAttack(this.player, move, this.wild);
-    if (outcome.kind === "miss") {
-      this.log(`${this.player.name} used ${move.name} — missed!`);
-    } else if (outcome.kind === "immune") {
-      this.log(
-        `${this.player.name} used ${move.name} — it had no effect${formatMatchupHint(outcome.matchup)}`,
-      );
-      this.showDamageCounter("wild", 0);
-    } else {
-      applyDamage(this.wild, outcome.damage);
-      this.showDamageCounter("wild", outcome.damage);
-      this.flashCombatant("wild", outcome.damage);
-      this.log(
-        `${this.player.name} used ${move.name}.${formatMatchupHint(outcome.matchup)}`,
-      );
-    }
-    this.refreshHp();
-
+    const result = executeMove(this.player, move, this.wild, this.rng);
+    let message = this.describeMove(this.player, this.wild, result, "wild");
     if (isFainted(this.wild)) {
+      this.refreshHp();
+      this.log(message);
       this.endBattle(true);
       return;
     }
+    message += this.tickEndOfTurn(this.player, "player");
+    this.log(message);
+    this.refreshHp();
+    this.buildActionButtons();
+    this.renderIntent();
 
-    this.time.delayedCall(500, () => this.wildTurn());
+    if (isFainted(this.player)) {
+      this.handlePlayerFainted();
+      return;
+    }
+
+    this.time.delayedCall(700, () => this.wildTurn());
   }
 
   private wildTurn(): void {
     if (this.battleEnded) {
       return;
     }
-    if (this.wildCreatureId === TIDE_SOVEREIGN_ID) {
-      const attack = getTideSovereignAttack(this.tideSovereignTurnIndex);
+    const intent = this.intent ?? this.pickIntent();
+    let message: string;
+    if (intent.fixedDamage !== undefined) {
+      // Sovereign pattern: fixed damage, still bent by Dazed / Rooted / Guard.
       this.tideSovereignTurnIndex += 1;
-      applyDamage(this.player, attack.damage);
-      this.showDamageCounter("player", attack.damage);
-      this.flashCombatant("player", attack.damage);
-      this.log(`${this.wild.name} used ${attack.move.name}.`);
-    } else if (this.wildCreatureId === CAIRN_SOVEREIGN_ID) {
-      const attack = getCairnSovereignAttack(this.tideSovereignTurnIndex);
-      this.tideSovereignTurnIndex += 1;
-      applyDamage(this.player, attack.damage);
-      this.showDamageCounter("player", attack.damage);
-      this.flashCombatant("player", attack.damage);
-      this.log(`${this.wild.name} used ${attack.move.name}.`);
-    } else {
-      const move = pickRandomMove(this.wild);
-      const outcome = resolveAttack(this.wild, move, this.player);
+      const guarded = this.player.guarding === true;
+      const outcome = resolveFixedAttack(
+        this.wild,
+        intent.fixedDamage,
+        this.player,
+        this.rng,
+      );
       if (outcome.kind === "miss") {
-        this.log(`${this.wild.name} used ${move.name} — missed!`);
-      } else if (outcome.kind === "immune") {
-        this.log(
-          `${this.wild.name} used ${move.name} — it had no effect${formatMatchupHint(outcome.matchup)}`,
-        );
-        this.showDamageCounter("player", 0);
+        message = `${this.wild.name} used ${intent.move.name} — missed (Dazed)!`;
       } else {
         applyDamage(this.player, outcome.damage);
-        this.showDamageCounter("player", outcome.damage);
+        this.showFloat("player", `−${outcome.damage}`, "#ffaa44");
         this.flashCombatant("player", outcome.damage);
-        this.log(
-          `${this.wild.name} used ${move.name}.${formatMatchupHint(outcome.matchup)}`,
-        );
+        message = `${this.wild.name} used ${intent.move.name}${guarded ? " — guarded!" : "."}`;
       }
+    } else {
+      const result = executeMove(this.wild, intent.move, this.player, this.rng);
+      message = this.describeMove(this.wild, this.player, result, "player");
     }
+    // A guard lasts until the guarding creature's next turn.
+    this.player.guarding = false;
+    message += this.tickEndOfTurn(this.wild, "wild");
+    this.log(message);
     this.refreshHp();
 
+    if (isFainted(this.wild)) {
+      this.endBattle(true);
+      return;
+    }
     if (isFainted(this.player)) {
-      playFaintSfx(this);
-      this.syncActivePartyHp();
-      if (this.hasSwitchablePartyMembers()) {
-        this.forcedSwitch = true;
-        this.waitingForPlayer = true;
-        this.log(`${this.player.name} fainted! Choose a replacement.`);
-        this.buildActionButtons();
-        this.showSwitchMenu();
-        return;
-      }
-      if (!this.usingArmedWanderer && hasCraftedWeapon()) {
-        this.forcedSwitch = true;
-        this.waitingForPlayer = true;
-        this.log(`${this.player.name} fainted!`);
-        this.buildActionButtons();
-        this.showWandererFallbackMenu();
-        return;
-      }
-      this.endBattle(false);
+      this.handlePlayerFainted();
       return;
     }
 
+    this.refreshIntent();
+    this.buildActionButtons();
     this.waitingForPlayer = true;
   }
 
+  private handlePlayerFainted(): void {
+    playFaintSfx(this);
+    this.syncActivePartyHp();
+    this.clearIntent();
+    if (this.hasSwitchablePartyMembers()) {
+      this.forcedSwitch = true;
+      this.waitingForPlayer = true;
+      this.log(`${this.player.name} fainted! Choose a replacement.`);
+      this.buildActionButtons();
+      this.showSwitchMenu();
+      return;
+    }
+    if (!this.usingArmedWanderer && hasCraftedWeapon()) {
+      this.forcedSwitch = true;
+      this.waitingForPlayer = true;
+      this.log(`${this.player.name} fainted!`);
+      this.buildActionButtons();
+      this.showWandererFallbackMenu();
+      return;
+    }
+    this.endBattle(false);
+  }
+
+  /** One log sentence for a resolved move; also spawns hit / heal floats. */
+  private describeMove(
+    user: BattleCombatant,
+    target: BattleCombatant,
+    result: MoveResult,
+    targetSide: "wild" | "player",
+  ): string {
+    const userSide = targetSide === "wild" ? "player" : "wild";
+    let line = `${user.name} used ${result.move.name}`;
+    const attack = result.attack;
+    if (result.guarded) {
+      line += result.healed > 0 ? ` — guarding, +${result.healed} HP.` : " — guarding.";
+      if (result.healed > 0) {
+        this.showFloat(userSide, `+${result.healed}`, "#8fe88a");
+      }
+    } else if (attack?.kind === "miss") {
+      line += " — missed!";
+    } else if (attack?.kind === "immune") {
+      line += ` — it had no effect${formatMatchupHint(attack.matchup)}`;
+      this.showFloat(targetSide, "−0", targetSide === "wild" ? "#ff8866" : "#ffaa44");
+    } else if (attack?.kind === "hit") {
+      line += `.${formatMatchupHint(attack.matchup)}`;
+      this.showFloat(
+        targetSide,
+        `−${attack.damage}`,
+        targetSide === "wild" ? "#ff8866" : "#ffaa44",
+      );
+      this.flashCombatant(targetSide, attack.damage);
+    } else {
+      line += ".";
+    }
+
+    const status = result.status;
+    if (status) {
+      const label = STATUS_DEFS[status.id].label;
+      if (status.kind === "applied") {
+        line +=
+          status.id === "burn"
+            ? ` ${target.name} is burning!`
+            : ` ${target.name} is ${label}!`;
+      } else if (status.kind === "refreshed") {
+        line += ` ${label} renewed.`;
+      } else if (status.kind === "doused") {
+        line += ` ${target.name} is too soaked to burn.`;
+      } else {
+        line += ` ${target.name} shrugs off ${label}.`;
+      }
+    }
+    return line;
+  }
+
+  /** Burn ticks + status countdown at the end of `who`'s own turn. */
+  private tickEndOfTurn(who: BattleCombatant, side: "wild" | "player"): string {
+    const tick = tickStatuses(who);
+    let line = "";
+    if (tick.burnDamage > 0) {
+      this.showFloat(side, `−${tick.burnDamage}`, "#ff8a4c");
+      line += ` ${who.name} burns for ${tick.burnDamage}.`;
+    }
+    for (const id of tick.expired) {
+      line += ` ${STATUS_DEFS[id].label} wore off.`;
+    }
+    return line;
+  }
+
+  // --- Enemy intent (telegraphed one turn ahead) ---------------------------
+
+  private pickIntent(): WildIntent {
+    const pattern =
+      this.wildCreatureId === TIDE_SOVEREIGN_ID
+        ? getTideSovereignAttack(this.tideSovereignTurnIndex)
+        : this.wildCreatureId === CAIRN_SOVEREIGN_ID
+          ? getCairnSovereignAttack(this.tideSovereignTurnIndex)
+          : null;
+    if (pattern) {
+      // Sovereign crown blows (20+) read as finishers so players learn to guard them.
+      return {
+        move: pattern.move,
+        role: pattern.damage >= 20 ? "finisher" : "attack",
+        fixedDamage: pattern.damage,
+      };
+    }
+    const { move } = chooseEnemyIntent(this.wild, this.player, this.rng, {
+      matchupAware: wildBattleTuning(this.tutorialSpar).matchupAware,
+    });
+    return { move, role: moveRole(move) };
+  }
+
+  private refreshIntent(): void {
+    this.intent = this.pickIntent();
+    this.renderIntent();
+  }
+
+  private clearIntent(): void {
+    for (const object of this.intentObjects) {
+      object.destroy();
+    }
+    this.intentObjects = [];
+  }
+
+  /** Plate above the foe: role badge + "Next: Ram −14 ×1.5". */
+  private renderIntent(): void {
+    this.clearIntent();
+    if (!this.intent || this.battleEnded) {
+      return;
+    }
+    const { move, role, fixedDamage } = this.intent;
+    const style = ROLE_STYLE[role];
+    let detail = "";
+    if (role === "guard") {
+      const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
+      detail = `blocks ${pct}% of your next hit`;
+    } else {
+      const matchup = getMatchup(move, this.player);
+      const damage =
+        fixedDamage !== undefined
+          ? previewFixedDamage(this.wild, fixedDamage, this.player)
+          : matchup === "immune"
+            ? 0
+            : calcDamage(this.wild, move, this.player);
+      const badge = fixedDamage === undefined ? formatMatchupBadge(matchup) : "";
+      detail = `−${damage}${badge ? ` ${badge}` : ""}`;
+      if (move.inflicts && canApplyStatus(this.player, move.inflicts)) {
+        detail += ` → ${STATUS_DEFS[move.inflicts].label}`;
+      }
+    }
+
+    const y = 62;
+    const badge = this.add
+      .text(0, y, style.label, {
+        color: "#101820",
+        backgroundColor: style.css,
+        fontFamily: HUD_FONT,
+        fontSize: "11px",
+        fontStyle: "bold",
+        padding: { x: 5, y: 2 },
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(8);
+    const text = this.add
+      .text(0, y, `Next: ${move.name}  ${detail}`, {
+        color: "#fff7e0",
+        fontFamily: HUD_FONT,
+        fontSize: "13px",
+        fontStyle: "bold",
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(8);
+    const gap = 6;
+    const contentWidth = badge.width + gap + text.width;
+    // Keep clear of the foe's HP plate (ends at x≈260) and the right edge.
+    const minCenter = INTENT_MIN_LEFT + contentWidth / 2 + 8;
+    const centerX = Phaser.Math.Clamp(
+      this.wildSprite.x,
+      minCenter,
+      Math.max(minCenter, DESIGN_SIZE - contentWidth / 2 - 16),
+    );
+    const left = centerX - contentWidth / 2;
+    badge.setX(left);
+    text.setX(left + badge.width + gap);
+    const plate = this.add
+      .rectangle(centerX, y, contentWidth + 16, 26, 0x101820, 0.86)
+      .setStrokeStyle(role === "finisher" ? 2 : 1, style.color, 0.9)
+      .setDepth(7);
+    this.intentObjects.push(plate, badge, text);
+
+    if (role === "finisher") {
+      this.tweens.add({
+        targets: plate,
+        alpha: { from: 1, to: 0.55 },
+        duration: 520,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+  }
+
+  // --- HP / status plates ---------------------------------------------------
+
+  private createHpHud(x: number, y: number): HpHud {
+    this.add
+      .rectangle(x, y, HUD_PLATE_WIDTH, 66, 0x101820, 0.82)
+      .setOrigin(0)
+      .setStrokeStyle(1, 0x6eb8a8, 0.7)
+      .setDepth(4);
+    const name = this.add
+      .text(x + 10, y + 6, "", {
+        color: "#fff7e0",
+        fontFamily: HUD_FONT,
+        fontSize: "14px",
+        fontStyle: "bold",
+      })
+      .setDepth(5);
+    this.add
+      .rectangle(x + 10, y + 34, HP_BAR_WIDTH, 10, 0x2a343c, 1)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x000000, 0.6)
+      .setDepth(5);
+    const bar = this.add
+      .rectangle(x + 10, y + 34, HP_BAR_WIDTH, 10, 0x6cd86a, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(6);
+    const hp = this.add
+      .text(x + HUD_PLATE_WIDTH - 10, y + 34, "", {
+        color: "#f0e6d2",
+        fontFamily: HUD_FONT,
+        fontSize: "12px",
+        fontStyle: "bold",
+      })
+      .setOrigin(1, 0.5)
+      .setDepth(5);
+    return { name, hp, bar, chips: [], chipX: x + 10, chipY: y + 54 };
+  }
+
+  private syncHpHud(hud: HpHud, who: BattleCombatant, level: number | null): void {
+    hud.name.setText(
+      `${who.name}${level !== null ? `  Lv ${level}` : ""}  ·  ${who.folkloreType}`,
+    );
+    const ratio = Math.max(0, who.currentHp / who.maxHp);
+    hud.bar.width = HP_BAR_WIDTH * ratio;
+    hud.bar.setFillStyle(ratio > 0.5 ? 0x6cd86a : ratio > 0.25 ? 0xf2c94c : 0xeb5757);
+    hud.hp.setText(`${who.currentHp}/${who.maxHp}`);
+
+    for (const chip of hud.chips) {
+      chip.destroy();
+    }
+    hud.chips = [];
+    let x = hud.chipX;
+    const chips: { text: string; color: string }[] = (who.statuses ?? [])
+      .filter((s) => s.turns > 0)
+      .map((s) => ({ text: formatStatusChip(s.id, s.turns), color: STATUS_DEFS[s.id].color }));
+    if (who.guarding) {
+      chips.push({ text: "GUARD", color: ROLE_STYLE.guard.css });
+    }
+    for (const chip of chips) {
+      const t = this.add
+        .text(x, hud.chipY, chip.text, {
+          color: "#101820",
+          backgroundColor: chip.color,
+          fontFamily: HUD_FONT,
+          fontSize: "10px",
+          fontStyle: "bold",
+          padding: { x: 4, y: 1 },
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(6);
+      hud.chips.push(t);
+      x += t.width + 4;
+    }
+  }
+
   private refreshHp(): void {
-    this.wildHpText.setText(
-      `${this.wild.name}: ${this.wild.currentHp}/${this.wild.maxHp} HP`,
-    );
-    this.playerHpText.setText(
-      `${this.player.name}: ${this.player.currentHp}/${this.player.maxHp} HP`,
-    );
-    this.wildHpBar.width = 132 * Math.max(0, this.wild.currentHp / this.wild.maxHp);
-    this.playerHpBar.width =
-      132 * Math.max(0, this.player.currentHp / this.player.maxHp);
+    const partyIndex = this.resolvePartyIndex();
+    const playerLevel =
+      partyIndex >= 0 ? getActiveCreatures()[partyIndex]?.level ?? null : null;
+    this.syncHpHud(this.wildHud, this.wild, this.wildLevel);
+    this.syncHpHud(this.playerHud, this.player, playerLevel);
   }
 
   private flashCombatant(target: "wild" | "player", damage: number): void {
@@ -880,14 +1348,11 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(shakeMs, () => sprite.clearTint());
   }
 
-  private showDamageCounter(
-    target: "wild" | "player",
-    damage: number,
-  ): void {
-    const anchor = target === "wild" ? this.wildHpText : this.playerHpText;
-    const color = target === "wild" ? "#ff8866" : "#ffaa44";
+  /** Floating number over a combatant ("−12", "+4"). */
+  private showFloat(target: "wild" | "player", label: string, color: string): void {
+    const sprite = target === "wild" ? this.wildSprite : this.playerSprite;
     const counter = this.add
-      .text(anchor.x + anchor.width + 8, anchor.y - 4, `−${damage}`, {
+      .text(sprite.x + 34, sprite.y - 48, label, {
         color,
         fontFamily: "system-ui, sans-serif",
         fontSize: "22px",
@@ -919,6 +1384,7 @@ export class BattleScene extends Phaser.Scene {
     }
     this.battleEnded = true;
     this.waitingForPlayer = false;
+    this.clearIntent();
     this.clearHunterMatchupTeach();
     this.hideSwitchMenu();
     this.hideWandererFallbackMenu();

@@ -1,7 +1,12 @@
 import Phaser from "phaser";
 import { playEncounterSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
-import { addToParty, hasCreature } from "../creatures/party";
+import {
+  addToParty,
+  getActiveCreatures,
+  hasCreature,
+} from "../creatures/party";
+import { formatEncounterMatchup } from "../battle/battleLogic";
 import { ensureCreatureTextures } from "../creatures/sprites";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
 import {
@@ -75,6 +80,7 @@ export class EncounterScene extends Phaser.Scene {
   private typeLineWidth = 0;
   private portrait?: Phaser.GameObjects.Image;
   private silhouette?: Phaser.GameObjects.Rectangle;
+  private matchupText?: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: "EncounterScene" });
@@ -90,6 +96,7 @@ export class EncounterScene extends Phaser.Scene {
     this.typeText = undefined;
     this.portrait = undefined;
     this.silhouette = undefined;
+    this.matchupText = undefined;
   }
 
   create(): void {
@@ -182,6 +189,8 @@ export class EncounterScene extends Phaser.Scene {
         },
       );
     }
+
+    this.showMatchupLine();
 
     const buttonY = panelY + 162;
     const showSpar = shouldShowSparVerb(profile, this.creatureId);
@@ -305,6 +314,27 @@ export class EncounterScene extends Phaser.Scene {
         },
       );
     }
+    this.showMatchupLine();
+  }
+
+  /** "Mossling (woodland): hunts it ×1.5" — lead companion vs this wild. */
+  private showMatchupLine(): void {
+    if (!this.revealed || this.matchupText) {
+      return;
+    }
+    const lead = getActiveCreatures().find((c) => c.currentHp > 0);
+    if (!lead) {
+      return;
+    }
+    const leadDef = getCreatureDefinition(lead.definitionId);
+    const wildDef = getCreatureDefinition(this.creatureId);
+    this.matchupText = this.addPanelText(
+      this.typeLineX,
+      this.typeLineY + 22,
+      formatEncounterMatchup(leadDef.name, leadDef.folkloreType, wildDef.folkloreType),
+      this.typeLineWidth,
+      { color: "#7a4a20", fontSize: "13px", fontStyle: "bold" },
+    );
   }
 
   private addPanelText(

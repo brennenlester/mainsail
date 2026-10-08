@@ -15,6 +15,8 @@ export const FOLKLORE_TYPES = [
 export type FolkloreType = (typeof FOLKLORE_TYPES)[number];
 
 export const HUNTER_MULTIPLIER = 1.5;
+/** A hunter shrugs off its prey: moves of the type a defender hunts are resisted. */
+export const RESIST_MULTIPLIER = 0.85;
 
 /** One clear hunter per type. */
 export const HUNTER_CHART: Readonly<Record<FolkloreType, FolkloreType>> = {
@@ -54,7 +56,7 @@ export function getImmunityTo(defenderType: FolkloreType): FolkloreType | undefi
   return IMMUNITY_CHART[defenderType];
 }
 
-export type MatchupResult = "neutral" | "hunter" | "immune";
+export type MatchupResult = "neutral" | "hunter" | "resisted" | "immune";
 
 export function resolveMatchup(
   moveType: FolkloreType,
@@ -68,5 +70,21 @@ export function resolveMatchup(
   if (HUNTER_CHART[moveType] === defenderType) {
     return "hunter";
   }
+  if (HUNTER_CHART[defenderType] === moveType) {
+    return "resisted";
+  }
   return "neutral";
+}
+
+export function matchupMultiplier(matchup: MatchupResult): number {
+  switch (matchup) {
+    case "hunter":
+      return HUNTER_MULTIPLIER;
+    case "resisted":
+      return RESIST_MULTIPLIER;
+    case "immune":
+      return 0;
+    default:
+      return 1;
+  }
 }

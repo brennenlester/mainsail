@@ -1,5 +1,9 @@
 import type { CreatureDefinition } from "./types";
 
+// Battle kits (#364): species with all four roles (attack / guard / status /
+// finisher) below are authored; the rest get a derived kit via
+// battle/kits.ts getBattleKit().
+
 export const CREATURES: CreatureDefinition[] = [
   {
     id: "mossling",
@@ -12,8 +16,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0x5a9a4a,
     early: true,
     moves: [
-      { id: "tangle", name: "Tangle", power: 5, type: "woodland", accuracy: 100 },
-      { id: "spore", name: "Spore", power: 8, type: "woodland", accuracy: 90 },
+      { id: "tangle", name: "Tangle", power: 6, type: "woodland", accuracy: 100, role: "attack", cooldown: 0 },
+      { id: "bark-hide", name: "Bark Hide", power: 0, type: "woodland", accuracy: 100, role: "guard", cooldown: 2, heal: 0.15 },
+      { id: "snare", name: "Snare Vine", power: 3, type: "woodland", accuracy: 95, role: "status", cooldown: 2, inflicts: "rooted" },
+      { id: "spore", name: "Spore Burst", power: 11, type: "woodland", accuracy: 85, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -27,9 +33,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0xe87830,
     early: true,
     moves: [
-      { id: "flare", name: "Flare", power: 7, type: "hearth", accuracy: 95 },
-      { id: "kindle", name: "Kindle", power: 10, type: "hearth", accuracy: 80 },
-      { id: "glow", name: "Glow", power: 4, type: "hearth", accuracy: 100 },
+      { id: "flare", name: "Flare", power: 7, type: "hearth", accuracy: 95, role: "attack", cooldown: 0 },
+      { id: "glow", name: "Glow", power: 0, type: "hearth", accuracy: 100, role: "guard", cooldown: 2, heal: 0.15 },
+      { id: "kindle", name: "Kindle", power: 4, type: "hearth", accuracy: 90, role: "status", cooldown: 2, inflicts: "burn" },
+      { id: "flashfire", name: "Flashfire", power: 12, type: "hearth", accuracy: 80, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -43,8 +50,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0x4a8ac8,
     early: true,
     moves: [
-      { id: "ripple", name: "Ripple", power: 6, type: "water", accuracy: 100 },
-      { id: "current", name: "Current", power: 9, type: "water", accuracy: 85 },
+      { id: "ripple", name: "Ripple", power: 6, type: "water", accuracy: 100, role: "attack", cooldown: 0 },
+      { id: "still-pool", name: "Still Pool", power: 0, type: "water", accuracy: 100, role: "guard", cooldown: 2, heal: 0.2 },
+      { id: "splash", name: "Splash", power: 3, type: "water", accuracy: 95, role: "status", cooldown: 2, inflicts: "soaked" },
+      { id: "current", name: "Current", power: 11, type: "water", accuracy: 85, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -58,8 +67,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0x7a7a82,
     early: false,
     moves: [
-      { id: "bark", name: "Bark", power: 5, type: "earth", accuracy: 100 },
-      { id: "ram", name: "Ram", power: 11, type: "earth", accuracy: 75 },
+      { id: "bark", name: "Bark", power: 6, type: "earth", accuracy: 100, role: "attack", cooldown: 0 },
+      { id: "hunker", name: "Hunker", power: 0, type: "earth", accuracy: 100, role: "guard", cooldown: 2, heal: 0.15 },
+      { id: "pin", name: "Pin Down", power: 4, type: "earth", accuracy: 90, role: "status", cooldown: 2, inflicts: "rooted" },
+      { id: "ram", name: "Ram", power: 13, type: "earth", accuracy: 75, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -89,8 +100,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0x6a5030,
     early: false,
     moves: [
-      { id: "stomp", name: "Stomp", power: 8, type: "woodland", accuracy: 90 },
-      { id: "bloom", name: "Bloom", power: 6, type: "woodland", accuracy: 100 },
+      { id: "stomp", name: "Stomp", power: 7, type: "woodland", accuracy: 95, role: "attack", cooldown: 0 },
+      { id: "bloom", name: "Bloom", power: 0, type: "woodland", accuracy: 100, role: "guard", cooldown: 2, heal: 0.2 },
+      { id: "root-grip", name: "Root Grip", power: 4, type: "woodland", accuracy: 90, role: "status", cooldown: 2, inflicts: "rooted" },
+      { id: "timberfall", name: "Timberfall", power: 12, type: "woodland", accuracy: 80, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -104,9 +117,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0xe8c040,
     early: false,
     moves: [
-      { id: "gleam", name: "Gleam", power: 7, type: "twilight", accuracy: 95 },
-      { id: "dash", name: "Dash", power: 9, type: "twilight", accuracy: 85 },
-      { id: "flicker", name: "Flicker", power: 5, type: "twilight", accuracy: 100 },
+      { id: "gleam", name: "Gleam", power: 7, type: "twilight", accuracy: 95, role: "attack", cooldown: 0 },
+      { id: "flicker", name: "Flicker", power: 0, type: "twilight", accuracy: 100, role: "guard", cooldown: 2, heal: 0.1 },
+      { id: "dazzle", name: "Dazzle", power: 3, type: "twilight", accuracy: 95, role: "status", cooldown: 2, inflicts: "dazed" },
+      { id: "dash", name: "Dash", power: 11, type: "twilight", accuracy: 85, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -135,9 +149,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0x3a7a32,
     early: true,
     moves: [
-      { id: "bramble", name: "Bramble", power: 10, type: "woodland", accuracy: 85 },
-      { id: "ward", name: "Ward", power: 8, type: "woodland", accuracy: 95 },
-      { id: "spore", name: "Spore", power: 9, type: "woodland", accuracy: 90 },
+      { id: "bramble", name: "Bramble", power: 9, type: "woodland", accuracy: 95, role: "attack", cooldown: 0 },
+      { id: "ward", name: "Ward", power: 0, type: "woodland", accuracy: 100, role: "guard", cooldown: 2, heal: 0.2 },
+      { id: "spore", name: "Spore", power: 4, type: "woodland", accuracy: 90, role: "status", cooldown: 2, inflicts: "rooted" },
+      { id: "thornquake", name: "Thornquake", power: 14, type: "woodland", accuracy: 80, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -151,9 +166,10 @@ export const CREATURES: CreatureDefinition[] = [
     spriteColor: 0xff6020,
     early: true,
     moves: [
-      { id: "blaze", name: "Blaze", power: 12, type: "hearth", accuracy: 75 },
-      { id: "kindle", name: "Kindle", power: 11, type: "hearth", accuracy: 80 },
-      { id: "warmth", name: "Warmth", power: 7, type: "hearth", accuracy: 100 },
+      { id: "scorch", name: "Scorch", power: 9, type: "hearth", accuracy: 95, role: "attack", cooldown: 0 },
+      { id: "warmth", name: "Warmth", power: 0, type: "hearth", accuracy: 100, role: "guard", cooldown: 2, heal: 0.2 },
+      { id: "kindle", name: "Kindle", power: 5, type: "hearth", accuracy: 90, role: "status", cooldown: 2, inflicts: "burn" },
+      { id: "blaze", name: "Blaze", power: 15, type: "hearth", accuracy: 80, role: "finisher", cooldown: 3 },
     ],
   },
   {
@@ -175,9 +191,9 @@ export const CREATURES: CreatureDefinition[] = [
     id: "cinder-toad",
     name: "Cinder Toad",
     folkloreType: "ember",
-    maxHp: 32,
+    maxHp: 30,
     attack: 8,
-    defense: 7,
+    defense: 6,
     spriteKey: "creature-cinder-toad",
     spriteColor: 0xd06030,
     early: false,
