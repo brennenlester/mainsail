@@ -136,6 +136,7 @@ PALETTE = {
     "sea_light": "#9fd2ec",
     "sea_dark": "#3f84b4",
     "sea_deep": "#2f6f9e",
+    "lagoon": "#6fc6cf",  # shallow tint over sand near island shores (#412)
     "dock_wood": "#a07a52",
     "dock_wood_light": "#b88e62",
     "dock_wood_dark": "#6a4a34",

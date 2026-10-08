@@ -654,20 +654,6 @@ ITEM = {
 # --------------------------------------------------------------------------
 # Backdrops (seamless top-down tiles around the playfield)
 # --------------------------------------------------------------------------
-class SeaBackdrop(Rig):
-    def __init__(self, seed: int = 34):
-        root = empty("sea")
-        super().__init__(root)
-        self.root = root
-        rng = random.Random(seed)
-        _water_base(self, rng, base="sea_deep", ripple="sea", dark="sea_dark", sparkles=0)
-        foam = toon("#d6ecf4", shadow=0.2, rim=0.0)
-        for i in range(6):
-            u, v = rng.random(), rng.random()
-            for dx, dy, x, y in _copies(u, v, 0.1):
-                sphere(f"foam{i}_{dx}{dy}", (x, y, 0.002), (0.07, 0.012, 0.004), foam, root, outline=False, rot=(0, 0, rng.uniform(-0.2, 0.2)))
-
-
 class FenBackdrop(Rig):
     """Dark peat with dead shrubs, reeds and a few glowing pools."""
 
@@ -1384,7 +1370,6 @@ class WallFace(Rig):
 BUILDERS = {
     "wall-face": WallFace,
     "biome-ground": BiomeGround,
-    "sea-backdrop": SeaBackdrop,
     "fen-backdrop": FenBackdrop,
     "mist-backdrop": MistBackdrop,
     "drystone": DrystoneWall,

@@ -29,7 +29,7 @@ export const ARCHIPELAGO_LOOKAHEAD = 12;
 /** Cull floor/wall sprites farther west than this distance behind the player. */
 export const ARCHIPELAGO_LOOKBEHIND = 32;
 /** Live visual columns east of the player (camera margin). */
-export const ARCHIPELAGO_VISUAL_AHEAD = 20;
+export const ARCHIPELAGO_VISUAL_AHEAD = 32;
 /** Live visual rows north/south of the player (> half of ARCHIPELAGO_CAMERA_FIT_HEIGHT). */
 export const ARCHIPELAGO_VISUAL_MARGIN_Y = 22;
 /** West Harbor gate columns that stay drawn (x in [0, GATE)). */
@@ -59,16 +59,30 @@ export function archipelagoVisualWindow(
 ): ArchipelagoVisualWindow {
   const px = Math.floor(playerX);
   const py = Math.floor(playerY);
-  const xMin = Math.max(
+  let xMin = Math.max(
     ARCHIPELAGO_GATE_COLUMNS,
     px - ARCHIPELAGO_LOOKBEHIND,
   );
-  const xMax = Math.min(
+  let xMax = Math.min(
     mapWidth,
     Math.max(xMin, px + ARCHIPELAGO_VISUAL_AHEAD + 1),
   );
-  const yMin = Math.max(0, py - ARCHIPELAGO_VISUAL_MARGIN_Y);
-  const yMax = Math.min(mapHeight, py + ARCHIPELAGO_VISUAL_MARGIN_Y + 1);
+  let yMin = Math.max(0, py - ARCHIPELAGO_VISUAL_MARGIN_Y);
+  let yMax = Math.min(mapHeight, py + ARCHIPELAGO_VISUAL_MARGIN_Y + 1);
+  // At a map edge the camera clamps and sees past the usual margin on the
+  // other side: keep the full span there so islands never pop in (#412).
+  const spanX = ARCHIPELAGO_LOOKBEHIND + ARCHIPELAGO_VISUAL_AHEAD + 1;
+  if (xMin === ARCHIPELAGO_GATE_COLUMNS) {
+    xMax = Math.min(mapWidth, Math.max(xMax, xMin + spanX));
+  } else if (xMax === mapWidth) {
+    xMin = Math.max(ARCHIPELAGO_GATE_COLUMNS, Math.min(xMin, xMax - spanX));
+  }
+  const spanY = ARCHIPELAGO_VISUAL_MARGIN_Y * 2 + 1;
+  if (yMin === 0) {
+    yMax = Math.min(mapHeight, Math.max(yMax, spanY));
+  } else if (yMax === mapHeight) {
+    yMin = Math.max(0, Math.min(yMin, yMax - spanY));
+  }
   return { xMin, xMax, yMin, yMax };
 }
 
