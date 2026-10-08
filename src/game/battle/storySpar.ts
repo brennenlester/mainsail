@@ -78,6 +78,8 @@ export type StorySparOutcome = {
   /** Real loss of the active beat healed the party (once per beat). */
   healed: boolean;
   rewardText: string | null;
+  /** Wren's coverage companion that joined on this win, if any. */
+  gift?: string;
 };
 
 export type StorySparResult = "won" | "lost";
@@ -313,8 +315,13 @@ export function resolveStorySpar(won: boolean): StorySparResult | null {
   }
   const companion = firstWin ? grantCoverageGift(spar.id) : null;
   const items = firstWin ? grantFirstWinReward(spar.id) : null;
-  const rewardText = [items, companion].filter(Boolean).join(", and ") || null;
-  lastOutcome.set(spar.id, { result: "won", firstWin, healed: false, rewardText });
+  lastOutcome.set(spar.id, {
+    result: "won",
+    firstWin,
+    healed: false,
+    rewardText: items,
+    ...(companion ? { gift: companion } : {}),
+  });
   if (firstWin) {
     recordQuestEvent({ type: "win_story_spar", sparId: spar.id });
   }

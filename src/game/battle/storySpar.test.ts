@@ -159,7 +159,8 @@ describe("story spar resolution", () => {
       result: "won",
       firstWin: true,
       healed: false,
-      rewardText: "Brook Tonic×2, and Pip the Brook Nymph",
+      rewardText: "Brook Tonic×2",
+      gift: "Pip the Brook Nymph",
     });
     expect(consumeStorySparOutcome("rival-wren")).toBeNull();
     // Type coverage for Cinder form (#385 playtest): a water companion joins.

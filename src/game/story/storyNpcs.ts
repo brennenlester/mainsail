@@ -129,6 +129,9 @@ function rivalConversation(): StoryConversation {
         outcome.rewardText
           ? `Here, don't make it weird — ${outcome.rewardText}.`
           : "Go on. I'll catch up.",
+        ...(outcome.gift
+          ? [`And take ${outcome.gift}. Your lot has nothing that hunts ember — out past Mistwood, you'll want water in front.`]
+          : []),
       ]);
     }
     return talk([

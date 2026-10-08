@@ -68,19 +68,37 @@ export function playStoryCue(scene: Phaser.Scene, cue: StoryCue | undefined): vo
           })
           .setDepth(1);
       }
-      const egg = scene.add
-        .ellipse(CENTER.x, CENTER.y + 40, 54, 66, 0xd8603c)
-        .setStrokeStyle(4, 0xffb04a)
-        .setDepth(1)
-        .setName("finale-egg");
+      // A warm, speckled ember egg on a glow; it rocks while it hums.
+      const halo = scene.add
+        .image(CENTER.x, CENTER.y + 40, FX_TEX.halo)
+        .setTint(0xff8a3a)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScale(2.6)
+        .setAlpha(0.7)
+        .setDepth(1);
+      const egg = scene.add.container(CENTER.x, CENTER.y + 70).setDepth(1);
+      const g = scene.add.graphics();
+      g.fillStyle(0x7a2a1a, 1).fillEllipse(0, -32, 58, 70);
+      g.fillStyle(0xc8522a, 1).fillEllipse(-2, -34, 50, 62);
+      g.fillStyle(0xffb04a, 0.9).fillEllipse(-10, -46, 16, 22);
+      g.fillStyle(0x5a1a10, 1);
+      for (const [x, y, r] of [[10, -24, 5], [-12, -18, 4], [14, -44, 3], [-4, -8, 3]]) {
+        g.fillCircle(x!, y!, r!);
+      }
+      g.lineStyle(3, 0xffd88a, 0.9).strokeEllipse(-2, -34, 52, 64);
+      egg.add(g);
+      egg.setName("finale-egg");
+      halo.setName("finale-egg-halo");
       if (!reduced) {
-        scene.tweens.add({ targets: egg, angle: { from: -6, to: 6 }, duration: 260, yoyo: true, repeat: -1 });
+        scene.tweens.add({ targets: egg, angle: { from: -7, to: 7 }, duration: 240, yoyo: true, repeat: -1 });
+        scene.tweens.add({ targets: halo, alpha: { from: 0.4, to: 0.85 }, duration: 520, yoyo: true, repeat: -1 });
       }
       return;
     }
     case "hatch": {
       playEvolveSfx(scene);
       scene.children.getByName("finale-egg")?.destroy();
+      scene.children.getByName("finale-egg-halo")?.destroy();
       if (!reduced) {
         scene.cameras.main.flash(420, 255, 230, 180);
       }
@@ -123,7 +141,7 @@ export function playStoryCue(scene: Phaser.Scene, cue: StoryCue | undefined): vo
         .setDepth(1);
       scene.tweens.add({ targets: wash, fillAlpha: 0.28, duration: 1200 });
       const card = scene.add
-        .text(CENTER.x, 70, "Optional: The Sovereign Voyage", {
+        .text(CENTER.x, 140, "Optional: The Sovereign Voyage", {
           fontFamily: '"Source Sans 3", system-ui, sans-serif',
           fontSize: "22px",
           fontStyle: "bold italic",

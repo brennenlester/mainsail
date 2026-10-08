@@ -2050,7 +2050,7 @@ export class BattleScene extends Phaser.Scene {
         this.wildCreatureId,
         this.resolvePartyIndex(),
       );
-      this.log(formatRewardMessage(reward));
+      this.log(this.story ? `${this.story.def.title} — victory!` : formatRewardMessage(reward));
       panel = {
         tone: "victory",
         summary: buildVictorySummary(before, getActiveCreatures(), reward, {

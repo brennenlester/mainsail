@@ -140,6 +140,7 @@ describe("rival conversation", () => {
     const win = talkTo(RIVAL_NPC_ID);
     expect(win.lines.join(" ")).toMatch(/Mistwood path is open/);
     expect(win.lines.join(" ")).toMatch(/Brook Tonic×2/);
+    expect(win.lines.join(" ")).toMatch(/take Pip the Brook Nymph/);
 
     const rematch = talkTo(RIVAL_NPC_ID);
     expect(rematch.prompt).toMatchObject({ kind: "challenge", label: "Rematch" });
