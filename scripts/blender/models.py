@@ -491,29 +491,49 @@ class GroundTile(Rig):
         blade_mats = [toon(palette[1], shadow=0.5, rim=0.0), toon(palette[2], shadow=0.5, rim=0.0)]
         stone = toon("stone")
         if path:
+            # path: True spans the tile; "west" / "east" is an end cap whose
+            # band starts mid-tile with a rounded, ragged tip (#361).
+            cap = path if path in ("west", "east") else None
+            side = 1 if cap == "west" else -1  # band lies on +X for a west cap
+
+            def on_band(x, margin=0.0):
+                return cap is None or side * x >= -0.06 - margin
+
             dirt = toon("path", shadow=0.4, rim=0.0)
             dirt_dark = toon("path_dark", shadow=0.4, rim=0.0)
-            box("band", (0, 0, -0.002), (1.7, 0.5, 0.004), dirt, root, outline=False)
+            if cap:
+                box("band", (side * 0.395, 0, -0.002), (0.91, 0.5, 0.004), dirt, root, outline=False)
+                sphere("bandcap", (side * -0.06, 0, -0.0015), (0.2, 0.25, 0.004), dirt, root, outline=False)
+            else:
+                box("band", (0, 0, -0.002), (1.7, 0.5, 0.004), dirt, root, outline=False)
             prng = random.Random(f"path:{edge_seed}")
             # Ragged band edges: wrap along X only (band is X-periodic).
             for i in range(10):
                 u = (i + prng.uniform(0.1, 0.9)) / 10
                 for edge in (-1, 1):
                     r = prng.uniform(0.07, 0.11)
+                    yy = edge * (0.25 + prng.uniform(-0.03, 0.02))
                     for dx in (-1, 0, 1):
-                        sphere(f"pe{i}{edge}_{dx}", (u - 0.5 + dx, edge * (0.25 + prng.uniform(-0.03, 0.02)), -0.001), (r * 1.4, r, 0.004), dirt, root, outline=False)
+                        x = u - 0.5 + dx
+                        if on_band(x):
+                            sphere(f"pe{i}{edge}_{dx}", (x, yy, -0.001), (r * 1.4, r, 0.004), dirt, root, outline=False)
             for i in range(9):
                 u, w = (i + prng.uniform(0.1, 0.9)) / 9, prng.uniform(-0.17, 0.17)
                 r = prng.uniform(0.035, 0.06)
                 for dx in (-1, 0, 1):
-                    sphere(f"pd{i}_{dx}", (u - 0.5 + dx, w, 0.0), (r * 1.3, r, 0.004), dirt_dark, root, outline=False)
-            items = [it for it in items if not (it[0] in ("blade", "flower", "patch") and abs(it[2] - 0.5) < 0.3)]
+                    x = u - 0.5 + dx
+                    if on_band(x, -0.08):
+                        sphere(f"pd{i}_{dx}", (x, w, 0.0), (r * 1.3, r, 0.004), dirt_dark, root, outline=False)
+            items = [it for it in items if not (it[0] in ("blade", "flower", "patch") and abs(it[2] - 0.5) < 0.3 and on_band(it[1] - 0.5, 0.22))]
         for kind, u, v, rot, s, i in items:
             # 3x3 copies so anything crossing an edge reappears on the far side.
             for dx in (-1, 0, 1):
                 for dy in (-1, 0, 1):
                     x, y = u - 0.5 + dx, v - 0.5 + dy
                     if abs(x) > 0.85 or abs(y) > 0.85:
+                        continue
+                    if path and kind != "pebble" and abs(y) < 0.3 and on_band(x, 0.22):
+                        # Wrapped copies of edge grass must not paint over the band.
                         continue
                     tag = f"{kind}{i}_{dx}{dy}"
                     if kind == "patch":
@@ -710,8 +730,8 @@ class Arena(Rig):
         for i, x in enumerate((-3.1, -1.6, 1.4, 3.0)):
             y = 2.55 + rng.uniform(-0.1, 0.1)
             box(f"vh{i}", (x, y, -0.2), (0.6, 0.5, 0.45), plaster, hills)
-            for side in (-1, 1):
-                box(f"vr{i}{side}", (x + side * 0.17, y, 0.13), (0.42, 0.62, 0.05), roof, hills, rot=(0, side * 0.75, 0))
+            # Hipped roof (4-sided pyramid) reads cleanly at the 22° spar pitch.
+            cylinder(f"vr{i}", (x, y, 0.2), 0.5, 0.36, roof, hills, verts=4, radius_top=0.0, smooth=False, rot=(0, 0, math.pi / 4), scale=(1.0, 0.85, 1))
             box(f"vw{i}", (x + 0.12, y - 0.26, -0.18), (0.12, 0.02, 0.1), glow, hills, outline=False)
         post = toon("#4a4048")
         for x, y in ((-2.3, 0.6), (2.35, 0.5)):

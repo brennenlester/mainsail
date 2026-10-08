@@ -39,8 +39,9 @@ export const BOUNDARY_DISPLAY = { width: 48, height: 56 } as const;
 
 /** Max box for trimmed encounter art inside the panel (above title). */
 export const ENCOUNTER_CREATURE_DISPLAY = { width: 360, height: 280 } as const;
-export const BATTLE_CREATURE_DISPLAY = { width: 112, height: 122 } as const;
-export const BATTLE_PLAYER_DISPLAY = { width: 100, height: 134 } as const;
+// #361: larger on the rescaled spar stage (same 112:122 / 100:134 aspect).
+export const BATTLE_CREATURE_DISPLAY = { width: 150, height: 163 } as const;
+export const BATTLE_PLAYER_DISPLAY = { width: 112, height: 150 } as const;
 
 export function fitDisplay(
   image: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,

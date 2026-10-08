@@ -2,9 +2,10 @@
 /**
  * Pack sprite PNGs into a Phaser multi-atlas (#360).
  *
- * Sources (later wins on the same key):
- *   public/assets/{player,creatures,world}/*.png            legacy Imagine art
- *   art/rendered/{player,creatures,world}/*.png             Blender renders (not shipped)
+ * Sources (later wins on the same key; none of art/ ships in dist, #361):
+ *   public/assets/{creatures,world}/*.png                   still loaded directly too
+ *   art/legacy/{player,creatures,world}/*.png               legacy Imagine art (pack input only)
+ *   art/rendered/{player,creatures,world,npcs}/*.png        Blender renders
  *
  * Output (public/assets/atlas/):
  *   imagine-0.png, imagine-1.png, ...  power-of-two pages (mipmap friendly)
@@ -23,6 +24,8 @@ const ROOT = path.resolve(__dirname, "..");
 const ASSETS = path.join(ROOT, "public", "assets");
 // Blender source frames live outside public/ so they never ship in dist (#361).
 const RENDERED = path.join(ROOT, "art", "rendered");
+// Legacy Imagine PNGs that are only atlas inputs (moved out of public/, #361).
+const LEGACY = path.join(ROOT, "art", "legacy");
 const OUT_DIR = path.join(ASSETS, "atlas");
 const PAGE = 2048;
 /** Edge pixels repeated around each frame so bilinear/mip sampling never pulls neighbors. */
@@ -42,7 +45,7 @@ const SKIP_ATLAS_KEYS = new Set([
 
 function collectPngs() {
   const byKey = new Map();
-  for (const base of [ASSETS, RENDERED]) {
+  for (const base of [ASSETS, LEGACY, RENDERED]) {
     for (const dir of base === RENDERED ? [...CLASS_DIRS, ...RENDERED_ONLY_DIRS] : CLASS_DIRS) {
       const abs = path.join(base, dir);
       if (!fs.existsSync(abs)) continue;

@@ -52,9 +52,54 @@ export function bindOverlayPixelRatio(scene: Phaser.Scene): void {
   });
 }
 
+type HudAvoid = { topCss: number; touchInteract: { rightCss: number; bottomCss: number } | null };
+
+let hudAvoidCache: { at: number; value: HudAvoid } | null = null;
+
+/**
+ * DOM chrome that overlaps the board (#361): the story card (top) and, on
+ * touch layouts, the E button. Measured in CSS px relative to the canvas;
+ * cached briefly because placement runs every frame.
+ */
+function measureHudAvoid(scene: Phaser.Scene): HudAvoid {
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  if (hudAvoidCache && now - hudAvoidCache.at < 250) {
+    return hudAvoidCache.value;
+  }
+  const value: HudAvoid = { topCss: 0, touchInteract: null };
+  const canvas = scene.game.canvas as HTMLCanvasElement | undefined;
+  if (typeof document !== "undefined" && canvas?.getBoundingClientRect) {
+    const board = canvas.getBoundingClientRect();
+    const quest = document.getElementById("quest-hud")?.getBoundingClientRect();
+    if (quest && quest.height > 0 && quest.top < board.top + board.height / 2) {
+      value.topCss = Math.max(0, quest.bottom - board.top);
+    }
+    const controls = document.getElementById("touch-controls");
+    const button = document.getElementById("touch-interact")?.getBoundingClientRect();
+    if (
+      controls &&
+      button &&
+      button.height > 0 &&
+      !controls.classList.contains("touch-controls-disabled") &&
+      getComputedStyle(controls).display !== "none"
+    ) {
+      value.touchInteract = {
+        rightCss: Math.max(0, board.right - button.right),
+        bottomCss: Math.max(0, board.bottom - button.top),
+      };
+    }
+  }
+  hudAvoidCache = { at: now, value };
+  return value;
+}
+
 /**
  * Place world-scene HUD text in the camera's visible logical space so HiDPI
  * buffer sizing + main-camera zoom does not push scrollFactor(0) UI off-screen.
+ *
+ * Text wraps to the board width; top texts drop below the story card and, on
+ * touch layouts, bottom prompts sit right-aligned above the E button so they
+ * never cover the joystick (#361).
  */
 export function placeWorldHudText(
   scene: Phaser.Scene,
@@ -66,12 +111,33 @@ export function placeWorldHudText(
     return;
   }
   const cam = scene.cameras.main;
+  const halfW = cam.width / (2 * cam.zoom);
   const halfH = cam.height / (2 * cam.zoom);
   // Cancel camera zoom and compensate HiDPI buffer→CSS downscale so inset/font
   // stay at logical CSS sizes (inset is CSS px; fontSize is authored for CSS).
   text.setScrollFactor(1);
-  text.setScale(RENDER_DPR / cam.zoom);
-  const insetWorld = (inset * RENDER_DPR) / cam.zoom;
+  const perCss = RENDER_DPR / cam.zoom;
+  text.setScale(perCss);
+  const boardCss = cam.width / RENDER_DPR;
+  const avoid = measureHudAvoid(scene);
+  const touch = anchor === "bottom" ? avoid.touchInteract : null;
+  const pad = (text.padding.left ?? 0) + (text.padding.right ?? 0);
+  const maxCss = touch ? boardCss / 2 - 16 : boardCss - 24;
+  const wrap = Math.max(80, Math.floor(maxCss - pad));
+  if (text.style.wordWrapWidth !== wrap) {
+    text.setWordWrapWidth(wrap, true);
+  }
+  if (touch) {
+    const right = cam.midPoint.x + halfW - touch.rightCss * perCss;
+    const bottom = cam.midPoint.y + halfH - (touch.bottomCss + 8) * perCss;
+    text.setPosition(
+      right - text.width * (1 - text.originX) * perCss,
+      bottom - text.height * (1 - text.originY) * perCss,
+    );
+    return;
+  }
+  const topInset = Math.max(inset, avoid.topCss + 8 + (inset - 56 > 0 ? inset - 56 : 0));
+  const insetWorld = ((anchor === "top" ? topInset : inset) * RENDER_DPR) / cam.zoom;
   text.setPosition(
     cam.midPoint.x,
     anchor === "bottom"

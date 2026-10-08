@@ -261,6 +261,9 @@ def _floor_set(zone: str) -> list[dict]:
     base = {"edge_seed": zone, "palette": g["palette"], "petals": g["petals"]}
     out = [_floor(f"floor-{zone}-v{i}", {**base, **v}) for i, v in enumerate(FLOOR_VARIANTS)]
     out.append(_floor(f"floor-{zone}-path", {**base, "seed": 19, "flowers": 0, "pebbles": 2, "patches": 2, "path": True}))
+    # Rounded end caps where a path stops mid-grass (#361).
+    for cap in ("west", "east"):
+        out.append(_floor(f"floor-{zone}-path-{cap}", {**base, "seed": 19, "flowers": 0, "pebbles": 1, "patches": 2, "path": cap}))
     if zone != "grove":
         # Legacy light/dark keys (fallback path, other callers) share the look.
         out[0]["statics"].append((f"floor-{zone}-light", "idle", 0.0))

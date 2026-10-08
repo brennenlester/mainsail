@@ -10,6 +10,7 @@ export const HUD_PILL_TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   color: "#f3ead3",
   fontFamily: "'Source Sans 3', system-ui, sans-serif",
   fontStyle: "bold",
+  align: "center",
   padding: { x: 18, y: 9 },
 };
 
@@ -32,9 +33,11 @@ export function attachHudPill(text: Phaser.GameObjects.Text): Phaser.GameObjects
       drawnH = h;
       plate.clear();
       plate.fillStyle(PILL_FILL, 0.9);
-      plate.fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+      // Single line = full pill; wrapped (phone) prompts get a rounded card.
+      const r = Math.min(h / 2, 20);
+      plate.fillRoundedRect(-w / 2, -h / 2, w, h, r);
       plate.lineStyle(1.5, PILL_STROKE, 0.75);
-      plate.strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+      plate.strokeRoundedRect(-w / 2, -h / 2, w, h, r);
     }
     plate
       .setPosition(text.x + (0.5 - text.originX) * w * text.scaleX, text.y + (0.5 - text.originY) * h * text.scaleY)

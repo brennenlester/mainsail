@@ -41,9 +41,9 @@ Runtime: Phaser anims are registered from `imagine-anims.json` in `PreloadScene`
 
 | Class | Folder | Typical size | Packed? |
 | --- | --- | --- | --- |
-| Player walk | `public/assets/player/` | 192×256 | yes |
-| Creatures | `public/assets/creatures/` | ~192×208 | yes, except the four sovereigns |
-| World floors/props | `public/assets/world/` | 192×192 floors | yes |
+| Player walk | `art/legacy/player/` | 192×256 | yes (pack input only) |
+| Creatures | `art/legacy/creatures/` (sovereigns stay in `public/assets/creatures/`) | ~192×208 | yes, except the four sovereigns |
+| World floors/props | `art/legacy/world/` (`public/assets/world/` only for PNGs loaded directly) | 192×192 floors | yes |
 | Items | `public/assets/items/` | 128×128 | no (HUD `<img>`) |
 | Materials | `public/assets/materials/` | 128×128 | no |
 | NPCs | `art/rendered/npcs/` (Blender) | 192×288 | yes (legacy `public/assets/npcs/` unused) |

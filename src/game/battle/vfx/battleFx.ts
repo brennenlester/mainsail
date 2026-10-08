@@ -190,7 +190,7 @@ type SideState = {
 };
 
 /** Phaser anim key for a rendered creature pose, e.g. `creature-mossling-battle__attack` (#377). */
-export function creatureAnimKey(poseKey: string, anim: "idle" | "attack" | "hurt"): string {
+export function creatureAnimKey(poseKey: string, anim: "idle" | "attack" | "hurt" | "faint"): string {
   return `${poseKey}__${anim}`;
 }
 
@@ -372,7 +372,7 @@ export class BattleFx {
   }
 
   /** Play a rendered creature anim (#377) when registered; false → caller tweens. */
-  private playAnim(side: Side, anim: "idle" | "attack" | "hurt"): boolean {
+  private playAnim(side: Side, anim: "idle" | "attack" | "hurt" | "faint"): boolean {
     const sprite = this.sprites()[side];
     const base = sprite.getData("poseKey") as string | undefined;
     const key = creatureAnimKey(base ?? this.poseKey(sprite), anim);
@@ -383,7 +383,8 @@ export class BattleFx {
       sprite.setData("poseKey", this.poseKey(sprite));
     }
     sprite.play(key, true);
-    if (anim !== "idle") {
+    // Faint holds its last frame (#361); attack / hurt return to idle.
+    if (anim === "attack" || anim === "hurt") {
       sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
         if (!this.playAnim(side, "idle")) {
           sprite.anims.stop();
@@ -945,6 +946,8 @@ export class BattleFx {
     st.hurt = true;
     st.fainting = true;
     sprite.anims.stop();
+    // Rendered slump (#361) plays first; the fade below then waits for it.
+    const slumped = !this.mode().reducedMotion && this.playAnim(side, "faint");
     for (const id of STATUS_IDS) {
       st.auras[id].stop();
     }
@@ -959,11 +962,11 @@ export class BattleFx {
     const reduced = this.mode().reducedMotion;
     s.tweens.add({
       targets: sprite,
-      y: reduced ? st.home.y : st.home.y + 26,
-      scaleY: reduced ? st.baseScale.y : st.baseScale.y * 0.55,
-      scaleX: reduced ? st.baseScale.x : st.baseScale.x * 1.08,
+      y: reduced ? st.home.y : st.home.y + (slumped ? 8 : 26),
+      scaleY: reduced || slumped ? st.baseScale.y : st.baseScale.y * 0.55,
+      scaleX: reduced || slumped ? st.baseScale.x : st.baseScale.x * 1.08,
       alpha: 0,
-      delay: t.faint > 200 ? 160 : 0,
+      delay: slumped ? Math.min(520, t.faint) : t.faint > 200 ? 160 : 0,
       duration: t.faint,
       ease: "Quad.easeIn",
       onComplete: () => {

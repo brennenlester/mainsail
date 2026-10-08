@@ -3,9 +3,15 @@ import type { ZoneId } from "../world/zoneTypes";
 /** Rendered ground variants per zone (`floor-<zone>-v0..3`, #361). */
 export const FLOOR_VARIANT_COUNT = 4;
 
-/** Rows drawn with the zone's `floor-<zone>-path` tile (entrance → exit). */
-export const FLOOR_PATH_ROWS: Partial<Record<ZoneId, { y: number; x0: number; x1: number }[]>> = {
-  grove: [{ y: 5, x0: 6, x1: 9 }],
+/**
+ * Rows drawn with the zone's `floor-<zone>-path` tile (entrance -> exit).
+ * `cap` marks an end that stops mid-grass: that tile uses the rounded
+ * `floor-<zone>-path-west|east` end piece instead of a hard square edge.
+ */
+export const FLOOR_PATH_ROWS: Partial<
+  Record<ZoneId, { y: number; x0: number; x1: number; cap?: "west" | "east" }[]>
+> = {
+  grove: [{ y: 5, x0: 6, x1: 9, cap: "west" }],
   shrine: [{ y: 5, x0: 0, x1: 9 }],
   village: [{ y: 5, x0: 0, x1: 15 }],
 };
@@ -22,7 +28,10 @@ function tileHash(x: number, y: number): number {
  * v3 12%) so detail reads as scattered, not as a checkerboard.
  */
 export function floorVariantKey(zoneId: ZoneId, x: number, y: number): string {
-  if (FLOOR_PATH_ROWS[zoneId]?.some((r) => r.y === y && x >= r.x0 && x <= r.x1)) {
+  const row = FLOOR_PATH_ROWS[zoneId]?.find((r) => r.y === y && x >= r.x0 && x <= r.x1);
+  if (row) {
+    if (row.cap === "west" && x === row.x0) return `floor-${zoneId}-path-west`;
+    if (row.cap === "east" && x === row.x1) return `floor-${zoneId}-path-east`;
     return `floor-${zoneId}-path`;
   }
   const h = tileHash(x, y);

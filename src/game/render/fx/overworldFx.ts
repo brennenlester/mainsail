@@ -7,6 +7,7 @@ import type { AbilityId } from "../../companions/abilities";
 import { isSailing } from "../../world/dockBoat";
 import { hasPlayerName } from "../../world/playerName";
 import { getZoneProps } from "../../world/zoneProps";
+import { noteArenaContext } from "../arenaLayers";
 import { TileType, type ZoneDefinition } from "../../world/zoneTypes";
 import { MAX_FOLLOWERS } from "../partyOverworldFollowers";
 import {
@@ -842,6 +843,9 @@ export class OverworldFx {
   }
 
   private applyLight(): void {
+    if (this.zone) {
+      noteArenaContext(this.zone.id, this.zone.interior ? 0 : this.light.nightness);
+    }
     if (this.colorMatrix) {
       this.colorMatrix.set(colorMatrixFor(this.light));
     }

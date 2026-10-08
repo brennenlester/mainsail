@@ -9,6 +9,8 @@ describe("floorVariantKey (#361)", () => {
   it("lays the path tile along a zone's path row", () => {
     expect(floorVariantKey("shrine", 2, 5)).toBe("floor-shrine-path");
     expect(floorVariantKey("grove", 7, 5)).toBe("floor-grove-path");
+    // Mid-grass end gets the rounded cap, not a square edge.
+    expect(floorVariantKey("grove", 6, 5)).toBe("floor-grove-path-west");
     expect(floorVariantKey("grove", 2, 5)).not.toBe("floor-grove-path");
   });
 
