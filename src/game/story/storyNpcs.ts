@@ -1,4 +1,5 @@
 import {
+  canBeginStorySpar,
   consumeStorySparOutcome,
   getActiveStorySpar,
   getCurrentStorySparRound,
@@ -136,7 +137,9 @@ function rivalConversation(): StoryConversation {
   if (outcome?.result === "lost") {
     return talk([
       "Ha! Told you. Your party fights like it's still waking up.",
-      "Here — I'm not cruel. (Wren patches up your whole party.)",
+      outcome.healed
+        ? "Here — I'm not cruel. (Wren patches up your whole party.)"
+        : "No freebies twice. Rest up at Odd's hearth or bring tonics.",
       "Come find me when you want another go.",
     ]);
   }
@@ -150,6 +153,7 @@ function rivalConversation(): StoryConversation {
   }
 
   const zone = getRivalZone();
+  const canSpar = canBeginStorySpar();
   if (zone === "emberfen") {
     return talk([
       "You made it. She nearly cooked me — the Matriarch.",
@@ -168,6 +172,11 @@ function rivalConversation(): StoryConversation {
     return talk(lines);
   }
 
+  if (!canSpar) {
+    return talk([
+      "Your lot's out cold. I don't spar with sleepers — get them rested (Odd's hearth, or a tonic) and come back.",
+    ]);
+  }
   if (questProgress["rival-wren"] === "active") {
     return talk(
       [
@@ -181,6 +190,7 @@ function rivalConversation(): StoryConversation {
   return talk(
     [
       "Back for more? I've been training too — my lot hit harder now.",
+      "No prizes on rematches. Just bragging rights.",
     ],
     { kind: "challenge", sparId: "rival-wren", label: "Rematch" },
   );
@@ -205,7 +215,14 @@ function bossConversation(): StoryConversation {
   if (outcome?.result === "lost") {
     return talk([
       "The Matriarch sinks back into the smoke. She is not done with you.",
-      "Wren hauls your party clear and patches everyone up. Study her forms, then try again.",
+      outcome.healed
+        ? "Wren hauls your party clear and patches everyone up. Study her forms, then try again."
+        : "Wren hauls your party clear. Rest them before you try again.",
+    ]);
+  }
+  if (!canBeginStorySpar()) {
+    return talk([
+      "The Matriarch's heat rolls over you. Your companions can't stand against her like this — rest them first.",
     ]);
   }
   const activeSpar = getActiveStorySpar();

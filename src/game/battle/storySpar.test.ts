@@ -19,7 +19,8 @@ import {
 import { QUEST_ORDER } from "../story/quests";
 import type { QuestId, QuestStatus } from "../story/questTypes";
 import { STORY_SPARS } from "../story/storySpars";
-import { recordSparWin, setSparWinsBySpecies } from "../world/sparWins";
+import { setSparWinsBySpecies } from "../world/sparWins";
+import { grantSparRewards } from "./sparRewards";
 import { setVisitorMode } from "../world/worldSession";
 import {
   beginStorySpar,
@@ -27,6 +28,7 @@ import {
   forfeitStorySpar,
   getActiveStorySpar,
   getCurrentStorySparRound,
+  getStorySparNpcLine,
   launchStorySparRound,
   resetStorySparForTest,
   resolveStorySparRound,
@@ -121,6 +123,7 @@ describe("story spar rounds", () => {
     expect(consumeStorySparOutcome("rival-wren")).toEqual({
       result: "won",
       firstWin: true,
+      healed: false,
       rewardText: "Brook Tonic×2",
     });
     expect(consumeStorySparOutcome("rival-wren")).toBeNull();
@@ -135,22 +138,86 @@ describe("story spar rounds", () => {
     expect(getActiveQuestId()).toBe("reach-mistwood");
   });
 
-  it("restores the party on a loss and keeps the beat active", () => {
+  it("heals only the first real loss of the active beat this session", () => {
     beginStorySpar("rival-wren");
     expect(resolveStorySparRound(false)).toBe("lost");
     expect(getActiveQuestId()).toBe("rival-wren");
     for (const creature of playerParty.creatures) {
       expect(creature.currentHp).toBe(getEffectiveMaxHp(creature));
     }
-    expect(consumeStorySparOutcome("rival-wren")?.result).toBe("lost");
+    expect(consumeStorySparOutcome("rival-wren")).toMatchObject({
+      result: "lost",
+      healed: true,
+    });
+
+    // Second loss this session: back to pre-spar HP, not a heal.
+    for (const creature of playerParty.creatures) creature.currentHp = 3;
+    beginStorySpar("rival-wren");
+    for (const creature of playerParty.creatures) creature.currentHp = 0;
+    resolveStorySparRound(false);
+    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([3, 3]);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(false);
   });
 
-  it("treats walking away between rounds as a forfeit", () => {
+  it("forfeit between rounds restores pre-spar HP and rolls back round rewards", () => {
     beginStorySpar("rival-wren");
+    // Round 1 won: BattleScene paid XP / Dust and the fight cost HP.
+    playerParty.creatures[0]!.xp += 50;
+    playerParty.creatures[0]!.currentHp = 0;
+    setInventoryFromSnapshot({ "folklore-dust": 2 }, {});
     resolveStorySparRound(true);
     forfeitStorySpar();
     expect(getActiveStorySpar()).toBeNull();
     expect(getActiveQuestId()).toBe("rival-wren");
+    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([1, 1]);
+    expect(playerParty.creatures[0]!.xp).toBe(0);
+    expect(getMaterialCount("folklore-dust")).toBe(0);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(false);
+    // A forfeit is not a loss: the one session heal is still available.
+    beginStorySpar("rival-wren");
+    resolveStorySparRound(false);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(true);
+  });
+
+  it("gives rematches no heal and no XP / Dust farm", () => {
+    restoreQuestProgress(progressAt("reach-mistwood"));
+    beginStorySpar("rival-wren");
+    setInventoryFromSnapshot({ "folklore-dust": 4 }, {});
+    playerParty.creatures[0]!.xp += 40;
+    resolveStorySparRound(true);
+    resolveStorySparRound(true);
+    expect(getMaterialCount("folklore-dust")).toBe(0);
+    expect(playerParty.creatures[0]!.xp).toBe(0);
+
+    beginStorySpar("rival-wren");
+    resolveStorySparRound(false);
+    expect(playerParty.creatures.map((c) => c.currentHp)).toEqual([1, 1]);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(false);
+  });
+
+  it("heals the first boss loss even when it comes in a later phase", () => {
+    restoreQuestProgress(progressAt("cinder-matriarch"));
+    beginStorySpar("cinder-matriarch");
+    resolveStorySparRound(true);
+    resolveStorySparRound(false);
+    expect(consumeStorySparOutcome("cinder-matriarch")).toMatchObject({
+      result: "lost",
+      healed: true,
+    });
+  });
+
+  it("refuses to start with a fully fainted party", () => {
+    for (const creature of playerParty.creatures) creature.currentHp = 0;
+    expect(beginStorySpar("rival-wren")).toBe(false);
+  });
+
+  it("tracks the fight on the Story 5 HUD line", () => {
+    expect(getStorySparNpcLine()).toBeNull();
+    beginStorySpar("rival-wren");
+    resolveStorySparRound(true);
+    expect(getStorySparNpcLine()).toMatch(/^Wren: Round 2\/2/);
+    resolveStorySparRound(false);
+    expect(getStorySparNpcLine()).toMatch(/rematch/);
   });
 
   it("grants the boss reward and moves to the finale", () => {
@@ -186,7 +253,8 @@ describe("launchStorySparRound (BattleScene adapter)", () => {
     ]);
     // Level is pinned while the round runs, released afterwards.
     expect(getWildEffectiveLevel("lantern-fox", 1)).toBe(4);
-    recordSparWin("lantern-fox", false);
+    // Contract with BattleScene: a win goes through the real reward path.
+    grantSparRewards("lantern-fox", 0, () => 0.99);
     fake.shutdown();
     expect(results).toEqual(["next-round"]);
     expect(getWildEffectiveLevel("lantern-fox", 1)).not.toBe(4);

@@ -145,6 +145,17 @@ describe("rival conversation", () => {
     expect(rematch.prompt).toMatchObject({ kind: "challenge", label: "Rematch" });
   });
 
+  it("will not spar a fully fainted party (no free heal)", () => {
+    restoreQuestProgress(progressAt("rival-wren"));
+    setPartyFromSnapshot(
+      [{ instanceId: "z", definitionId: "mossling", speciesId: "mossling", currentHp: 0, level: 3, xp: 0 } as CreatureInstance],
+      2,
+    );
+    const fainted = talkTo(RIVAL_NPC_ID);
+    expect(fainted.prompt.kind).toBe("advance");
+    expect(fainted.lines.join(" ")).toMatch(/out cold/);
+  });
+
   it("gives the boss tip in Emberfen without a challenge", () => {
     restoreQuestProgress(progressAt("cinder-matriarch"));
     const tip = talkTo(RIVAL_NPC_ID);

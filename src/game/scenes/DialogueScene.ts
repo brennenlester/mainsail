@@ -223,8 +223,12 @@ export class DialogueScene extends Phaser.Scene {
     this.time.delayedCall(140, () => {
       const launched = launchStorySparRound(this, () => {
         iso.events.once("resume", () => {
-          iso.scene.pause();
-          iso.scene.launch("DialogueScene", { npcId });
+          // Let the world finish its resume fade + layout before pausing it
+          // again, or the frame freezes mid-fade (grey) behind the dialogue.
+          iso.time.delayedCall(260, () => {
+            iso.scene.pause();
+            iso.scene.launch("DialogueScene", { npcId });
+          });
         });
       });
       this.scene.stop("DialogueScene");

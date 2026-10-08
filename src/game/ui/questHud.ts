@@ -6,6 +6,7 @@ import {
   peekQuestCompletionMessage,
 } from "../story/questProgress";
 import { getActiveSideQuestHint } from "../world/npcState";
+import { getStorySparNpcLine } from "../battle/storySpar";
 import {
   getSovereignVoyageHint,
   isSovereignVoyageStarted,
@@ -50,7 +51,7 @@ export function refreshQuestHud(): void {
     questHintEl.textContent = parts.filter(Boolean).join(" · ");
   }
   if (questNpcEl) {
-    questNpcEl.textContent = getQuestNpcLine() ?? "";
+    questNpcEl.textContent = getStorySparNpcLine() ?? getQuestNpcLine() ?? "";
   }
   syncQuestHudPosition();
 }

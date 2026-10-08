@@ -199,7 +199,9 @@ export function restoreQuestProgress(
   ensureActiveQuest();
   syncVillageGateForStoryQuest();
   syncMistwoodPathForStoryQuest();
-  syncMainQuestFromGameplay();
+  // No gameplay catch-up here: party / zones may still be the previous
+  // session's. applyWorldSnapshot runs syncStoryAfterWorldRestore() once they
+  // are restored.
 }
 
 export function getActiveQuestId(): QuestId | null {

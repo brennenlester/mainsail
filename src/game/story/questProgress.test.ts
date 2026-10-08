@@ -371,6 +371,12 @@ describe("save migration from the 18-step and 4-step arcs (#369)", () => {
     expect(normalized["shrine-finale"]).toBe("locked");
   });
 
+  it("does not catch up from a stale party during restore (only after world restore)", () => {
+    setPartyFromSnapshot([creature("a", "bramblewarden", "mossling")], 2);
+    restoreQuestProgress(spine18At("evolve-bramblewarden"));
+    expect(getActiveQuestId()).toBe("first-evolution");
+  });
+
   it("catches an old evolve save with an evolved companion up to the rival", () => {
     restoreQuestProgress(spine18At("evolve-bramblewarden"));
     expect(getActiveQuestId()).toBe("first-evolution");
