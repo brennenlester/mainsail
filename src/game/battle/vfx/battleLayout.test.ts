@@ -122,3 +122,26 @@ describe("gridMoves", () => {
     expect(gridMoves(0, 0, 100, 10, 0, 2).map((r) => r.y)).toEqual([0, 10]);
   });
 });
+
+describe("story battles on short phones (#404 review)", () => {
+  for (const [w, h] of [
+    [320, 568],
+    [360, 640],
+  ] as const) {
+    it(`${w}x${h}: the boss keeps a real arena and fits on screen`, () => {
+      const l = battleLayout({ stageW: w, stageH: h, moveCount: 4, story: true, foeScale: 1.3 });
+      expect(l.tight).toBe(true);
+      expect(cssSize(l, l.arenaRegion.h)).toBeGreaterThanOrEqual(170);
+      // Boss art (1.3x creature box) stays inside the view.
+      const bossHalfW = 75 * l.cs * 1.3;
+      expect(l.wildHome.x + bossHalfW).toBeLessThanOrEqual(l.view.x + l.view.w);
+      expect(cssSize(l, 163 * l.cs * 1.3)).toBeGreaterThanOrEqual(100);
+      // Plate + intent share a row, so the intent starts right of the plate.
+      expect(l.intent.left).toBeGreaterThan(l.playerPlate.x + l.playerPlate.w);
+    });
+  }
+
+  it("roomy phones keep the full-size layout", () => {
+    expect(battleLayout({ stageW: 390, stageH: 844, moveCount: 4, story: true, foeScale: 1.3 }).tight).toBe(false);
+  });
+});

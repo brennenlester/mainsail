@@ -401,7 +401,7 @@ export class EncounterScene extends Phaser.Scene {
       return;
     }
     const onKey = (event: KeyboardEvent): void => {
-      if (this.actionTaken || event.repeat || isDomKeyboardTarget(document.activeElement)) {
+      if (this.actionTaken || event.repeat || isDomKeyboardTarget(event.target as Element | null)) {
         return;
       }
       const key = event.key.toUpperCase();

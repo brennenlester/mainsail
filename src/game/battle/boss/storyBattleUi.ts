@@ -26,7 +26,7 @@ export const BOSS_BAR = { x: 70, y: 40, width: 500, barWidth: 400 } as const;
 /** The boss intent plate sits under the wide boss bar. */
 export const STORY_INTENT_Y = 112;
 /** Boss art is drawn larger than a wild. */
-const BOSS_SCALE = 1.3;
+export const BOSS_SCALE = 1.3;
 
 /** Ember arena PNGs ship standalone (not atlas frames) and load only for the boss. */
 export function storyArenaVariant(battle: StoryBattle): ArenaVariant {

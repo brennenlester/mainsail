@@ -237,7 +237,7 @@ export function showBattleResultPanel(
   let done = false;
   const keys = scene.input.keyboard;
   const onKey = (event: KeyboardEvent): void => {
-    if (event.repeat || isDomKeyboardTarget(document.activeElement)) {
+    if (event.repeat || isDomKeyboardTarget(event.target as Element | null)) {
       return;
     }
     if (event.key === "Enter" || event.key === " ") {

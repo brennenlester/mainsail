@@ -152,3 +152,85 @@ test("encounter card: F flees whatever verbs are offered (keys never shift)", as
   await page.keyboard.press("f");
   await expect.poll(active).toBe(false);
 });
+
+async function battleReady(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const s = (window as unknown as { __game: any }).__game.scene.getScene("BattleScene");
+          return Boolean(s?.sys.isActive() && s.waitingForPlayer && s.moveCards?.length);
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+}
+
+for (const [label, won, key] of [
+  ["victory + Enter", true, "Enter"],
+  ["loss + Space", false, " "],
+] as const) {
+  test(`status dock and stage come back after a battle (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await startSpar(page);
+    await expect(page.locator("#status-panel")).toBeHidden();
+    await page.evaluate((playerWon) => {
+      const s = (window as unknown as { __game: any }).__game.scene.getScene("BattleScene");
+      (playerWon ? s.wild : s.player).currentHp = 0;
+      s.endBattle(playerWon);
+    }, won);
+    // The result card arms its keys after a beat.
+    await page.waitForTimeout(2500);
+    await page.keyboard.press(key);
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as unknown as { __game: any }).__game.scene.isActive("BattleScene")),
+      )
+      .toBe(false);
+    await expect(page.locator("#status-panel")).toBeVisible();
+    await expect
+      .poll(async () => {
+        const canvas = await page.locator("#game canvas").boundingBox();
+        const dock = await page.locator("#status-panel").boundingBox();
+        return canvas && dock ? Math.abs(canvas.height + dock.height - 844) <= 3 : false;
+      })
+      .toBe(true);
+  });
+}
+
+test("boss fight at 320x568 keeps the Matriarch on screen and readable", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await startSpar(page);
+  await page.evaluate(() => {
+    const g = (window as unknown as { __game: any }).__game;
+    g.scene.stop("BattleScene");
+    g.scene.getScene("IsometricScene").scene.launch("BattleScene", {
+      wildCreatureId: "mossling",
+      wandererPartner: { name: "W", maxHp: 24, attack: 6, defense: 4, moves: [] },
+      story: { sparId: "cinder-matriarch", rematch: true, ward: 0.8, wardNextIn: 1 },
+    });
+  });
+  await battleReady(page);
+  const box = await page.evaluate(() => {
+    const g = (window as unknown as { __game: any }).__game;
+    const s = g.scene.getScene("BattleScene");
+    const cam = s.cameras.main;
+    const canvas = g.canvas.getBoundingClientRect();
+    const k = (cam.zoom * canvas.width) / g.scale.width;
+    const b = s.wildSprite.getBounds();
+    return {
+      x: canvas.left + (b.x - cam.worldView.x) * k,
+      y: canvas.top + (b.y - cam.worldView.y) * k,
+      w: b.width * k,
+      h: b.height * k,
+      arena: s.layout.arenaRegion.h * s.layout.unit,
+      sheetTop: canvas.top + (s.layout.sheet.y - cam.worldView.y) * k,
+    };
+  });
+  expect(box.arena).toBeGreaterThanOrEqual(170);
+  expect(box.h).toBeGreaterThanOrEqual(90);
+  expect(box.x).toBeGreaterThanOrEqual(-2);
+  expect(box.x + box.w).toBeLessThanOrEqual(322);
+  // Standing in the arena, above the command sheet.
+  expect(box.y + box.h).toBeLessThanOrEqual(box.sheetTop + 2);
+});

@@ -206,6 +206,12 @@ export class MoveCard {
         wordWrap: { width: w - 28, useAdvancedWrap: true },
       })
       .setOrigin(0, 0);
+    // Never cut a sub-label mid-word: drop trailing details behind an ellipsis.
+    const pieces = data.sub.split(" · ");
+    while (pieces.length > 1 && sub.getWrappedText(sub.text).length > lines) {
+      pieces.pop();
+      sub.setText(`${pieces.join(" · ")} …`);
+    }
     parts.push(title, effect, sub);
     this.container = scene.add.container(rect.x + rect.w / 2, rect.y + rect.h / 2, parts);
     this.container.setScale(ui).setDepth(6).setSize(w, h);

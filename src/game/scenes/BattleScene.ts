@@ -14,6 +14,7 @@ import {
 } from "../audio/gameAudio";
 import { describeAssist, StoryBattle } from "../battle/boss/storyBattle";
 import {
+  BOSS_SCALE,
   preloadStoryArena,
   storyArenaVariant,
   StoryBattleUi,
@@ -33,7 +34,6 @@ import {
 } from "../battle/vfx/battleTiming";
 import { damageNumberStyle } from "../battle/vfx/damageNumbers";
 import {
-  setTouchHitArea,
   showBattleResultPanel,
   type ResultPanelFrame,
   type ResultPanelOptions,
@@ -626,6 +626,7 @@ export class BattleScene extends Phaser.Scene {
       stageH: this.stageCss.h,
       moveCount,
       story: this.story !== null,
+      foeScale: this.story?.isBoss ? BOSS_SCALE : 1,
     });
   }
 
@@ -694,7 +695,8 @@ export class BattleScene extends Phaser.Scene {
       event.metaKey ||
       event.altKey ||
       this.battleEnded ||
-      isDomKeyboardTarget(document.activeElement)
+      // Phaser hands keys over a frame late; judge by where the key was typed.
+      isDomKeyboardTarget(event.target as Element | null)
     ) {
       return;
     }
@@ -759,7 +761,14 @@ export class BattleScene extends Phaser.Scene {
       })
       .setOrigin(1, 0.5)
       .setDepth(6);
-    setTouchHitArea(btn, 44 / L.unit);
+    // Touch-sized, but grown only down / sideways: it sits on the stage's top edge.
+    const minTarget = 44 / L.unit;
+    const hitW = Math.max(btn.width, minTarget);
+    btn.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(btn.width - hitW, 0, hitW, Math.max(btn.height, minTarget)),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+    });
     btn.on("pointerdown", () => {
       const next = !fastBattleEnabled();
       setFastBattleEnabled(next);
@@ -778,6 +787,14 @@ export class BattleScene extends Phaser.Scene {
     );
     this.matchupTeachText?.destroy();
     const L = this.layout;
+    if (L.tight) {
+      // Short phones: the arena can't spare the room, so the tip rides in the log.
+      this.log(`${this.logText.text} ${tip}`);
+      if (this.logText.height > (this.logFrame?.h ?? 0)) {
+        this.log(tip);
+      }
+      return;
+    }
     this.matchupTeachText = addToast(this, L.tip.x, L.tip.y, tip, {
       ui: L.ui,
       maxW: Math.min(L.arenaRegion.w - 24 * L.ui, 560 * L.ui),
@@ -2081,9 +2098,14 @@ export class BattleScene extends Phaser.Scene {
     // instead of running off the screen (#391).
     const room = L.intent.right - L.intent.left - 16 * ui;
     let fontSize = Math.round(14 * ui);
-    while (badge.width + gap + text.width > room && fontSize > Math.round(10 * ui)) {
+    while (badge.width + gap + text.width > room && fontSize > Math.round(11 * ui)) {
       fontSize -= 1;
       text.setFontSize(fontSize);
+    }
+    if (badge.width + gap + text.width > room) {
+      // Long boss beats ("winding up — Cinderfall NEXT turn…") wrap to two lines
+      // inside the row instead of running off the edge.
+      text.setWordWrapWidth(room - badge.width - gap, true);
     }
     const contentWidth = badge.width + gap + text.width;
     const minCenter = L.intent.left + contentWidth / 2 + 8 * ui;
@@ -2096,7 +2118,7 @@ export class BattleScene extends Phaser.Scene {
     badge.setX(left);
     text.setX(left + badge.width + gap);
     const plate = this.add
-      .rectangle(centerX, y, contentWidth + 16 * ui, 28 * ui, CARD.panelDeep, 0.9)
+      .rectangle(centerX, y, contentWidth + 16 * ui, Math.max(28 * ui, text.height + 8 * ui), CARD.panelDeep, 0.9)
       .setStrokeStyle((role === "finisher" ? 2 : 1) * ui, style.color, 0.9)
       .setDepth(7);
     this.intentObjects.push(plate, badge, text);

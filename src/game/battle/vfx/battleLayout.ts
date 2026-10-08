@@ -26,6 +26,8 @@ export const BASE = {
   intentRow: 26,
   log: 40,
   card: 70,
+  /** Short portrait stages (still two sub-label lines, >= 44 CSS px). */
+  tightCard: 60,
   wideCard: 70,
   aux: 50,
   /** Fonts: card sublabel / title. Keep sub ≥ 12 so phones read ≥ 11 CSS px. */
@@ -53,10 +55,17 @@ export type BattleLayoutInput = {
   moveCount: number;
   /** Story battle: a wide boss bar replaces the wild plate. */
   story?: boolean;
+  /** Foe art scale (the story boss is drawn larger). */
+  foeScale?: number;
 };
+
+/** Portrait arenas shorter than this (CSS px) get the tight pass. */
+export const TIGHT_ARENA_CSS = 300;
 
 export type BattleLayout = {
   mode: BattleLayoutMode;
+  /** Short portrait stage: smaller cards, plate + intent share a row, tips go to the log. */
+  tight: boolean;
   /** Design-space rect the camera frames; same aspect as the stage. */
   view: Rect;
   /** CSS px per design px. */
@@ -121,24 +130,36 @@ export function battleUiScale(unit: number): number {
  * the dais / spacing scale (`s`) compressed on narrow stages so both stay on
  * screen, and the pair biased low (sky + tips above, close to the sheet).
  */
-export function fitArena(region: Rect): {
+export function fitArena(
+  region: Rect,
+  /** Foe art scale vs a normal creature (the story boss is drawn 1.3x). */
+  foeScale = 1,
+): {
   s: number;
   cs: number;
   dais: Point;
   wildHome: Point;
   playerHome: Point;
 } {
-  const reachX = Math.max(-PLAYER_OFFSET.x, WILD_OFFSET.x);
+  const f = Math.max(1, foeScale);
   const spreadY = -WILD_OFFSET.y + PLAYER_OFFSET.y + 30;
   const halfRoom = region.w / 2 - 6;
-  const byHeight = region.h / (spreadY * 0.8 + CREATURE.h);
-  const byWidth = halfRoom / (CREATURE.w / 2 + reachX * 0.8);
+  const byHeight = region.h / (spreadY * 0.8 + CREATURE.h * f);
+  const byWidth = halfRoom / Math.max(CREATURE.w / 2 - PLAYER_OFFSET.x * 0.8, (CREATURE.w / 2) * f + WILD_OFFSET.x * 0.8);
   const cs = Math.min(1.75, Math.max(0.55, Math.min(byHeight, byWidth)));
   const s = Math.min(
     1.6,
-    Math.max(0.5, Math.min(cs, (halfRoom - (CREATURE.w / 2) * cs) / reachX, (region.h - CREATURE.h * cs) / spreadY)),
+    Math.max(
+      0.5,
+      Math.min(
+        cs,
+        (halfRoom - (CREATURE.w / 2) * cs) / -PLAYER_OFFSET.x,
+        (halfRoom - (CREATURE.w / 2) * cs * f) / WILD_OFFSET.x,
+        (region.h - CREATURE.h * cs * f) / spreadY,
+      ),
+    ),
   );
-  const above = -WILD_OFFSET.y * s + CREATURE.h * cs;
+  const above = -WILD_OFFSET.y * s + CREATURE.h * cs * f;
   const below = (PLAYER_OFFSET.y + 30) * s;
   const dais = {
     x: region.x + region.w / 2,
@@ -177,6 +198,13 @@ export function gridMoves(x: number, y: number, w: number, cardH: number, gap: n
 }
 
 export function battleLayout(input: BattleLayoutInput): BattleLayout {
+  const roomy = computeLayout(input, false);
+  return roomy.mode === "portrait" && roomy.arenaRegion.h * roomy.unit < TIGHT_ARENA_CSS
+    ? computeLayout(input, true)
+    : roomy;
+}
+
+function computeLayout(input: BattleLayoutInput, tight: boolean): BattleLayout {
   const mode = battleLayoutMode(input.stageW, input.stageH);
   const view = battleView(input.stageW, input.stageH);
   const unit = Math.max(1, input.stageW) / view.w;
@@ -235,11 +263,12 @@ export function battleLayout(input: BattleLayoutInput): BattleLayout {
   } else {
     const colX = view.x + m;
     const colW = view.w - 2 * m;
-    const auxH = BASE.aux * ui;
+    // Tight: still >= 44 CSS px (48 x 0.92), just less padding.
+    const auxH = (tight ? 48 : BASE.aux) * ui;
     const auxY = bottom - auxH;
     aux = splitRow(colX, auxY, colW, auxH, 2, gap) as [Rect, Rect];
     auxSingle = { x: colX, y: auxY, w: colW, h: auxH };
-    const cardH = BASE.card * ui;
+    const cardH = (tight ? BASE.tightCard : BASE.card) * ui;
     const cardsTop = auxY - gap - (2 * cardH + gap);
     moves = gridMoves(colX, cardsTop, colW, cardH, gap, n);
     const logH = BASE.log * ui;
@@ -273,6 +302,13 @@ export function battleLayout(input: BattleLayoutInput): BattleLayout {
     foePlate = { x: inner.x, y, w: inner.w, h: BASE.bossBar.h * ui };
     y += foePlate.h + gap;
     playerPlate = { x: inner.x, y, w: plateW, h: plateH };
+    if (tight) {
+      // Short phones: the intent rides beside your plate instead of its own row.
+      playerPlate.w = Math.min(plateW, inner.w * 0.42);
+      const intent = { y: y + plateH / 2, left: inner.x + playerPlate.w + gap, right: inner.x + inner.w };
+      y += plateH + gap;
+      return finish(intent, y);
+    }
     y += plateH + gap;
   } else {
     playerPlate = { x: inner.x, y, w: plateW, h: plateH };
@@ -280,36 +316,43 @@ export function battleLayout(input: BattleLayoutInput): BattleLayout {
     y += plateH + gap;
   }
   const intentH = BASE.intentRow * ui;
-  const intent = { y: y + intentH / 2, left: inner.x, right: inner.x + inner.w };
-  y += intentH + gap;
+  return finish({ y: y + intentH / 2, left: inner.x, right: inner.x + inner.w }, y + intentH + gap);
 
-  const arenaRegion: Rect = { x: stageArea.x, y, w: stageArea.w, h: Math.max(1, stageArea.y + stageArea.h - y) };
-  const arena = fitArena(arenaRegion);
-  const center = { x: view.x + view.w / 2, y: view.y + view.h / 2 };
-  return {
-    mode,
-    view,
-    unit,
-    ui,
-    topRow,
-    foePlate,
-    playerPlate,
-    intent,
-    arenaRegion,
-    dais: arena.dais,
-    s: arena.s,
-    cs: arena.cs,
-    wildHome: arena.wildHome,
-    playerHome: arena.playerHome,
-    sheet,
-    log,
-    moves,
-    aux,
-    auxSingle,
-    banner: { x: arenaRegion.x + arenaRegion.w / 2, y: arenaRegion.y + arenaRegion.h / 2 },
-    tip: { x: arenaRegion.x + arenaRegion.w / 2, y: arenaRegion.y },
-    modal: { x: center.x, y: center.y, maxW: view.w - 2 * m, maxH: view.h - 2 * m },
-  };
+  function finish(intent: BattleLayout["intent"], arenaTop: number): BattleLayout {
+    const arenaRegion: Rect = {
+      x: stageArea.x,
+      y: arenaTop,
+      w: stageArea.w,
+      h: Math.max(1, stageArea.y + stageArea.h - arenaTop),
+    };
+    const arena = fitArena(arenaRegion, input.foeScale);
+    const center = { x: view.x + view.w / 2, y: view.y + view.h / 2 };
+    return {
+      mode,
+      tight,
+      view,
+      unit,
+      ui,
+      topRow,
+      foePlate,
+      playerPlate,
+      intent,
+      arenaRegion,
+      dais: arena.dais,
+      s: arena.s,
+      cs: arena.cs,
+      wildHome: arena.wildHome,
+      playerHome: arena.playerHome,
+      sheet,
+      log,
+      moves,
+      aux,
+      auxSingle,
+      banner: { x: arenaRegion.x + arenaRegion.w / 2, y: arenaRegion.y + arenaRegion.h / 2 },
+      tip: { x: arenaRegion.x + arenaRegion.w / 2, y: arenaRegion.y },
+      modal: { x: center.x, y: center.y, maxW: view.w - 2 * m, maxH: view.h - 2 * m },
+    };
+  }
 }
 
 /** Rect in design px -> CSS px height (for the >= 44 px touch target rule). */
