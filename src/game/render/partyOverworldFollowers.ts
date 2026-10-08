@@ -20,6 +20,7 @@ import {
 } from "../shrine/presence";
 import { CREATURE_DISPLAY, fitDisplay } from "./displaySizes";
 import { creatureAnimKey } from "./imagineAssets";
+import { fetchLateImages, isLateImagePending, lateCreatureKeys } from "./lateAssets";
 
 export type Facing = "south" | "north" | "east" | "west";
 
@@ -45,6 +46,13 @@ export function createPartyOverworldFollowerState(): PartyOverworldFollowerState
 /** Call once per zone load before syncing followers. */
 export function preparePartyOverworldFollowerTextures(scene: Phaser.Scene): void {
   ensureCreatureTextures(scene);
+  // Safety net (#410): a late-game companion whose art is not loaded yet
+  // (normally fetched at boot or by the scene that granted it) stays hidden
+  // until it lands instead of drawing a missing-texture box.
+  void fetchLateImages(
+    scene.textures,
+    lateCreatureKeys(getActiveCreatures().map((c) => c.definitionId)),
+  );
 }
 
 export function destroyPartyOverworldFollowers(
@@ -137,6 +145,7 @@ function syncFollowerVisual(
     sprite.clearTint();
   }
   sprite.setAlpha(creature.currentHp > 0 ? 1 : 0.45);
+  sprite.setVisible(!isLateImagePending(scene.textures, def.spriteKey));
   sprite.setDepth(depth - 1 - index * 0.01);
 
   const showMoon = hasPresenceGrowth(creature);
