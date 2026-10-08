@@ -1,0 +1,26 @@
+{
+  "anims": [
+    {
+      "key": "npc-island-hermit-reed__idle",
+      "frames": [
+        "npc-island-hermit-reed__idle_00",
+        "npc-island-hermit-reed__idle_01",
+        "npc-island-hermit-reed__idle_02",
+        "npc-island-hermit-reed__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-island-hermit-reed__talk",
+      "frames": [
+        "npc-island-hermit-reed__talk_00",
+        "npc-island-hermit-reed__talk_01",
+        "npc-island-hermit-reed__talk_02",
+        "npc-island-hermit-reed__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-brook-nymph__idle",
+      "frames": [
+        "creature-brook-nymph__idle_00",
+        "creature-brook-nymph__idle_01",
+        "creature-brook-nymph__idle_02",
+        "creature-brook-nymph__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

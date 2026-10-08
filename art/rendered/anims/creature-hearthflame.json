@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-hearthflame__idle",
+      "frames": [
+        "creature-hearthflame__idle_00",
+        "creature-hearthflame__idle_01",
+        "creature-hearthflame__idle_02",
+        "creature-hearthflame__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

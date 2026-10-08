@@ -40,6 +40,39 @@ describe("packed atlas manifest", () => {
     }
   });
 
+  it("stays under the 12 MB atlas budget (#361)", () => {
+    const bytes = atlas.textures.reduce(
+      (n, p) => n + fs.statSync(path.join(ATLAS_DIR, p.image)).size,
+      0,
+    );
+    expect(bytes).toBeLessThan(12 * 1024 * 1024);
+  });
+
+  it("ships the first-hour creature roster with battle anims (#361)", () => {
+    const keys = new Set(anims.anims.map((a) => a.key));
+    for (const id of [
+      "mossling",
+      "bramblewarden",
+      "ember-wisp",
+      "hearthflame",
+      "brook-nymph",
+      "thunder-finch",
+      "cinder-toad",
+      "rootwalker",
+      "lantern-fox",
+      "stone-hound",
+    ]) {
+      expect(frames.has(`creature-${id}-encounter`), id).toBe(true);
+      expect(keys.has(`creature-${id}__idle`), id).toBe(true);
+      for (const anim of ["idle", "attack", "hurt", "faint"]) {
+        expect(keys.has(`creature-${id}-battle__${anim}`), `${id} ${anim}`).toBe(true);
+      }
+    }
+    for (const npc of ["warden-bryn", "weaver-sable", "hearthkeep-odd"]) {
+      expect(keys.has(`npc-${npc}__idle`) && keys.has(`npc-${npc}__talk`), npc).toBe(true);
+    }
+  });
+
   it("ships the Blender player walk (6 per facing) and Mossling sets", () => {
     for (const facing of ["south", "north", "east", "west"]) {
       for (let i = 0; i <= 6; i += 1) {

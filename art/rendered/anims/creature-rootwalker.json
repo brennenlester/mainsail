@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-rootwalker__idle",
+      "frames": [
+        "creature-rootwalker__idle_00",
+        "creature-rootwalker__idle_01",
+        "creature-rootwalker__idle_02",
+        "creature-rootwalker__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}
