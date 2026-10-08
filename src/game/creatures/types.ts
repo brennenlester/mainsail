@@ -1,5 +1,11 @@
 import type { FolkloreType } from "./folkloreTypes";
 import type { CreatureTrait } from "./traits";
+import type { PersonalityId } from "../companions/personality";
+
+/** Battle kit slot. Missing role = plain attack (legacy / wanderer / shrine moves). */
+export type MoveRole = "attack" | "guard" | "status" | "finisher";
+
+export type StatusId = "burn" | "soaked" | "rooted" | "dazed";
 
 export type MoveDefinition = {
   id: string;
@@ -9,7 +15,16 @@ export type MoveDefinition = {
   type: FolkloreType;
   /** Hit chance 0–100. Chip ~90–100; nukes ~70–80. */
   accuracy: number;
+  role?: MoveRole;
+  /** Own turns the move stays unavailable after use (0 / missing = always ready). */
+  cooldown?: number;
+  /** Status applied on hit (status role). */
+  inflicts?: StatusId;
+  /** Guard: fraction of max HP restored on use. */
+  heal?: number;
 };
+
+export type StatusInstance = { id: StatusId; turns: number };
 
 export type CreatureDefinition = {
   id: string;
@@ -48,6 +63,10 @@ export type CreatureInstance = {
   appliedEffects?: string[];
   /** Rolled signature trait (immunity or damage-buff). */
   trait?: CreatureTrait;
+  /** Personality rolled at befriend (#367). Backfilled on load for older saves. */
+  personality?: PersonalityId;
+  /** Bond points 0..BOND_MAX (#367). Missing = 0. */
+  bond?: number;
 };
 
 export type BattleCombatant = {
@@ -64,4 +83,12 @@ export type BattleCombatant = {
   immunityTo?: FolkloreType;
   /** Signature damage-buff, if any. */
   damageBuff?: { moveId: string; multiplier: number };
+  /** Outgoing damage multiplier (wild softening). Missing = 1. */
+  damageScale?: number;
+  /** Battle-only state (never saved). */
+  statuses?: StatusInstance[];
+  /** moveId -> own turns until ready. */
+  cooldowns?: Record<string, number>;
+  /** Guard up: the next incoming hit is reduced. */
+  guarding?: boolean;
 };

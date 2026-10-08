@@ -63,6 +63,11 @@ body,
   pointer-events: none;
 }
 
+/* Spars own the whole board; the quest card would cover the foe's HP plate. */
+body.battle-active #quest-hud {
+  display: none;
+}
+
 .quest-hud-summary {
   color: #4a6a48;
   font-size: 13px;
@@ -686,6 +691,11 @@ body,
   font-size: 12px;
 }
 
+.codex-fav {
+  color: #b07a3a;
+  font-size: 12px;
+}
+
 .codex-zone-locked {
   opacity: 0.55;
 }
@@ -846,6 +856,169 @@ body,
   font-size: 12px;
   color: #7aa8b8;
   min-height: 1em;
+}
+
+/* Companion card + nickname prompt (#367). */
+/* The card makes the panel scroll; keep the columns from collapsing under it. */
+.party-panel > * {
+  flex-shrink: 0;
+}
+
+.party-detail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 2px solid #c8e4d8;
+  border-radius: 12px;
+  background: #fffdf6;
+  font-size: 13px;
+}
+
+.party-detail-empty {
+  color: #6a8090;
+}
+
+.party-detail-name {
+  font-family: Fraunces, serif;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.party-detail-trait,
+.party-detail-fav {
+  margin: 4px 0;
+  color: #3a5a68;
+}
+
+.party-bond {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-weight: 700;
+}
+
+.party-bond-meter {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: #e4eee8;
+  border: 1px solid #b8d4c8;
+  overflow: hidden;
+}
+
+.party-bond-fill {
+  display: block;
+  height: 100%;
+  background: #9ad8b0;
+  transition: width 240ms ease-out;
+}
+
+.party-bond-tier-2 { background: #f0c860; }
+.party-bond-tier-3 { background: #f09ac8; }
+.party-bond-tier-4 { background: linear-gradient(90deg, #c8b0ff, #f09ac8, #f0c860); }
+
+.party-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.party-detail-note {
+  min-height: 1em;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #b0603a;
+}
+
+.nickname-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #1a304088;
+  font-family: "Source Sans 3", sans-serif;
+}
+
+.nickname-overlay[hidden] {
+  display: none;
+}
+
+.nickname-panel {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 18px;
+  background: linear-gradient(160deg, #fff8ec 0%, #eef8f2 100%);
+  border: 3px solid #6eb8a8;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px #3a786655;
+  color: #2a4858;
+  text-align: center;
+}
+
+.nickname-title {
+  font-family: Fraunces, serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.nickname-body {
+  font-size: 14px;
+  color: #4a6a68;
+}
+
+.nickname-input {
+  width: 100%;
+  border: 2px solid #6eb8a8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  color: #2a4858;
+  background: #fff;
+  text-align: center;
+}
+
+.nickname-input:focus-visible,
+.nickname-btn:focus-visible {
+  outline: 2px solid #f0c878;
+  outline-offset: 2px;
+}
+
+.nickname-error {
+  min-height: 1em;
+  font-size: 13px;
+  color: #b0603a;
+}
+
+.nickname-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nickname-btn {
+  border: 2px solid #a0c8b8;
+  background: #f4fffa;
+  color: #2a6058;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.nickname-btn-primary {
+  border-color: #6eb8a8;
+  background: #d8f0e8;
 }
 
 .inventory-overlay {

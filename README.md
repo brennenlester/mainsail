@@ -19,7 +19,7 @@ On a fresh save (or after Reset / `?new=1`), enter a display name (1–16 charac
 | Input | Action |
 | --- | --- |
 | **Arrow keys** or **WASD** | Move (hold to keep walking) |
-| **E** | Interact — open Moon Shrine, enter a cottage door, talk to a villager, play a cottage minigame on the house prop, or moor / board / disembark a boat |
+| **E** | Interact — open Moon Shrine, enter a cottage door, talk to a villager, play a cottage minigame on the house prop, moor / board / disembark a boat, or use a companion ability |
 | **I** | Shortcut: copy a friend invite link (host only) |
 | **Copy invite link** (status panel) | Copy a friend invite link (host only; works on touch) |
 | **Party** (status panel) | Manage the active party (max 7) and scroll/swap reserve creatures |
@@ -86,6 +86,22 @@ Stand next to the house's signature prop and press **E** for a minigame (same re
 | Hearthkeep Cottage | Hearth | **Hearth Lots** — roll one die and hop a 12-round property board vs Odd | Brook Tonic ×1 |
 
 Ward the Crossing needs at least one living **active** companion. Overworld HP does not change. Hearth Lots uses play money; inventory only changes on that first-win tonic.
+
+### Companions
+
+Every creature you befriend has a **personality** (Bold, Shy, Greedy, Sleepy, Curious, Loyal, Playful, or Gentle), rolled once when it joins. A skippable prompt lets you give new friends a **nickname** (rename any time from **Party**). Personality shows up in the overworld: followers bark short lines when you stop, bold ones walk ahead, shy and sleepy ones lag behind, loyal ones stay close, and curious ones drift toward anything interesting nearby.
+
+**Bond** grows from battling together (the fighter gains most), gifting a companion its **favorite material** (Party → select → Gift; the Codex lists each species' favorite once you have met it), and using overworld abilities. Five tiers — Wary, Friendly, Close, Devoted, Kindred — each add a brighter aura under the follower (cosmetic for now; a small battle bonus is planned but not yet active); a tier-up gets a heart-and-sparkle celebration. Loyal companions gain extra bond from battles, Shy and Greedy ones from gifts, Curious and Playful ones from abilities.
+
+**Overworld abilities** use **E** with the right companion in the active party (fainted companions can't help):
+
+| Ability | Who | Where |
+| --- | --- | --- |
+| Burn brush → stash | Ember or hearth types (e.g. Ember Wisp) | Dry brush in Folklore Fields (NW corner) and Emberfen Hollow (SE corner) |
+| Ford the shallows → islet stash | Water types (e.g. Brook Nymph) | Rippling water at the Folklore Fields south shore (west and east islets); press E on the islet to ford back |
+| Sense hidden node | Woodland or fen types (e.g. Mossling) | Faint glimmers in Whisper Grove and Mistwood Reach; the revealed node stays as a regular gather spot |
+
+All ability rewards are optional and one-time; the main quest never needs them.
 
 ### Encounters and crafting
 
@@ -165,6 +181,7 @@ These are for local development only; they are not part of normal play:
 - `src/game/story/` — quest definitions and progress
 - `src/game/world/` — zones, collision, invites, saves
 - `src/game/creatures/` — catalog and party
+- `src/game/companions/` — personality, bond, favorite materials, overworld abilities
 - `src/game/inventory/` / `src/game/crafting/` / `src/game/shrine/` — materials and Moon Shrine
 - `AGENTS.md` — agent workflow conventions
 
