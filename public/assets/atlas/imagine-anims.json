@@ -876,32 +876,6 @@
       "repeat": -1
     },
     {
-      "key": "npc-rival-wren-east__walk",
-      "frames": [
-        "npc-rival-wren-east-1",
-        "npc-rival-wren-east-2",
-        "npc-rival-wren-east-3",
-        "npc-rival-wren-east-4",
-        "npc-rival-wren-east-5",
-        "npc-rival-wren-east-6"
-      ],
-      "frameRate": 10,
-      "repeat": -1
-    },
-    {
-      "key": "npc-rival-wren-north__walk",
-      "frames": [
-        "npc-rival-wren-north-1",
-        "npc-rival-wren-north-2",
-        "npc-rival-wren-north-3",
-        "npc-rival-wren-north-4",
-        "npc-rival-wren-north-5",
-        "npc-rival-wren-north-6"
-      ],
-      "frameRate": 10,
-      "repeat": -1
-    },
-    {
       "key": "npc-rival-wren-portrait__idle",
       "frames": [
         "npc-rival-wren-portrait__idle_00",
@@ -921,32 +895,6 @@
         "npc-rival-wren-portrait__talk_03"
       ],
       "frameRate": 8,
-      "repeat": -1
-    },
-    {
-      "key": "npc-rival-wren-south__walk",
-      "frames": [
-        "npc-rival-wren-south-1",
-        "npc-rival-wren-south-2",
-        "npc-rival-wren-south-3",
-        "npc-rival-wren-south-4",
-        "npc-rival-wren-south-5",
-        "npc-rival-wren-south-6"
-      ],
-      "frameRate": 10,
-      "repeat": -1
-    },
-    {
-      "key": "npc-rival-wren-west__walk",
-      "frames": [
-        "npc-rival-wren-west-1",
-        "npc-rival-wren-west-2",
-        "npc-rival-wren-west-3",
-        "npc-rival-wren-west-4",
-        "npc-rival-wren-west-5",
-        "npc-rival-wren-west-6"
-      ],
-      "frameRate": 10,
       "repeat": -1
     },
     {

@@ -491,7 +491,7 @@ SPECS += [
 
 
 # #392: Wren, the rival. `npc-rival-wren` (idle + talk, the overworld NPC
-# sprite), four walk facings, and a bust portrait rendered closer and at
+# sprite), optional walk facings (`_wren`), and a bust portrait rendered closer and at
 # higher resolution for the dialogue panel (not a scaled-up sprite).
 def _wren(facing: str, deg: int) -> dict:
     key = f"npc-rival-wren-{facing}"
@@ -513,7 +513,8 @@ def _wren(facing: str, deg: int) -> dict:
 
 SPECS += [
     {**_villager("rival-wren"), "model": "wren", "args": {"facing_deg": -12}, "shadow": (0.22, 0.42)},
-    *[_wren(f, d) for f, d in FACINGS.items()],
+    # ponytail: walk facings (`_wren`) are not packed until Wren moves in the
+    # overworld; add `*[_wren(f, d) for f, d in FACINGS.items()]` back then.
     {
         "key": "npc-rival-wren-portrait",
         "folder": "npcs",

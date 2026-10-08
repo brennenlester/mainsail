@@ -53,8 +53,10 @@ const RIVAL: Omit<NpcDefinition, "x" | "y"> = {
 const BOSS: Omit<NpcDefinition, "x" | "y"> = {
   id: BOSS_NPC_ID,
   name: "Cinder Matriarch",
-  // Creature art (textures exist once party followers prepare them).
-  spriteKey: "creature-cinder-toad",
+  // Blender boss render (#392; `-phase2` is her Cinder form); the Cinder
+  // Toad stands in if the frame is missing.
+  spriteKey: "creature-cinder-matriarch",
+  fallbackSpriteKey: "creature-cinder-toad",
   tint: 0xb8482c,
   introLines: [],
   idleLines: ["The peat smolders, quiet."],
@@ -62,7 +64,8 @@ const BOSS: Omit<NpcDefinition, "x" | "y"> = {
 };
 
 const RIVAL_SPOTS: Partial<Record<ZoneId, { x: number; y: number }>> = {
-  village: { x: 3, y: 3 },
+  // Clear of the market stall at (3,2), which overhangs (3,3) (#392).
+  village: { x: 4, y: 4 },
   emberfen: { x: 2, y: 7 },
   shrine: { x: 2, y: 7 },
 };

@@ -102,9 +102,7 @@ describe("packed atlas manifest", () => {
       expect(frames.has(key), key).toBe(true);
     }
     const keys = new Set(anims.anims.map((a) => a.key));
-    for (const facing of ["south", "north", "east", "west"]) {
-      expect(keys.has(`npc-rival-wren-${facing}__walk`), facing).toBe(true);
-    }
+    expect(frames.has("arena-ember-sky"), "boss arena (#385) is packed").toBe(true);
     expect(keys.has("npc-rival-wren__talk") && keys.has("npc-rival-wren-portrait__talk")).toBe(true);
     for (const id of [
       "peat-sprite",

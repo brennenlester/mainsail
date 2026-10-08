@@ -801,10 +801,15 @@ export function getBoatTextureKey(): string {
 export function applyNpcSprite(
   scene: Phaser.Scene,
   image: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,
-  npc: { spriteKey: string; tint: number },
+  npcDef: { spriteKey: string; tint: number; fallbackSpriteKey?: string },
   size: { width: number; height: number } = NPC_DISPLAY,
   anim: "idle" | "talk" = "idle",
 ): Phaser.GameObjects.Image {
+  const fallback = npcDef.fallbackSpriteKey;
+  const npc =
+    fallback && !hasWorldTexture(scene, npcDef.spriteKey) && hasWorldTexture(scene, fallback)
+      ? { ...npcDef, spriteKey: fallback }
+      : npcDef;
   // Dialogue (talk) prefers a rendered bust portrait when one exists (#392:
   // `npc-rival-wren-portrait`), so the panel never shows a blown-up sprite.
   const portraitKey = `${npc.spriteKey}-portrait`;
