@@ -6,6 +6,7 @@ import {
   playGatherSfx,
   playShrineSfx,
   playStepSfx,
+  setAudioZone,
   unlockAudioFromGesture,
 } from "../audio/gameAudio";
 import {
@@ -1088,6 +1089,7 @@ export class IsometricScene extends Phaser.Scene {
     }
     const previousZoneId = this.currentZoneId;
     this.currentZoneId = zoneId;
+    setAudioZone(zoneId);
     onZoneEnter(zoneId, previousZoneId === zoneId ? null : previousZoneId);
     const zone = getZone(zoneId);
     this.playerDepth = playerDepthAboveGrid(zone.width, zone.height);

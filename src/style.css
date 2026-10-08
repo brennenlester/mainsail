@@ -266,6 +266,17 @@ body,
   outline-offset: 2px;
 }
 
+.status-volume {
+  width: 72px;
+  accent-color: #4a9a88;
+  cursor: pointer;
+}
+
+.status-volume:focus-visible {
+  outline: 2px solid #6eb8a8;
+  outline-offset: 2px;
+}
+
 .status-codex-btn {
   border: 2px solid #a0c8e0;
   background: #f0f8ff;
