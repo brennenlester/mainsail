@@ -80,16 +80,58 @@ function leadFolkloreType(): FolkloreType | undefined {
   return lead ? getCreatureDefinition(lead.definitionId).folkloreType : undefined;
 }
 
+/** Tiles of walking before a declined (fled / lost) beat is offered again. */
+export const OPENING_RETRY_TILES = 10;
+
+/**
+ * One-shot per session: a beat is guaranteed on its first eligible roll,
+ * then only re-offered after `OPENING_RETRY_TILES` of walking (normal wild
+ * rolls run in between), so fleeing never chain-triggers it.
+ */
+export class OpeningBeatGate {
+  private readonly tilesSinceOffer = new Map<string, number>();
+
+  private readonly retryTiles: number;
+
+  constructor(retryTiles = OPENING_RETRY_TILES) {
+    this.retryTiles = retryTiles;
+  }
+
+  tryOffer(beatId: string, travelledTiles: number): boolean {
+    const since = this.tilesSinceOffer.get(beatId);
+    if (since === undefined) {
+      this.tilesSinceOffer.set(beatId, 0);
+      return true;
+    }
+    const next = since + travelledTiles;
+    if (next >= this.retryTiles) {
+      this.tilesSinceOffer.set(beatId, 0);
+      return true;
+    }
+    this.tilesSinceOffer.set(beatId, next);
+    return false;
+  }
+}
+
+const sessionGate = new OpeningBeatGate();
+
 /** Live-state wrapper for `IsometricScene`'s wild roll. */
-export function scriptedOpeningCreature(zoneId: ZoneId, visitor: boolean): string | null {
-  return (
-    pickOpeningEncounter({
-      activeQuestId: getActiveQuestId(),
-      zoneId,
-      leadType: leadFolkloreType(),
-      visitor,
-    })?.creatureId ?? null
-  );
+export function scriptedOpeningCreature(
+  zoneId: ZoneId,
+  visitor: boolean,
+  travelledTiles: number,
+  gate: OpeningBeatGate = sessionGate,
+): string | null {
+  const beat = pickOpeningEncounter({
+    activeQuestId: getActiveQuestId(),
+    zoneId,
+    leadType: leadFolkloreType(),
+    visitor,
+  });
+  if (!beat || !gate.tryOffer(beat.id, travelledTiles)) {
+    return null;
+  }
+  return beat.creatureId;
 }
 
 /** Personality line for a creature while its opening beat is active. */

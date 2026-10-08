@@ -612,10 +612,16 @@ export class IsometricScene extends Phaser.Scene {
       return;
     }
 
+    const travelled = this.travelSinceEncounter;
     this.travelSinceEncounter = 0;
     const profile = getHabitatProfile(this.currentZoneId);
-    // Opening beats (#363) script the first meet / first spar foe.
-    const scripted = scriptedOpeningCreature(this.currentZoneId, isVisitorMode());
+    // Opening beats (#363) script the first meet / first spar foe (one-shot,
+    // re-offered only after a walking cooldown).
+    const scripted = scriptedOpeningCreature(
+      this.currentZoneId,
+      isVisitorMode(),
+      travelled,
+    );
     const guaranteed =
       scripted !== null || shouldGuaranteeWildTrigger(profile, this.currentZoneId);
     if (!guaranteed && !rollWildTriggerChance(profile)) {

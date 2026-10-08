@@ -204,8 +204,14 @@ export class TitleMenu {
       btn.appendChild(sub);
     }
     btn.addEventListener("click", onClick);
-    // Hover moves focus so mouse + keyboard never show two highlights.
-    btn.addEventListener("pointerenter", () => btn.focus({ preventScroll: true }));
+    // Real hover moves focus so mouse + keyboard never show two highlights.
+    // (pointermove, not pointerenter: a view swap under a resting cursor must
+    // not steal the default focus.)
+    btn.addEventListener("pointermove", () => {
+      if (document.activeElement !== btn) {
+        btn.focus({ preventScroll: true });
+      }
+    });
     return btn;
   }
 

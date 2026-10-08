@@ -831,8 +831,14 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
     if (!this.started) {
-      // Modifier-only presses (e.g. Cmd+Tab) should not count as "any key".
-      if (["Shift", "Control", "Alt", "Meta", "Tab"].includes(event.key)) {
+      // Leave browser shortcuts alone (F5, Ctrl/Cmd+R, Cmd+Tab, ...).
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        /^F\d{1,2}$/.test(event.key) ||
+        ["Shift", "Control", "Alt", "Meta", "Tab"].includes(event.key)
+      ) {
         return;
       }
       event.preventDefault();
@@ -877,6 +883,7 @@ export class TitleScene extends Phaser.Scene {
       }
       if (!this.started) {
         this.begin();
+        this.showSoundHintIfLocked();
       } else if (!this.leaving) {
         this.menu?.nav(input as NavInput);
       }
@@ -908,6 +915,23 @@ export class TitleScene extends Phaser.Scene {
     url.search = "?new=1";
     url.hash = "";
     window.location.assign(url.toString());
+  }
+
+  /** A pad press is not a browser gesture: tell pad players how to get sound. */
+  private showSoundHintIfLocked(): void {
+    const ctx = (this.sound as Phaser.Sound.WebAudioSoundManager).context;
+    if (!this.sound.locked && ctx?.state !== "suspended") {
+      return;
+    }
+    const hint = document.createElement("p");
+    hint.id = "title-sound-hint";
+    hint.className = "title-sound-hint";
+    hint.textContent = "Press any key or click for sound";
+    document.getElementById("game")?.appendChild(hint);
+    const clear = (): void => hint.remove();
+    window.addEventListener("keydown", clear, { once: true });
+    window.addEventListener("pointerdown", clear, { once: true });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, clear);
   }
 
   private teardown(): void {

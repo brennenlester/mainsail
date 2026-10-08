@@ -3,6 +3,8 @@ import { getCreatureDefinition } from "../creatures/catalog";
 import { getHunterTarget } from "../creatures/folkloreTypes";
 import {
   OPENING_ENCOUNTERS,
+  OPENING_RETRY_TILES,
+  OpeningBeatGate,
   openingPersonalityLine,
   pickOpeningEncounter,
 } from "./openingScript";
@@ -60,5 +62,27 @@ describe("openingPersonalityLine", () => {
     expect(openingPersonalityLine("mossling", "first-befriend")).toMatch(/hum/i);
     expect(openingPersonalityLine("mossling", "shrine-craft")).toBeNull();
     expect(openingPersonalityLine("ember-wisp", "first-befriend")).toBeNull();
+  });
+});
+
+describe("OpeningBeatGate (flee must not chain-trigger)", () => {
+  it("guarantees the very first roll, then waits a walking cooldown", () => {
+    const gate = new OpeningBeatGate();
+    expect(gate.tryOffer("first-meet", 0.75)).toBe(true);
+    // Fled: following rolls fall back to normal odds until ~10 tiles walked.
+    let rolls = 0;
+    while (!gate.tryOffer("first-meet", 0.75)) {
+      rolls += 1;
+      expect(rolls).toBeLessThan(100);
+    }
+    expect((rolls + 1) * 0.75).toBeGreaterThanOrEqual(OPENING_RETRY_TILES);
+    expect(gate.tryOffer("first-meet", 0.75)).toBe(false);
+  });
+
+  it("tracks each beat separately", () => {
+    const gate = new OpeningBeatGate();
+    expect(gate.tryOffer("first-meet", 1)).toBe(true);
+    expect(gate.tryOffer("first-spar", 1)).toBe(true);
+    expect(gate.tryOffer("first-meet", 1)).toBe(false);
   });
 });
