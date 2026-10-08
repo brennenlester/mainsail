@@ -34,10 +34,21 @@ function placeKnob(knob: HTMLElement, pad: HTMLElement): void {
   knob.style.transform = `translate(${axes.x * max}px, ${axes.y * max}px)`;
 }
 
-/** True when the on-screen stick is laid out (touch / narrow layouts). */
-export function areTouchControlsVisible(): boolean {
-  const root = document.getElementById("touch-controls");
-  return root !== null && getComputedStyle(root).display !== "none";
+/** Same query as the `.touch-controls` rule in style.css that lays the stick out. */
+export const TOUCH_CONTROLS_MEDIA = "(hover: none) and (pointer: coarse), (max-width: 820px)";
+
+/**
+ * True on layouts that get the on-screen stick (touch / narrow). A stable
+ * device / viewport check, not the stick's live visibility: battles,
+ * encounters and cutscenes hide it (display: none), and reading it then left
+ * prompts stuck on "Press E" after a battle on phones (#404).
+ */
+export function areTouchControlsVisible(
+  matchMedia: ((query: string) => { matches: boolean }) | undefined = typeof window !== "undefined"
+    ? window.matchMedia?.bind(window)
+    : undefined,
+): boolean {
+  return matchMedia?.(TOUCH_CONTROLS_MEDIA).matches ?? false;
 }
 
 export function isTouchControlsEnabled(): boolean {

@@ -71,6 +71,7 @@ import { discoverOnEncounter } from "../encounters/encounterDiscovery";
 import { markCreatureDiscovered } from "../world/worldState";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { unlockCodexHud } from "../ui/hudChrome";
+import { isDomKeyboardTarget } from "../ui/canvasFocus";
 import { openingPersonalityLine } from "../opening/openingScript";
 import {
   addChip,
@@ -95,6 +96,16 @@ const MESSAGE_Y = BUTTON_Y + 62;
 const TIP_COLOR = CARD.mutedCss;
 
 type EncounterVerb = "befriend" | "spar" | "flee";
+
+/**
+ * Fixed keys per verb (#404): they never shift when Befriend isn't offered.
+ * The letter is the visible hint; the digit is an alias.
+ */
+const VERB_KEYS: Readonly<Record<EncounterVerb, { letter: string; digit: string }>> = {
+  befriend: { letter: "B", digit: "1" },
+  spar: { letter: "S", digit: "2" },
+  flee: { letter: "F", digit: "3" },
+};
 
 export class EncounterScene extends Phaser.Scene {
   private creatureId!: string;
@@ -148,7 +159,9 @@ export class EncounterScene extends Phaser.Scene {
   }
 
   create(): void {
-    bindOverlayPixelRatio(this);
+    // No letterbox (#404): the veil dims the paused world across the whole
+    // stage instead of leaving a grey band between navy bars.
+    bindOverlayPixelRatio(this, { letterbox: false });
     ensureCreatureTextures(this);
     playEncounterSfx(this);
     const profile = profileForEncounter(this.zoneId, this.creatureId);
@@ -172,8 +185,7 @@ export class EncounterScene extends Phaser.Scene {
 
     this.cameras.main.fadeIn(160, 11, 22, 38);
     this.add
-      .rectangle(0, 0, DESIGN_SIZE, DESIGN_SIZE, CARD.veil, 0.62)
-      .setOrigin(0)
+      .rectangle(CX, CX, 8000, 8000, CARD.veil, 0.72)
       .setInteractive();
 
     this.drawPanel();
@@ -354,7 +366,7 @@ export class EncounterScene extends Phaser.Scene {
         height: 60,
         label: v.label,
         tone: v.tone,
-        key: showKeys ? String(i + 1) : undefined,
+        key: showKeys ? VERB_KEYS[v.verb].letter : undefined,
         onActivate: () => this.runVerb(v.verb),
       });
       button.container.on("pointerover", () => this.setFocus(i, false));
@@ -381,7 +393,7 @@ export class EncounterScene extends Phaser.Scene {
     }
   }
 
-  // --- Keyboard: arrows / Tab move focus, Enter / Space press, 1-3 direct ----
+  // --- Keyboard: arrows move focus, Enter / Space press, B / S / F (or 1-3) direct ---
 
   private bindKeyboard(): void {
     const keyboard = this.input.keyboard;
@@ -389,13 +401,16 @@ export class EncounterScene extends Phaser.Scene {
       return;
     }
     const onKey = (event: KeyboardEvent): void => {
-      if (this.actionTaken) {
+      if (this.actionTaken || event.repeat || isDomKeyboardTarget(event.target as Element | null)) {
         return;
       }
-      const n = Number(event.key);
-      if (Number.isInteger(n) && n >= 1 && n <= this.buttons.length) {
-        this.setFocus(n - 1, true);
-        this.buttons[n - 1]!.button.activate();
+      const key = event.key.toUpperCase();
+      const index = this.buttons.findIndex(
+        (b) => VERB_KEYS[b.verb].letter === key || VERB_KEYS[b.verb].digit === key,
+      );
+      if (index >= 0) {
+        this.setFocus(index, true);
+        this.buttons[index]!.button.activate();
         return;
       }
       // Tab is left to the browser (no focus trap); arrows move between verbs.

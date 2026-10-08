@@ -95,6 +95,12 @@ body.cutscene-active #status-panel {
   pointer-events: none;
 }
 
+/* Battles take the whole viewport (#404): BattleScene re-measures the stage
+   once the inert dock is out of the way. */
+body.battle-active #status-panel {
+  display: none;
+}
+
 .quest-hud-summary {
   color: #4a6a48;
   font-size: 13px;

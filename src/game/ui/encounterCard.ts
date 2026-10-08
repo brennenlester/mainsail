@@ -103,6 +103,8 @@ export class CardButton {
   private focused = false;
   private enabled = true;
   private readonly baseY: number;
+  /** Layout scale (battle chrome scales buttons with the stage). */
+  private uiScale = 1;
   private readonly scene: Phaser.Scene;
   private readonly opts: CardButtonOptions;
 
@@ -178,11 +180,18 @@ export class CardButton {
     // Brief press pop so keyboard activation reads the same as a tap.
     this.scene.tweens.add({
       targets: this.container,
-      scale: { from: 0.95, to: 1 },
+      scale: { from: this.uiScale * 0.95, to: this.uiScale },
       duration: 140,
       ease: "Back.easeOut",
     });
     this.opts.onActivate();
+  }
+
+  /** Scale the whole button (hit area included) for the current layout. */
+  setUiScale(scale: number): this {
+    this.uiScale = scale;
+    this.container.setScale(scale);
+    return this;
   }
 
   setLabel(label: string): void {
