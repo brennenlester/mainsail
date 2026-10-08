@@ -73,7 +73,7 @@ describe("boot preload manifest (#410)", () => {
   const lateKeys = Object.keys(LATE_IMAGES);
   const lateUrls = Object.values(LATE_IMAGES);
 
-  it.each<BootPhase>(["title", "world", "all"])(
+  it.each<BootPhase>(["title", "world", "music", "all"])(
     "never queues late-game art in the %s phase",
     (phase) => {
       for (const entry of manifest(phase)) {
@@ -101,9 +101,34 @@ describe("boot preload manifest (#410)", () => {
     expect(title.map((e) => e.key).sort()).toEqual(["music-title", "sfx-ui-click"]);
   });
 
-  it("splits 'all' exactly into the title and world phases", () => {
+  it("splits 'all' exactly into the title, world and music phases", () => {
     const keys = (phase: BootPhase) => manifest(phase).map((e) => `${e.kind}:${e.key}`);
-    expect([...keys("title"), ...keys("world")].sort()).toEqual(keys("all").sort());
+    expect([...keys("title"), ...keys("world"), ...keys("music")].sort()).toEqual(keys("all").sort());
+  });
+
+  it("holds the soundtrack back until the world is playable (#417)", () => {
+    const tracks = (phase: BootPhase) =>
+      manifest(phase)
+        .filter((e) => e.key.startsWith("music-"))
+        .map((e) => e.key)
+        .sort();
+    expect(tracks("title")).toEqual(["music-title"]);
+    // The world phase (what New Game waits on) carries no music at all.
+    expect(tracks("world")).toEqual([]);
+    expect(tracks("music")).toEqual([
+      "music-battle",
+      "music-grove",
+      "music-night",
+      "music-shrine",
+      "music-victory",
+      "music-village",
+    ]);
+    // Story-battle themes stay lazy: they never ride the boot at all.
+    expect(tracks("all")).not.toContain("music-boss");
+    expect(tracks("all")).not.toContain("music-rival");
+    const sum = (phase: BootPhase) => manifest(phase).reduce((s, e) => s + entryBytes(e), 0);
+    // ~1 MB of tracks no longer sits in the phase New Game blocks on.
+    expect(sum("music")).toBeGreaterThan(0.9 * MB);
   });
 
   it("stays inside the boot payload budget", () => {
