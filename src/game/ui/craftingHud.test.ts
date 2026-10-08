@@ -16,6 +16,8 @@ import {
   getMaterialCount,
   setInventoryFromSnapshot,
 } from "../inventory/playerInventory";
+import { addToParty, setPartyFromSnapshot } from "../creatures/party";
+import { restoreQuestProgress } from "../story/questProgress";
 import { setVisitorMode } from "../world/worldSession";
 import { exportWorldSnapshot } from "../world/worldSnapshot";
 import { isHostPersistSuspended } from "../world/worldSaveSchedule";
@@ -183,26 +185,108 @@ describe("crafting HUD", () => {
     expect(getMaterialCount("wood")).toBe(1);
   });
 
-  it("mounts the shrine overlay in the square design box on the game board and frames it", () => {
+  it("mounts the shrine craft HUD in the panel slot it is given", () => {
     const app = document.createElement("div");
     app.id = "app";
-    const game = document.createElement("div");
-    game.id = "game";
-    app.append(game);
+    const slot = document.createElement("div");
+    app.append(slot);
     document.body.appendChild(app);
-    showShrineCraftingHud({ context: "altar" });
-    const overlay = game.querySelector("#shrine-craft-overlay");
+    showShrineCraftingHud({ context: "altar", parent: slot });
+    const overlay = slot.querySelector("#shrine-craft-overlay");
     expect(overlay).toBeInstanceOf(HTMLElement);
-    // The % rect is relative to the 640 design square, which is centered in
-    // the (rectangular) stage: the overlay lives in that box, not the stage.
-    const box = overlay?.parentElement as HTMLElement;
-    expect(box.id).toBe("overlay-design-box");
-    expect(box.parentElement).toBe(game);
-    expect((overlay as HTMLElement).style.left).toMatch(/%$/);
-    expect((overlay as HTMLElement).style.top).toMatch(/%$/);
-    expect((overlay as HTMLElement).style.width).toMatch(/%$/);
-    expect((overlay as HTMLElement).style.height).toMatch(/%$/);
+    expect(overlay?.parentElement).toBe(slot);
     hideShrineCraftingHud(true);
+    expect(slot.querySelector("#shrine-craft-overlay")).toBeNull();
+  });
+
+  describe("quest-aware suggestion (#402)", () => {
+    function seedParty(id: string): void {
+      setPartyFromSnapshot([], 1);
+      addToParty(id);
+    }
+
+    function suggestBanner(host: HTMLElement): HTMLElement | null {
+      return host.querySelector("[data-craft-suggest]");
+    }
+
+    function mountAltar(onGoFusion?: () => void) {
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      const hud = mountCraftingHud(host, {
+        context: "altar",
+        interactive: true,
+        onGoFusion,
+      });
+      return { host, hud };
+    }
+
+    it("suggests the quest relic from what is in the pack, not Wood Cudgel", () => {
+      seedParty("mossling");
+      restoreQuestProgress({ "first-befriend": "complete", "first-spar": "complete" });
+      setInventoryFromSnapshot({ "moss-fiber": 2, "folklore-dust": 1 }, {});
+      const { host, hud } = mountAltar();
+      expect(suggestBanner(host)?.dataset.craftSuggest).toBe("moss-salve");
+      expect(host.textContent).not.toContain("Wood Cudgel");
+      hud.destroy();
+    });
+
+    it("Fill grid lays the recipe on the real grid, then the banner crafts it", () => {
+      seedParty("mossling");
+      restoreQuestProgress({ "first-befriend": "complete", "first-spar": "complete" });
+      setInventoryFromSnapshot({ "moss-fiber": 2, "folklore-dust": 1 }, {});
+      const crafted: string[] = [];
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      const hud = mountCraftingHud(host, {
+        context: "altar",
+        interactive: true,
+        onCrafted: (name) => crafted.push(name),
+      });
+      (host.querySelector('[data-craft-action="fill-grid"]') as HTMLButtonElement).click();
+      expect(cellAt(host, 0, 0).getAttribute("aria-label")).toBe("Moss Fiber");
+      expect(cellAt(host, 0, 1).getAttribute("aria-label")).toBe("Folklore Dust");
+      expect(cellAt(host, 1, 0).getAttribute("aria-label")).toBe("Moss Fiber");
+      expect(getMaterialCount("moss-fiber")).toBe(0);
+      // Real grid: the result slot shows the match and the suggestion still reads "ready".
+      const result = host.querySelector("[data-craft-result]") as HTMLButtonElement;
+      expect(result.disabled).toBe(false);
+      expect(result.classList.contains("is-ready")).toBe(true);
+      const craft = host.querySelector('[data-craft-action="craft-now"]') as HTMLButtonElement;
+      expect(craft.textContent).toBe("Craft Moss Salve");
+      craft.click();
+      expect(crafted).toEqual(["Moss Salve"]);
+      expect(getItemCount("moss-salve")).toBe(1);
+      hud.destroy();
+    });
+
+    it("names what is missing instead of offering Fill grid", () => {
+      seedParty("mossling");
+      restoreQuestProgress({ "first-befriend": "complete", "first-spar": "complete" });
+      setInventoryFromSnapshot({ "moss-fiber": 1 }, {});
+      const { host, hud } = mountAltar();
+      expect(host.querySelector('[data-craft-action="fill-grid"]')).toBeNull();
+      expect(suggestBanner(host)?.textContent).toContain("Still needed");
+      expect(suggestBanner(host)?.textContent).toContain("Moss Fiber ×1");
+      hud.destroy();
+    });
+
+    it("sends the player to Fusion once the relic is in the pack", () => {
+      seedParty("mossling");
+      restoreQuestProgress({
+        "first-befriend": "complete",
+        "first-spar": "complete",
+        "shrine-craft": "complete",
+      });
+      setInventoryFromSnapshot({}, { "moss-salve": 1 });
+      let opened = 0;
+      const { host, hud } = mountAltar(() => {
+        opened += 1;
+      });
+      expect(suggestBanner(host)?.dataset.craftSuggestKind).toBe("fusion");
+      (host.querySelector('[data-craft-action="go-fusion"]') as HTMLButtonElement).click();
+      expect(opened).toBe(1);
+      hud.destroy();
+    });
   });
 
   it("does not push craft-hud onto the Esc overlay stack (#255)", () => {

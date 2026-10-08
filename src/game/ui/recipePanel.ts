@@ -1,6 +1,14 @@
 import { getIngredientName } from "../inventory/materials";
 import { appendMaterialVisual } from "./materialIcon";
 import { popOverlay, pushOverlay } from "./overlayStack";
+import { groupRecipesForBook } from "../shrine/craftSuggestion";
+import {
+  withStagedCraftingItems,
+  withStagedCraftingMaterials,
+} from "../crafting/stagedMaterials";
+import { playerParty } from "../creatures/party";
+import { playerInventory } from "../inventory/playerInventory";
+import { getActiveQuestId } from "../story/questProgress";
 import {
   CRAFT_RECIPES,
   getRecipeMaterials,
@@ -107,47 +115,109 @@ function renderRecipeGrid(grid: (string | null)[][]): HTMLElement {
   return table;
 }
 
+function renderRecipeCard(
+  page: RecipePage,
+  badge?: { text: string; tone: "quest" | "ready" },
+): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "recipe-card";
+  section.dataset.recipeId = page.id;
+  if (badge) {
+    section.classList.add(`recipe-card-${badge.tone}`);
+  }
+  const heading = document.createElement("h3");
+  const count = page.outputCount > 1 ? ` ×${page.outputCount}` : "";
+  heading.textContent = `${page.name}${count}`;
+  if (badge) {
+    const chip = document.createElement("span");
+    chip.className = `recipe-badge recipe-badge-${badge.tone}`;
+    chip.textContent = badge.text;
+    heading.append(" ", chip);
+  }
+  section.appendChild(heading);
+  if (page.altarOnly) {
+    const note = document.createElement("p");
+    note.className = "recipe-note";
+    note.textContent = "Craft only at the Moon Shrine altar. One owned.";
+    section.appendChild(note);
+  }
+  if (page.id === "sovereign-seal") {
+    const note = document.createElement("p");
+    note.className = "recipe-note";
+    note.textContent =
+      "Place Tide Crown and Boulder Crown in the bottom corners. They return after craft.";
+    section.appendChild(note);
+  }
+  if (page.id === "sovereign-plate") {
+    const note = document.createElement("p");
+    note.className = "recipe-note";
+    note.textContent =
+      "Consumes both crowns. Toggle On/Off in Inventory to silence wild encounters; sovereigns still appear.";
+    section.appendChild(note);
+  }
+  const cost = document.createElement("p");
+  cost.className = "recipe-cost";
+  cost.textContent = page.materials
+    .map((m) => `${m.name}×${m.count}`)
+    .join(" + ");
+  section.appendChild(cost);
+  section.appendChild(renderRecipeGrid(page.grid));
+  return section;
+}
+
+/**
+ * Recipe book order (#402): the quest recipe first, then what the pack can
+ * craft now, then everything still missing ingredients, collapsed.
+ */
 function renderRecipesBody(): void {
   const body = document.getElementById("recipes-body");
   if (!body) {
     return;
   }
   body.replaceChildren();
-  for (const page of listRecipePages()) {
-    const section = document.createElement("section");
-    section.className = "recipe-card";
-    const heading = document.createElement("h3");
-    const count = page.outputCount > 1 ? ` ×${page.outputCount}` : "";
-    heading.textContent = `${page.name}${count}`;
-    section.appendChild(heading);
-    if (page.altarOnly) {
-      const note = document.createElement("p");
-      note.className = "recipe-note";
-      note.textContent = "Craft only at the Moon Shrine altar. One owned.";
-      section.appendChild(note);
+  const pages = new Map(listRecipePages().map((page) => [page.id, page]));
+  const groups = groupRecipesForBook({
+    questId: getActiveQuestId(),
+    context: "altar",
+    // Count what is staged on an open craft grid too.
+    materials: withStagedCraftingMaterials(playerInventory.materials),
+    items: withStagedCraftingItems(playerInventory.items),
+    partyDefinitionIds: playerParty.creatures.map((c) => c.definitionId),
+  });
+  const append = (
+    recipes: CraftRecipe[],
+    badge?: { text: string; tone: "quest" | "ready" },
+  ): void => {
+    for (const recipe of recipes) {
+      const page = pages.get(recipe.id);
+      if (page) {
+        body.appendChild(renderRecipeCard(page, badge));
+      }
     }
-    if (page.id === "sovereign-seal") {
-      const note = document.createElement("p");
-      note.className = "recipe-note";
-      note.textContent =
-        "Place Tide Crown and Boulder Crown in the bottom corners. They return after craft.";
-      section.appendChild(note);
+  };
+  append(groups.quest, { text: "Quest", tone: "quest" });
+  append(groups.craftable, { text: "Ready to craft", tone: "ready" });
+  if (groups.locked.length > 0) {
+    const details = document.createElement("details");
+    details.className = "recipe-locked";
+    details.open = groups.quest.length + groups.craftable.length === 0;
+    const summary = document.createElement("summary");
+    summary.textContent = `${
+      groups.quest.length + groups.craftable.length > 0
+        ? "More recipes"
+        : "All recipes"
+    } (${groups.locked.length}) \u2014 need more materials`;
+    details.appendChild(summary);
+    const inner = document.createElement("div");
+    inner.className = "recipes-locked-body";
+    details.appendChild(inner);
+    for (const recipe of groups.locked) {
+      const page = pages.get(recipe.id);
+      if (page) {
+        inner.appendChild(renderRecipeCard(page));
+      }
     }
-    if (page.id === "sovereign-plate") {
-      const note = document.createElement("p");
-      note.className = "recipe-note";
-      note.textContent =
-        "Consumes both crowns. Toggle On/Off in Inventory to silence wild encounters; sovereigns still appear.";
-      section.appendChild(note);
-    }
-    const cost = document.createElement("p");
-    cost.className = "recipe-cost";
-    cost.textContent = page.materials
-      .map((m) => `${m.name}×${m.count}`)
-      .join(" + ");
-    section.appendChild(cost);
-    section.appendChild(renderRecipeGrid(page.grid));
-    body.appendChild(section);
+    body.appendChild(details);
   }
 }
 

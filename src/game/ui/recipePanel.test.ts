@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getIngredientIconSrc } from "../inventory/materials";
+import { setInventoryFromSnapshot } from "../inventory/playerInventory";
+import { restoreQuestProgress } from "../story/questProgress";
 import { closeRecipes, listRecipePages, openRecipes } from "./recipePanel";
 
 describe("listRecipePages", () => {
@@ -95,5 +97,55 @@ describe("recipe overlay icons", () => {
     }
     closeRecipes();
     document.body.replaceChildren();
+  });
+});
+
+describe("recipe book order (#402)", () => {
+  function openBook(): HTMLElement {
+    document.body.replaceChildren();
+    const app = document.createElement("div");
+    app.id = "app";
+    document.body.appendChild(app);
+    openRecipes();
+    return document.getElementById("recipes-body") as HTMLElement;
+  }
+
+  it("opens on the quest recipe, then craftable-now, with locked recipes collapsed", () => {
+    restoreQuestProgress({
+      "first-befriend": "complete",
+      "first-spar": "complete",
+    });
+    setInventoryFromSnapshot({ wood: 3 }, {});
+    const body = openBook();
+    const first = [...body.children].map(
+      (el) => (el as HTMLElement).dataset.recipeId ?? el.className,
+    );
+    expect(first.slice(0, 3)).toEqual(["moss-salve", "ember-charm", "wood-cudgel"]);
+    expect(
+      body.querySelector('[data-recipe-id="moss-salve"] .recipe-badge-quest'),
+    ).not.toBeNull();
+    expect(
+      body.querySelector('[data-recipe-id="wood-cudgel"] .recipe-badge-ready'),
+    ).not.toBeNull();
+    const locked = body.querySelector("details.recipe-locked") as HTMLDetailsElement;
+    expect(locked.open).toBe(false);
+    expect(locked.querySelector('[data-recipe-id="sovereign-seal"]')).not.toBeNull();
+    // Endgame recipes never lead the book.
+    expect(body.querySelector(":scope > [data-recipe-id='sovereign-seal']")).toBeNull();
+    closeRecipes();
+  });
+
+  it("expands the book when nothing is craftable and no quest recipe applies", () => {
+    restoreQuestProgress({
+      "first-befriend": "complete",
+      "first-spar": "complete",
+      "shrine-craft": "complete",
+      "first-evolution": "complete",
+    });
+    setInventoryFromSnapshot({}, {});
+    const body = openBook();
+    const locked = body.querySelector("details.recipe-locked") as HTMLDetailsElement;
+    expect(locked.open).toBe(true);
+    closeRecipes();
   });
 });
