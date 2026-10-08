@@ -14,9 +14,15 @@ export const FOLKLORE_TYPES = [
 
 export type FolkloreType = (typeof FOLKLORE_TYPES)[number];
 
-export const HUNTER_MULTIPLIER = 1.5;
+/**
+ * Hunter / resist (#378): both sides of a hunter pair move the numbers
+ * (+30% out, −20% back, a ~1.6× swing), but in 5-8 turn spars the old ×1.5 /
+ * ×0.85 (1.76×) made the hunted side near-unwinnable. A hunted lead is a
+ * flagged hard counter; its counterplay is the free switch.
+ */
+export const HUNTER_MULTIPLIER = 1.3;
 /** A hunter shrugs off its prey: moves of the type a defender hunts are resisted. */
-export const RESIST_MULTIPLIER = 0.85;
+export const RESIST_MULTIPLIER = 0.8;
 
 /** One clear hunter per type. */
 export const HUNTER_CHART: Readonly<Record<FolkloreType, FolkloreType>> = {

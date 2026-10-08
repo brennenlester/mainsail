@@ -21,13 +21,25 @@ export const ROLE_COOLDOWN: Readonly<Record<MoveRole, number>> = {
   finisher: 3,
 };
 
-/** Guard: share of the next incoming hit that still lands. */
-export const GUARD_DAMAGE_TAKEN = 0.4;
+/**
+ * Guard is a read, not a free action (#378): it only braces a plain hit, but
+ * parries a telegraphed finisher, and a parry heals the guard user by its
+ * guard move's `heal`. Guarding blindly costs tempo; guarding the finisher
+ * is the skill swing.
+ */
+export const GUARD_DAMAGE_TAKEN = 0.8;
+/** Guard vs a finisher (or any sovereign beat): the parry lets this share through. */
+export const GUARD_FINISHER_DAMAGE_TAKEN = 0.4;
+/**
+ * Every finisher hits this much harder than its listed power suggests, so a
+ * telegraphed finisher is worth guarding and a landed one swings the spar.
+ */
+export const FINISHER_DAMAGE_MULT = 1.3;
 /** Finisher bonus against a creature already carrying a status. */
 export const FINISHER_STATUS_BONUS = 1.5;
 /** Derived finishers hit a little harder than the species' best nuke. */
 export const DERIVED_FINISHER_POWER_BONUS = 2;
-export const DERIVED_GUARD_HEAL = 0.15;
+export const DERIVED_GUARD_HEAL = 0.05;
 export const DERIVED_STATUS_POWER = 3;
 export const DERIVED_STATUS_ACCURACY = 90;
 

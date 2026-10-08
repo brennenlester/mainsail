@@ -82,7 +82,8 @@ export function ensureTrimmedTexture(
 
   const texture = scene.textures.get(sourceKey);
   const frame = texture.get(sourceFrame);
-  const sourceImage = texture.getSourceImage() as
+  // Multi-page atlas (#360): read the frame's own page, not page 0.
+  const sourceImage = texture.getSourceImage(sourceFrame) as
     | HTMLImageElement
     | HTMLCanvasElement
     | null;

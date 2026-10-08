@@ -1,5 +1,7 @@
 import { getCreatureDefinition } from "../creatures/catalog";
+import { matchupMultiplier, resolveMatchup } from "../creatures/folkloreTypes";
 import type { BattleCombatant, MoveDefinition } from "../creatures/types";
+import { scaledStat } from "../progression/leveling";
 import {
   calcDamage,
   chooseEnemyIntent,
@@ -7,6 +9,7 @@ import {
   executeMove,
   getMatchup,
   isFainted,
+  outleveledWildBulk,
   primeOpeningCooldowns,
   readyMoves,
   wildBattleTuning,
@@ -15,13 +18,56 @@ import { getBattleKit, moveRole } from "./kits";
 import { canApplyStatus, hasAnyStatus, tickStatuses } from "./statusEffects";
 
 /**
- * Headless 1v1 spar used by balance tests: same turn order, intent and tick
- * rules as BattleScene (player acts first, foe executes its telegraphed move).
+ * Headless spar used by balance tests (#364, #378). Same turn order, intent,
+ * switch and tick rules as BattleScene: the player acts first, the foe
+ * executes its telegraphed move, the first voluntary switch is free, a paid
+ * switch eats the telegraphed hit, and a faint replacement re-rolls the intent.
+ *
+ * Policies:
+ * - `random`: any ready move.
+ * - `max-damage`: always the best expected-damage move.
+ * - `skilled`: reads the telegraph: guards into a big finisher, sets up a
+ *   status then cashes the finisher, never throws a finisher into a guard,
+ *   and uses the free switch to leave a matchup where the foe hunts it.
  */
-export type SparPolicy = "sloppy" | "skilled";
+export type SparPolicy = "random" | "max-damage" | "skilled";
+
+export type SparSetup = {
+  /** Player party, lead first. One id = a 1v1 spar. */
+  party: readonly string[];
+  wild: string;
+  policy: SparPolicy;
+  /** Player creature level (default 1). */
+  level?: number;
+  /** Wild level (default = player level). */
+  wildLevel?: number;
+  /** Story 2 tutorial tuning for the wild. */
+  tutorial?: boolean;
+};
+
+export type SparResult = {
+  won: boolean;
+  /** Player actions taken (free switches excluded). */
+  turns: number;
+  /** Player finishers that hit. */
+  finishers: number;
+  /** Statuses the player landed (applied or refreshed). */
+  statuses: number;
+  switches: number;
+};
+
+export type SparStats = {
+  winRate: number;
+  avgTurns: number;
+  avgFinishers: number;
+  avgStatuses: number;
+};
+
+const MAX_TURNS = 60;
 
 export function seededRng(seed: number): () => number {
-  let a = seed >>> 0;
+  // Scramble small sequential seeds so seed 0..N streams are not correlated.
+  let a = Math.imul((seed + 1) ^ 0x5bd1e995, 0x9e3779b1) >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
     let t = a;
@@ -31,17 +77,20 @@ export function seededRng(seed: number): () => number {
   };
 }
 
-function levelOneCombatant(speciesId: string): BattleCombatant {
+/** Mirrors BattleScene's combatant construction for a level-L creature. */
+export function simCombatant(speciesId: string, level = 1): BattleCombatant {
   const def = getCreatureDefinition(speciesId);
-  return primeOpeningCooldowns({
+  const maxHp = scaledStat(def.maxHp, level);
+  return {
     name: def.name,
     folkloreType: def.folkloreType,
-    maxHp: def.maxHp,
-    currentHp: def.maxHp,
-    attack: def.attack,
+    level,
+    maxHp,
+    currentHp: maxHp,
+    attack: scaledStat(def.attack, level),
     defense: def.defense,
     moves: getBattleKit(def),
-  });
+  };
 }
 
 function expectedDamage(
@@ -55,9 +104,11 @@ function expectedDamage(
 function bestDamageMove(
   user: BattleCombatant,
   target: BattleCombatant,
+  exclude?: (m: MoveDefinition) => boolean,
 ): MoveDefinition {
-  const ready = readyMoves(user).filter((m) => m.power > 0);
-  const pool = ready.length > 0 ? ready : readyMoves(user);
+  const ready = readyMoves(user);
+  const hitting = ready.filter((m) => m.power > 0 && !exclude?.(m));
+  const pool = hitting.length > 0 ? hitting : ready.length > 0 ? ready : user.moves;
   return [...pool].sort(
     (a, b) => expectedDamage(user, b, target) - expectedDamage(user, a, target),
   )[0];
@@ -68,9 +119,15 @@ function chooseMove(
   player: BattleCombatant,
   wild: BattleCombatant,
   intent: MoveDefinition,
+  rng: () => number,
 ): MoveDefinition {
+  if (policy === "random") {
+    const ready = readyMoves(player);
+    const pool = ready.length > 0 ? ready : player.moves;
+    return pool[Math.floor(rng() * pool.length)];
+  }
   const best = bestDamageMove(player, wild);
-  if (policy === "sloppy") {
+  if (policy === "max-damage") {
     return best;
   }
   const ready = readyMoves(player);
@@ -84,68 +141,177 @@ function chooseMove(
     intent.power > 0 && getMatchup(intent, player) !== "immune"
       ? calcDamage(wild, intent, { ...player, guarding: false })
       : 0;
-  if (guard && moveRole(intent) === "finisher" && incoming >= player.maxHp * 0.25) {
+  if (guard && moveRole(intent) === "finisher" && incoming >= player.maxHp * 0.2) {
     return guard;
+  }
+  // Low and about to be hit: guard to blunt it and patch up.
+  if (guard && incoming > 0 && player.currentHp <= player.maxHp * 0.35) {
+    return guard;
+  }
+  const status = find("status");
+  const statusUseful =
+    status?.inflicts !== undefined &&
+    !hasAnyStatus(wild) &&
+    canApplyStatus(wild, status.inflicts) &&
+    getMatchup(status, wild) !== "immune";
+  // Never throw the finisher into a raised guard: set up or chip instead.
+  if (wild.guarding) {
+    if (statusUseful && status) {
+      return status;
+    }
+    return bestDamageMove(player, wild, (m) => moveRole(m) === "finisher");
   }
   const finisher = find("finisher");
   if (finisher && hasAnyStatus(wild)) {
     return finisher;
   }
-  const status = find("status");
-  if (
-    status?.inflicts &&
-    !hasAnyStatus(wild) &&
-    canApplyStatus(wild, status.inflicts) &&
-    getMatchup(status, wild) !== "immune"
-  ) {
+  if (statusUseful && status) {
     return status;
   }
   return best;
 }
 
-export type SparResult = { won: boolean; turns: number };
+/** Outgoing vs incoming type edge of `speciesId` against the wild's type. */
+function matchupScore(speciesId: string, wildId: string): number {
+  const mine = getCreatureDefinition(speciesId).folkloreType;
+  const theirs = getCreatureDefinition(wildId).folkloreType;
+  return (
+    matchupMultiplier(resolveMatchup(mine, theirs)) /
+    matchupMultiplier(resolveMatchup(theirs, mine))
+  );
+}
 
-export function simulateSpar(
-  playerId: string,
-  wildId: string,
-  seed: number,
-  policy: SparPolicy,
-  tutorial = false,
-): SparResult {
+export function simulateSpar(setup: SparSetup, seed: number): SparResult {
   const rng = seededRng(seed);
+  const level = setup.level ?? 1;
+  const tutorial = setup.tutorial ?? false;
   const tuning = wildBattleTuning(tutorial);
-  const player = levelOneCombatant(playerId);
-  const wild = { ...levelOneCombatant(wildId), damageScale: tuning.damageScale };
+  const wildLevel = setup.wildLevel ?? level;
+  const wild: BattleCombatant = {
+    ...primeOpeningCooldowns(simCombatant(setup.wild, wildLevel)),
+    damageScale: tuning.damageScale,
+    // The whole sim party shares `level`, so it is also the party average.
+    bulk: outleveledWildBulk(level, wildLevel),
+  };
+  // One combatant per party slot; HP, statuses and cooldowns persist on the bench.
+  const roster = setup.party.map((id) => primeOpeningCooldowns(simCombatant(id, level)));
+  let active = 0;
+  let player = roster[active];
+  let freeSwitch = true;
+  const result: SparResult = { won: false, turns: 0, finishers: 0, statuses: 0, switches: 0 };
+
   const pickIntent = () =>
     chooseEnemyIntent(wild, player, rng, { matchupAware: tuning.matchupAware }).move;
+  const living = () =>
+    roster.map((_, i) => i).filter((i) => i !== active && !isFainted(roster[i]));
+  const bestBench = (): number | undefined =>
+    [...living()].sort(
+      (a, b) => matchupScore(setup.party[b], setup.wild) - matchupScore(setup.party[a], setup.wild),
+    )[0];
+  const replaceFainted = (): boolean => {
+    const options = living();
+    if (options.length === 0) {
+      return false;
+    }
+    active = setup.policy === "skilled" ? bestBench()! : options[0];
+    player = roster[active];
+    return true;
+  };
+
   let intent = pickIntent();
-  for (let turn = 1; turn <= 40; turn++) {
-    executeMove(player, chooseMove(policy, player, wild, intent), wild, rng);
-    if (isFainted(wild)) return { won: true, turns: turn };
+  while (result.turns < MAX_TURNS) {
+    // Skilled play spends the free switch to leave a bad matchup (no turn spent;
+    // the telegraphed move now lands on the newcomer).
+    if (setup.policy === "skilled" && freeSwitch) {
+      const candidate = bestBench();
+      if (
+        candidate !== undefined &&
+        matchupScore(setup.party[candidate], setup.wild) >
+          matchupScore(setup.party[active], setup.wild)
+      ) {
+        freeSwitch = false;
+        active = candidate;
+        player = roster[active];
+        result.switches += 1;
+      }
+    }
+
+    result.turns += 1;
+    const move = chooseMove(setup.policy, player, wild, intent, rng);
+    const outcome = executeMove(player, move, wild, rng);
+    if (moveRole(move) === "finisher" && outcome.attack?.kind === "hit") {
+      result.finishers += 1;
+    }
+    if (outcome.status?.kind === "applied" || outcome.status?.kind === "refreshed") {
+      result.statuses += 1;
+    }
+    if (isFainted(wild)) {
+      result.won = true;
+      return result;
+    }
     tickStatuses(player);
-    if (isFainted(player)) return { won: false, turns: turn };
+    if (isFainted(player)) {
+      if (!replaceFainted()) {
+        return result;
+      }
+      intent = pickIntent();
+      continue;
+    }
+
     executeMove(wild, intent, player, rng);
     player.guarding = false;
     tickStatuses(wild);
-    if (isFainted(wild)) return { won: true, turns: turn };
-    if (isFainted(player)) return { won: false, turns: turn };
+    if (isFainted(wild)) {
+      result.won = true;
+      return result;
+    }
+    if (isFainted(player) && !replaceFainted()) {
+      return result;
+    }
     intent = pickIntent();
   }
-  return { won: false, turns: 40 };
+  return result;
 }
 
+function hashSetup(setup: SparSetup): number {
+  const key = `${setup.party.join("+")}|${setup.wild}|${setup.level ?? 1}|${setup.wildLevel ?? ""}|${setup.tutorial ? 1 : 0}`;
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  }
+  return (h >>> 0) % 1_000_000_007;
+}
+
+export function sparStats(setup: SparSetup, seeds = 200): SparStats {
+  let wins = 0;
+  let turns = 0;
+  let finishers = 0;
+  let statuses = 0;
+  // Each matchup gets its own seed stream (shared across policies), so
+  // averages over many pairs are not dominated by a few lucky seeds.
+  const base = hashSetup(setup);
+  for (let i = 0; i < seeds; i++) {
+    const r = simulateSpar(setup, base + i);
+    wins += r.won ? 1 : 0;
+    turns += r.turns;
+    finishers += r.finishers;
+    statuses += r.statuses;
+  }
+  return {
+    winRate: wins / seeds,
+    avgTurns: turns / seeds,
+    avgFinishers: finishers / seeds,
+    avgStatuses: statuses / seeds,
+  };
+}
+
+/** 1v1 equal-level win rate (shorthand for the balance tests). */
 export function winRate(
   playerId: string,
   wildId: string,
   policy: SparPolicy,
   seeds = 200,
-  tutorial = false,
+  options: { level?: number; tutorial?: boolean } = {},
 ): number {
-  let wins = 0;
-  for (let seed = 0; seed < seeds; seed++) {
-    if (simulateSpar(playerId, wildId, seed, policy, tutorial).won) {
-      wins += 1;
-    }
-  }
-  return wins / seeds;
+  return sparStats({ party: [playerId], wild: wildId, policy, ...options }, seeds).winRate;
 }
