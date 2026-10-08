@@ -36,6 +36,7 @@ import {
 import { hasPresenceGrowth, presenceTintForCreature } from "../shrine/presence";
 import { ensureCreatureTextures } from "../creatures/sprites";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
+import { resolveArenaLayers } from "../render/arenaLayers";
 import { hasWorldTexture, imagineTexture } from "../render/imagineAssets";
 import {
   BATTLE_CREATURE_DISPLAY,
@@ -137,8 +138,12 @@ const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
 const INTENT_MIN_LEFT = 268;
 
 /** Feet positions (sprites are bottom-anchored so breathing / squash read from the ground). */
-const WILD_HOME = { x: DESIGN_SIZE / 2 + 116, y: 211 };
-const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 118, y: 299 };
+// Stage fills the upper ~70% (#361): dais centre at y=300, arena scaled 1.18x;
+// homes are the dais spots scaled with it; log + moves sit below the dais.
+const ARENA_STAGE = { y: 300, scale: 1.18 };
+const WILD_HOME = { x: DESIGN_SIZE / 2 + 137, y: 266 };
+const PLAYER_HOME = { x: DESIGN_SIZE / 2 - 142, y: 370 };
+const LOG_Y = 440;
 
 // Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
 const HUD_FONT = '"Source Sans 3", system-ui, sans-serif';
@@ -390,14 +395,14 @@ export class BattleScene extends Phaser.Scene {
 
     // Opponent plate top-left, player plate mid-right (clear of both sprites).
     this.wildHud = this.createHpHud(24, 48);
-    this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 222);
+    this.playerHud = this.createHpHud(DESIGN_SIZE - 24 - HUD_PLATE_WIDTH, 304);
 
     this.add
-      .rectangle(cx, 316, 580, 40, 0x101820, 0.78)
+      .rectangle(cx, LOG_Y, 580, 40, 0x101820, 0.78)
       .setStrokeStyle(1, 0x6eb8a8, 0.6)
       .setDepth(4);
     this.logText = this.add
-      .text(cx, 316, "", {
+      .text(cx, LOG_Y, "", {
         color: "#f4ecd8",
         fontFamily: HUD_FONT,
         fontSize: "14px",
@@ -484,7 +489,7 @@ export class BattleScene extends Phaser.Scene {
     }
     const cx = DESIGN_SIZE / 2;
     this.matchupTeachText = this.add
-      .text(cx, 342, tip, {
+      .text(cx, LOG_Y + 26, tip, {
         color: "#ffe6a8",
         backgroundColor: "#101820cc",
         fontFamily: HUD_FONT,
@@ -505,23 +510,23 @@ export class BattleScene extends Phaser.Scene {
   private drawArena(): void {
     const w = DESIGN_SIZE;
     const h = DESIGN_SIZE;
-    const hasImagine =
-      hasWorldTexture(this, "arena-sky") &&
-      hasWorldTexture(this, "arena-hills") &&
-      hasWorldTexture(this, "arena-platform");
-
-    if (hasImagine) {
+    // Zone / night variant (#361); hills + dais scale around the dais centre
+    // (design y=240 in the layer) so the stage fills the frame.
+    const layers = resolveArenaLayers((key) => hasWorldTexture(this, key));
+    if (layers) {
+      const s = ARENA_STAGE.scale;
+      const stageY = ARENA_STAGE.y + (h / 2 - 240) * s;
       this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, "arena-sky"))
+        .image(w / 2, h / 2, ...imagineTexture(this, layers.sky))
         .setDisplaySize(w, h)
         .setDepth(-12);
       this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, "arena-hills"))
-        .setDisplaySize(w, h)
+        .image(w / 2, stageY, ...imagineTexture(this, layers.hills))
+        .setDisplaySize(w * s, h * s)
         .setDepth(-11);
       this.add
-        .image(w / 2, h / 2, ...imagineTexture(this, "arena-platform"))
-        .setDisplaySize(w, h)
+        .image(w / 2, stageY, ...imagineTexture(this, layers.platform))
+        .setDisplaySize(w * s, h * s)
         .setDepth(-10);
       return;
     }
@@ -662,7 +667,7 @@ export class BattleScene extends Phaser.Scene {
 
     const cx = DESIGN_SIZE / 2;
     // 2-column move grid below the log (and the Story 2 hunter tip).
-    const top = 410;
+    const top = LOG_Y + 72;
     const colOffset = 146;
     const rowStep = 54;
     let buttonY = top;

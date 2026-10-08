@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-bramblewarden__idle",
+      "frames": [
+        "creature-bramblewarden__idle_00",
+        "creature-bramblewarden__idle_01",
+        "creature-bramblewarden__idle_02",
+        "creature-bramblewarden__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}

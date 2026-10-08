@@ -269,7 +269,11 @@ Decided 2026-10-07 in the Wow Pass art spike. New world art comes from `scripts/
 - **Look:** stylized low-poly toon. 3-band ramp (navy-tinted shadow / base / cream highlight), dark-navy inverted-hull outline (~1 logical px), rim light on silhouettes, soft ground shadow. Characters are smooth-shaded; foliage and rocks are faceted.
 - **Light rig (fixed in world space for every asset):** warm key sun from the front-left (only shadow caster, shadows fall up-right), weak cool fill from the right, rim from back-right.
 - **Palette:** shared with the title screen. Navy `#1f2a44` (outline, shadow tint), cream `#f3ead3` (highlight), moss `#79ad55`, grass `#7fae5c`, leaf `#5c9a4c`, teal `#3f8f95`, roof `#4f7d88`, stone `#b7b2a5`, bark `#80553a`, scarf `#e6a34f`, moon `#e8eefc`. Full list in `scripts/blender/stage.py` `PALETTE`; add colors there, not per model.
-- **Animation:** creatures get idle (6f loop) for the overworld and idle/attack/hurt for spars; the player gets 4 facings (true east/west, no mirroring) × idle breath (4f) + walk (6f).
+- **Animation:** creatures get an idle loop for the overworld and idle/attack/hurt/faint for spars; the player gets 4 facings (true east/west, no mirroring) × idle breath (4f) + walk (6f); villagers get idle + talk.
+- **Creature roster (#361):** one parametric generator (`scripts/blender/creatures.py`: blob, wisp, bird, toad, quad, stump plans) so every species shares proportions, eyes, outline and motion. Converted: Mossling, Bramblewarden, Ember Wisp, Hearthflame, Brook Nymph, Thunder Finch, Cinder Toad, Rootwalker, Lantern Fox, Stone Hound. Archipelago, fen, mist and sovereign species stay on legacy art for now.
+- **World (#361):** Grove/Shrine/Village ground uses 4 seamless variants + a path tile per zone, picked by a tile hash (no checkerboard); outdoor zones sit in a painted canopy with a navy vignette instead of a flat void; villagers, gates, lanterns, banners, a market stall and fence/shrine boundaries come from the same kit. Spar arenas: grove meadow, village plaza (warm), night.
+- **Budget:** atlas pages are 2048² PNG, 256-color quantized; the packed atlas stays under 12 MB (test-enforced). Battle art renders at 2× design px. Pack inputs live in `art/rendered/` (Blender) and `art/legacy/` (Imagine); neither ships in dist. Spar stage: dais centred at design y=300, arena scaled 1.18×; arena variant by zone (village plaza in Hearth Crossing) and night.
+- **In-canvas UI:** prompts and hints are rounded navy pills with cream text (`ui/hudPill.ts`) to match the DOM chrome.
 
 ---
 

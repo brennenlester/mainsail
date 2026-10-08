@@ -9,7 +9,7 @@ export type NpcDefinition = {
   name: string;
   x: number;
   y: number;
-  /** Unique anime sprite; procedural `npc-villager` is the missing-file fallback. */
+  /** Atlas villager render (#361); procedural `npc-villager` is the missing-file fallback. */
   spriteKey: string;
   /** Robe tint for the shared fallback villager sprite. */
   tint: number;
@@ -87,7 +87,7 @@ export const NPCS: Partial<Record<ZoneId, NpcDefinition[]>> = {
       name: "Reed",
       x: 3,
       y: 2,
-      spriteKey: "npc-villager",
+      spriteKey: "npc-island-hermit-reed",
       tint: 0x7a9ab0,
       introLines: [
         "Easy — I am Reed. The village keeps the fire; I keep the joining.",

@@ -1,5 +1,9 @@
 import Phaser from "phaser";
-import { hasWorldTexture, imagineTexture } from "./imagineAssets";
+import {
+  IMAGINE_ATLAS_KEY,
+  hasImagineFrame,
+  hasWorldTexture,
+} from "./imagineAssets";
 import { TILE_HEIGHT, TILE_WIDTH } from "../isometric";
 import type { ZoneId } from "../world/zoneTypes";
 import { NPC_DISPLAY, fitContainDisplay } from "./displaySizes";
@@ -789,19 +793,32 @@ export function getBoatTextureKey(): string {
   return "prop-boat";
 }
 
+/**
+ * Villager art: the Blender-rendered atlas frame (#361) when packed, else a
+ * standalone texture, else the tinted procedural villager. Sprites also play
+ * the rendered `<key>__idle` / `__talk` loop when it exists.
+ */
 export function applyNpcSprite(
   scene: Phaser.Scene,
-  image: Phaser.GameObjects.Image,
+  image: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite,
   npc: { spriteKey: string; tint: number },
   size: { width: number; height: number } = NPC_DISPLAY,
+  anim: "idle" | "talk" = "idle",
 ): Phaser.GameObjects.Image {
-  // Atlas frames too, so a creature-shaped story NPC (#369 boss) can reuse creature art.
-  const found = hasWorldTexture(scene, npc.spriteKey);
-  const [key, frame] = found
-    ? imagineTexture(scene, npc.spriteKey)
-    : [NPC_TEXTURE_KEY, undefined];
-  image.setTexture(key, frame);
-  if (!found) {
+  if (hasImagineFrame(scene, npc.spriteKey)) {
+    image.setTexture(IMAGINE_ATLAS_KEY, npc.spriteKey);
+    image.clearTint();
+    const animKey = `${npc.spriteKey}__${anim}`;
+    if (image instanceof Phaser.GameObjects.Sprite && scene.anims.exists(animKey)) {
+      image.play(animKey);
+    }
+    return fitContainDisplay(image, size);
+  }
+  const key = scene.textures.exists(npc.spriteKey)
+    ? npc.spriteKey
+    : NPC_TEXTURE_KEY;
+  image.setTexture(key);
+  if (key === NPC_TEXTURE_KEY) {
     image.setTint(npc.tint);
   } else {
     image.clearTint();

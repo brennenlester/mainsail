@@ -1,0 +1,15 @@
+{
+  "anims": [
+    {
+      "key": "creature-lantern-fox__idle",
+      "frames": [
+        "creature-lantern-fox__idle_00",
+        "creature-lantern-fox__idle_01",
+        "creature-lantern-fox__idle_02",
+        "creature-lantern-fox__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    }
+  ]
+}
