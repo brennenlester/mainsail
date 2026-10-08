@@ -242,6 +242,7 @@ import { OverworldCompanions } from "../companions/overworldCompanions";
 import { floorTintAt } from "../render/fx/floorTint";
 import { HORIZON_HEIGHT, drawHorizon, drawSeaBackdrop, teardownHorizon } from "../render/seaBackdrop";
 import { IslandBakes } from "../render/islandBake";
+import { islandBakeScale } from "../render/islandBakePlan";
 import {
   floorVariantKey,
   nearShore,
@@ -379,7 +380,10 @@ export class IsometricScene extends Phaser.Scene {
   /** Live stream-tagged sprites; culls iterate this, never the full display list (#194). */
   private streamSprites = new Set<Phaser.GameObjects.Image>();
   /** One RenderTexture per Archipelago island in the visual window (#412). */
-  private islandBakes = new IslandBakes(this, () => this.worldOrigin);
+  private islandBakes = new IslandBakes(this, () => this.worldOrigin, () =>
+    // Sharpest zoom the Archipelago uses (sailing), so one bake serves both.
+    islandBakeScale(archipelagoCameraZoom(this.scale.width, this.scale.height, true, this.scale.height / RENDER_DPR)),
+  );
 
   private registerStreamSprite(
     img: Phaser.GameObjects.Image,
@@ -595,6 +599,9 @@ export class IsometricScene extends Phaser.Scene {
     this.updateQuestToast();
     this.updateAchievementToast();
     this.companions?.update();
+    if (this.currentZoneId === "archipelago") {
+      this.islandBakes.tick();
+    }
 
     if (interactPressed || consumeTouchInteract()) {
       unlockAudioFromGesture(this);
@@ -1124,7 +1131,7 @@ export class IsometricScene extends Phaser.Scene {
     this.drawZoneTileColumns(zone, win.xMin, win.xMax, win.yMin, win.yMax);
     this.drawWallsInColumns(zone, win.xMin, win.xMax, win.yMin, win.yMax);
     this.drawArchipelagoPropsInWindow(win);
-    this.islandBakes.sync(zone, win);
+    this.islandBakes.sync(zone, win, { x: this.playerGridX, y: this.playerGridY }, true);
   }
 
   private drawArchipelagoLiveRect(
@@ -1205,7 +1212,9 @@ export class IsometricScene extends Phaser.Scene {
     if (result.grew) {
       this.islandBakes.clear();
     }
-    this.islandBakes.sync(zone, next);
+    // Growth rebuilds every island at once (nothing may pop in); plain
+    // streaming queues them across frames (#417).
+    this.islandBakes.sync(zone, next, { x: this.playerGridX, y: this.playerGridY }, result.grew);
 
     // Docked boat may have been culled if its pad left the window.
     this.drawPlacedBoat(zone);
