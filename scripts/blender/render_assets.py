@@ -1,7 +1,7 @@
 """Headless entry point: render every spec in specs.SPECS to PNG frames.
 
   Blender --background --factory-startup --python scripts/blender/render_assets.py -- \
-      [--out public/assets/rendered] [--only key1,key2] [--list]
+      [--out art/rendered] [--only key1,key2] [--list]
 
 Prefer `npm run render:assets` (scripts/render-assets.mjs finds Blender).
 Writes <out>/<folder>/<frame>.png and <out>/anims/<key>.json (Phaser anim
@@ -21,16 +21,20 @@ sys.path.insert(0, HERE)
 
 import bpy  # noqa: E402
 
+import creatures  # noqa: E402
 import models  # noqa: E402
 import stage  # noqa: E402
+import village  # noqa: E402
 from specs import SPECS  # noqa: E402
+
+BUILDERS = {**models.BUILDERS, **village.BUILDERS, "creature": creatures.Creature}
 
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 
 
 def parse_args(argv: list[str]) -> dict:
     args = argv[argv.index("--") + 1 :] if "--" in argv else []
-    opts = {"out": os.path.join(ROOT, "public", "assets", "rendered"), "only": None, "list": False}
+    opts = {"out": os.path.join(ROOT, "art", "rendered"), "only": None, "list": False}
     i = 0
     while i < len(args):
         a = args[i]
@@ -54,7 +58,7 @@ def frame_key(spec: dict, anim: dict, n: int) -> str:
 def render_spec(spec: dict, out: str) -> list[str]:
     random.seed(spec["key"])
     stage.reset_scene()
-    rig = models.BUILDERS[spec["model"]](**spec.get("args", {}))
+    rig = BUILDERS[spec["model"]](**spec.get("args", {}))
     if spec.get("shadow"):
         fade_from, fade_to = spec["shadow"]
         stage.ground_catcher(fade_from, fade_to)

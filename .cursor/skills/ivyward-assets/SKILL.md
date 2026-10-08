@@ -19,16 +19,20 @@ Blender 4.2+ (5.2.1 tested). `npm run render:assets` runs `scripts/render-assets
 | File | Role |
 | --- | --- |
 | `scripts/blender/stage.py` | Shared stage: palette, toon material, inverted-hull outline, 3-point light rig, ortho camera, shadow catcher, deterministic PNG settings |
-| `scripts/blender/models.py` | Procedural models + rigs (`BUILDERS`): mossling, player, tree, bush, pebbles, standing-stone, shrine-altar, cottage, hedge, ground, arena |
+| `scripts/blender/models.py` | Procedural models + rigs (`BUILDERS`): mossling, player, tree, bush, pebbles, standing-stone, shrine-altar, cottage, hedge, ground (palette/path params), arena (`variant`: grove/village/night) |
+| `scripts/blender/creatures.py` | Parametric creature generator (#361): body plans `blob`, `wisp`, `bird`, `toad`, `quad`, `stump` + per-species dicts in `SPECIES` (palette names, extras like `thorn_crown`, `droplet`, `storm_crest`, tails). One shared `pose()` gives idle / attack / hurt / faint to every species |
+| `scripts/blender/village.py` | Villagers (`VILLAGERS`, idle + talk), gate (open/locked), lantern posts, banner, market stall, fence + shrine boundaries, canopy backdrop tiles |
 | `scripts/blender/specs.py` | One dict per asset: key, folder, model, size, ppu, pitch, anchor, outline, shadow, statics, anims (format documented at the top) |
 
 1. Add or edit a builder in `models.py` (use palette names from `stage.PALETTE`, `toon()` materials, `pose(anim, t)` for animation), then a spec in `specs.py`. Keep `size` = 4× the logical display size in `displaySizes.ts` and `ppu` = 192 for overworld art so scale stays consistent.
 2. `npm run render:assets -- --only <key>` while iterating; preview into the scratchpad with `-- --out <dir>`.
-3. Output: `public/assets/rendered/<folder>/<frame>.png` plus `public/assets/rendered/anims/<key>.json`. Frame names: statics use the spec key list; anim frames default to `<key>__<anim>_NN` (player walk keeps `player-<facing>-1..6`).
-4. `npm run pack:atlas`. A rendered PNG overrides a legacy PNG with the same key; delete the rendered file to fall back.
+3. Output: `art/rendered/<folder>/<frame>.png` plus `art/rendered/anims/<key>.json` (outside `public/`, so source frames never ship in `dist`; frames are palette-quantized after each run). Frame names: statics use the spec key list; anim frames default to `<key>__<anim>_NN` (player walk keeps `player-<facing>-1..6`).
+4. `npm run pack:atlas`. A rendered PNG overrides a legacy PNG with the same key; delete the rendered file to fall back. Atlas pages are 256-color quantized; `atlasManifest.test.ts` enforces the 12 MB budget.
+
+New creature: add a `SPECIES` entry in `creatures.py` (pick a plan, palette names from `stage.PALETTE`, optional `extras`), then `*_creature("<id>", ow, battle, encounter)` in `specs.py`. Keys follow `creaturePoses.ts`: `creature-<id>` (+ `__idle`), `creature-<id>-battle` (+ `__idle|attack|hurt|faint`), `creature-<id>-encounter`.
 5. Renders are deterministic (fixed samples, no dither, no stamp metadata, seeded RNG): re-running produces the same pixels (busy ground tiles may vary by 1/255).
 
-Runtime: Phaser anims are registered from `imagine-anims.json` in `PreloadScene` (`createImagineAnims`). Keys are `<asset>__<anim>`, e.g. `creature-mossling__idle` (overworld followers play it automatically), `creature-mossling-battle__idle|attack|hurt` (use `playCreatureAnim(sprite, "creature-mossling-battle", "attack")` from `render/imagineAssets.ts`). The player idle breath (`player-<facing>__idle_NN`) is driven by `applyPlayerPose`.
+Runtime: Phaser anims are registered from `imagine-anims.json` in `PreloadScene` (`createImagineAnims`). Keys are `<asset>__<anim>`, e.g. `creature-mossling__idle` (overworld followers play it automatically), `creature-mossling-battle__idle|attack|hurt|faint` (use `playCreatureAnim(sprite, "creature-mossling-battle", "attack")` from `render/imagineAssets.ts`), `npc-<id>__idle|talk` (`applyNpcSprite`). Floors use `floor-<zone>-v0..3` + `floor-<zone>-path` via `render/floorVariants.ts`; outdoor zones with a `backdrop-<zone>` frame get the canopy backdrop; spar arenas `arena-*`, `arena-village-*`, `arena-night-*` (`render/arenaLayers.ts`). The player idle breath (`player-<facing>__idle_NN`) is driven by `applyPlayerPose`.
 
 ## Pixels
 
@@ -42,7 +46,7 @@ Runtime: Phaser anims are registered from `imagine-anims.json` in `PreloadScene`
 | World floors/props | `public/assets/world/` | 192×192 floors | yes |
 | Items | `public/assets/items/` | 128×128 | no (HUD `<img>`) |
 | Materials | `public/assets/materials/` | 128×128 | no |
-| NPCs | `public/assets/npcs/` | match existing | no (PreloadScene) |
+| NPCs | `art/rendered/npcs/` (Blender) | 192×288 | yes (legacy `public/assets/npcs/` unused) |
 
 3. Name the file after the texture key: `creature-mossling.png`, `player-east-0.png`, `floor-path.png`.
 4. For player/creatures/world, run `npm run pack:atlas`. It trims transparent borders, extrudes edges, and shelf-packs into power-of-two 2048² pages (`imagine-0.png`, `imagine-1.png`, ...) described by one multi-atlas `imagine.json`, plus `imagine-anims.json`. Do not hand-edit anything in `public/assets/atlas/`.

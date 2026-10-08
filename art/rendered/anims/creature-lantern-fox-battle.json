@@ -1,0 +1,48 @@
+{
+  "anims": [
+    {
+      "key": "creature-lantern-fox-battle__idle",
+      "frames": [
+        "creature-lantern-fox-battle__idle_00",
+        "creature-lantern-fox-battle__idle_01",
+        "creature-lantern-fox-battle__idle_02",
+        "creature-lantern-fox-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-lantern-fox-battle__attack",
+      "frames": [
+        "creature-lantern-fox-battle__attack_00",
+        "creature-lantern-fox-battle__attack_01",
+        "creature-lantern-fox-battle__attack_02",
+        "creature-lantern-fox-battle__attack_03",
+        "creature-lantern-fox-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-lantern-fox-battle__hurt",
+      "frames": [
+        "creature-lantern-fox-battle__hurt_00",
+        "creature-lantern-fox-battle__hurt_01",
+        "creature-lantern-fox-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-lantern-fox-battle__faint",
+      "frames": [
+        "creature-lantern-fox-battle__faint_00",
+        "creature-lantern-fox-battle__faint_01",
+        "creature-lantern-fox-battle__faint_02",
+        "creature-lantern-fox-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    }
+  ]
+}

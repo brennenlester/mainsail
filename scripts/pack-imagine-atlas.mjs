@@ -4,7 +4,7 @@
  *
  * Sources (later wins on the same key):
  *   public/assets/{player,creatures,world}/*.png            legacy Imagine art
- *   public/assets/rendered/{player,creatures,world}/*.png   Blender renders
+ *   art/rendered/{player,creatures,world}/*.png             Blender renders (not shipped)
  *
  * Output (public/assets/atlas/):
  *   imagine-0.png, imagine-1.png, ...  power-of-two pages (mipmap friendly)
@@ -21,13 +21,16 @@ import sharp from "sharp";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const ASSETS = path.join(ROOT, "public", "assets");
-const RENDERED = path.join(ASSETS, "rendered");
+// Blender source frames live outside public/ so they never ship in dist (#361).
+const RENDERED = path.join(ROOT, "art", "rendered");
 const OUT_DIR = path.join(ASSETS, "atlas");
 const PAGE = 2048;
 /** Edge pixels repeated around each frame so bilinear/mip sampling never pulls neighbors. */
 const EXTRUDE = 2;
 const PADDING = 2;
 const CLASS_DIRS = ["player", "creatures", "world"];
+// Villagers are only packed from Blender renders (legacy NPC PNGs stay standalone).
+const RENDERED_ONLY_DIRS = ["npcs"];
 
 const SKIP_ATLAS_KEYS = new Set([
   // Loaded separately in PreloadScene; packing the 1024² sheet bloats the atlas.
@@ -40,7 +43,7 @@ const SKIP_ATLAS_KEYS = new Set([
 function collectPngs() {
   const byKey = new Map();
   for (const base of [ASSETS, RENDERED]) {
-    for (const dir of CLASS_DIRS) {
+    for (const dir of base === RENDERED ? [...CLASS_DIRS, ...RENDERED_ONLY_DIRS] : CLASS_DIRS) {
       const abs = path.join(base, dir);
       if (!fs.existsSync(abs)) continue;
       for (const name of fs.readdirSync(abs).sort()) {
@@ -200,7 +203,9 @@ async function main() {
       create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
     })
       .composite(page.items.map((it) => ({ input: it.buffer, left: it.x, top: it.y })))
-      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      // 256-color quantized pages (libimagequant, deterministic): ~70% smaller
+      // with no visible change on toon renders; keeps the atlas budget (#361).
+      .png({ palette: true, quality: 95, effort: 10, dither: 0.6, compressionLevel: 9 })
       .toFile(path.join(OUT_DIR, image));
     textures.push({
       image,

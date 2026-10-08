@@ -19,6 +19,11 @@ export const PROP_DISPLAY: Record<string, { width: number; height: number }> = {
   "prop-loom": { width: 46, height: 44 },
   "prop-shelf": { width: 40, height: 72 },
   "prop-boat": { width: 48, height: 40 },
+  // Village / shrine dressing (#361), Blender renders at 4x.
+  "prop-lantern": { width: 32, height: 56 },
+  "prop-moon-lantern": { width: 32, height: 56 },
+  "prop-banner": { width: 36, height: 72 },
+  "prop-stall": { width: 64, height: 56 },
 };
 
 /** Logical on-screen size for villager NPCs. */
@@ -82,7 +87,8 @@ export function ensureTrimmedTexture(
 
   const texture = scene.textures.get(sourceKey);
   const frame = texture.get(sourceFrame);
-  const sourceImage = texture.getSourceImage() as
+  // Multi-page atlas (#360): read the frame's own page, not page 0.
+  const sourceImage = (frame.source?.image ?? texture.getSourceImage()) as
     | HTMLImageElement
     | HTMLCanvasElement
     | null;

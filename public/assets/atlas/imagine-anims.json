@@ -1,6 +1,336 @@
 {
   "anims": [
     {
+      "key": "creature-bramblewarden-battle__idle",
+      "frames": [
+        "creature-bramblewarden-battle__idle_00",
+        "creature-bramblewarden-battle__idle_01",
+        "creature-bramblewarden-battle__idle_02",
+        "creature-bramblewarden-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-bramblewarden-battle__attack",
+      "frames": [
+        "creature-bramblewarden-battle__attack_00",
+        "creature-bramblewarden-battle__attack_01",
+        "creature-bramblewarden-battle__attack_02",
+        "creature-bramblewarden-battle__attack_03",
+        "creature-bramblewarden-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-bramblewarden-battle__hurt",
+      "frames": [
+        "creature-bramblewarden-battle__hurt_00",
+        "creature-bramblewarden-battle__hurt_01",
+        "creature-bramblewarden-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-bramblewarden-battle__faint",
+      "frames": [
+        "creature-bramblewarden-battle__faint_00",
+        "creature-bramblewarden-battle__faint_01",
+        "creature-bramblewarden-battle__faint_02",
+        "creature-bramblewarden-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-bramblewarden__idle",
+      "frames": [
+        "creature-bramblewarden__idle_00",
+        "creature-bramblewarden__idle_01",
+        "creature-bramblewarden__idle_02",
+        "creature-bramblewarden__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-brook-nymph-battle__idle",
+      "frames": [
+        "creature-brook-nymph-battle__idle_00",
+        "creature-brook-nymph-battle__idle_01",
+        "creature-brook-nymph-battle__idle_02",
+        "creature-brook-nymph-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-brook-nymph-battle__attack",
+      "frames": [
+        "creature-brook-nymph-battle__attack_00",
+        "creature-brook-nymph-battle__attack_01",
+        "creature-brook-nymph-battle__attack_02",
+        "creature-brook-nymph-battle__attack_03",
+        "creature-brook-nymph-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-brook-nymph-battle__hurt",
+      "frames": [
+        "creature-brook-nymph-battle__hurt_00",
+        "creature-brook-nymph-battle__hurt_01",
+        "creature-brook-nymph-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-brook-nymph-battle__faint",
+      "frames": [
+        "creature-brook-nymph-battle__faint_00",
+        "creature-brook-nymph-battle__faint_01",
+        "creature-brook-nymph-battle__faint_02",
+        "creature-brook-nymph-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-brook-nymph__idle",
+      "frames": [
+        "creature-brook-nymph__idle_00",
+        "creature-brook-nymph__idle_01",
+        "creature-brook-nymph__idle_02",
+        "creature-brook-nymph__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-cinder-toad-battle__idle",
+      "frames": [
+        "creature-cinder-toad-battle__idle_00",
+        "creature-cinder-toad-battle__idle_01",
+        "creature-cinder-toad-battle__idle_02",
+        "creature-cinder-toad-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-cinder-toad-battle__attack",
+      "frames": [
+        "creature-cinder-toad-battle__attack_00",
+        "creature-cinder-toad-battle__attack_01",
+        "creature-cinder-toad-battle__attack_02",
+        "creature-cinder-toad-battle__attack_03",
+        "creature-cinder-toad-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-toad-battle__hurt",
+      "frames": [
+        "creature-cinder-toad-battle__hurt_00",
+        "creature-cinder-toad-battle__hurt_01",
+        "creature-cinder-toad-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-toad-battle__faint",
+      "frames": [
+        "creature-cinder-toad-battle__faint_00",
+        "creature-cinder-toad-battle__faint_01",
+        "creature-cinder-toad-battle__faint_02",
+        "creature-cinder-toad-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-cinder-toad__idle",
+      "frames": [
+        "creature-cinder-toad__idle_00",
+        "creature-cinder-toad__idle_01",
+        "creature-cinder-toad__idle_02",
+        "creature-cinder-toad__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-ember-wisp-battle__idle",
+      "frames": [
+        "creature-ember-wisp-battle__idle_00",
+        "creature-ember-wisp-battle__idle_01",
+        "creature-ember-wisp-battle__idle_02",
+        "creature-ember-wisp-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-ember-wisp-battle__attack",
+      "frames": [
+        "creature-ember-wisp-battle__attack_00",
+        "creature-ember-wisp-battle__attack_01",
+        "creature-ember-wisp-battle__attack_02",
+        "creature-ember-wisp-battle__attack_03",
+        "creature-ember-wisp-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-ember-wisp-battle__hurt",
+      "frames": [
+        "creature-ember-wisp-battle__hurt_00",
+        "creature-ember-wisp-battle__hurt_01",
+        "creature-ember-wisp-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-ember-wisp-battle__faint",
+      "frames": [
+        "creature-ember-wisp-battle__faint_00",
+        "creature-ember-wisp-battle__faint_01",
+        "creature-ember-wisp-battle__faint_02",
+        "creature-ember-wisp-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-ember-wisp__idle",
+      "frames": [
+        "creature-ember-wisp__idle_00",
+        "creature-ember-wisp__idle_01",
+        "creature-ember-wisp__idle_02",
+        "creature-ember-wisp__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-hearthflame-battle__idle",
+      "frames": [
+        "creature-hearthflame-battle__idle_00",
+        "creature-hearthflame-battle__idle_01",
+        "creature-hearthflame-battle__idle_02",
+        "creature-hearthflame-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-hearthflame-battle__attack",
+      "frames": [
+        "creature-hearthflame-battle__attack_00",
+        "creature-hearthflame-battle__attack_01",
+        "creature-hearthflame-battle__attack_02",
+        "creature-hearthflame-battle__attack_03",
+        "creature-hearthflame-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-hearthflame-battle__hurt",
+      "frames": [
+        "creature-hearthflame-battle__hurt_00",
+        "creature-hearthflame-battle__hurt_01",
+        "creature-hearthflame-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-hearthflame-battle__faint",
+      "frames": [
+        "creature-hearthflame-battle__faint_00",
+        "creature-hearthflame-battle__faint_01",
+        "creature-hearthflame-battle__faint_02",
+        "creature-hearthflame-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-hearthflame__idle",
+      "frames": [
+        "creature-hearthflame__idle_00",
+        "creature-hearthflame__idle_01",
+        "creature-hearthflame__idle_02",
+        "creature-hearthflame__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-lantern-fox-battle__idle",
+      "frames": [
+        "creature-lantern-fox-battle__idle_00",
+        "creature-lantern-fox-battle__idle_01",
+        "creature-lantern-fox-battle__idle_02",
+        "creature-lantern-fox-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-lantern-fox-battle__attack",
+      "frames": [
+        "creature-lantern-fox-battle__attack_00",
+        "creature-lantern-fox-battle__attack_01",
+        "creature-lantern-fox-battle__attack_02",
+        "creature-lantern-fox-battle__attack_03",
+        "creature-lantern-fox-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-lantern-fox-battle__hurt",
+      "frames": [
+        "creature-lantern-fox-battle__hurt_00",
+        "creature-lantern-fox-battle__hurt_01",
+        "creature-lantern-fox-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-lantern-fox-battle__faint",
+      "frames": [
+        "creature-lantern-fox-battle__faint_00",
+        "creature-lantern-fox-battle__faint_01",
+        "creature-lantern-fox-battle__faint_02",
+        "creature-lantern-fox-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-lantern-fox__idle",
+      "frames": [
+        "creature-lantern-fox__idle_00",
+        "creature-lantern-fox__idle_01",
+        "creature-lantern-fox__idle_02",
+        "creature-lantern-fox__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
       "key": "creature-mossling-battle__idle",
       "frames": [
         "creature-mossling-battle__idle_00",
@@ -38,6 +368,17 @@
       "repeat": 0
     },
     {
+      "key": "creature-mossling-battle__faint",
+      "frames": [
+        "creature-mossling-battle__faint_00",
+        "creature-mossling-battle__faint_01",
+        "creature-mossling-battle__faint_02",
+        "creature-mossling-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
       "key": "creature-mossling__idle",
       "frames": [
         "creature-mossling__idle_00",
@@ -46,6 +387,259 @@
         "creature-mossling__idle_03",
         "creature-mossling__idle_04",
         "creature-mossling__idle_05"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "creature-rootwalker-battle__idle",
+      "frames": [
+        "creature-rootwalker-battle__idle_00",
+        "creature-rootwalker-battle__idle_01",
+        "creature-rootwalker-battle__idle_02",
+        "creature-rootwalker-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-rootwalker-battle__attack",
+      "frames": [
+        "creature-rootwalker-battle__attack_00",
+        "creature-rootwalker-battle__attack_01",
+        "creature-rootwalker-battle__attack_02",
+        "creature-rootwalker-battle__attack_03",
+        "creature-rootwalker-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-rootwalker-battle__hurt",
+      "frames": [
+        "creature-rootwalker-battle__hurt_00",
+        "creature-rootwalker-battle__hurt_01",
+        "creature-rootwalker-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-rootwalker-battle__faint",
+      "frames": [
+        "creature-rootwalker-battle__faint_00",
+        "creature-rootwalker-battle__faint_01",
+        "creature-rootwalker-battle__faint_02",
+        "creature-rootwalker-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-rootwalker__idle",
+      "frames": [
+        "creature-rootwalker__idle_00",
+        "creature-rootwalker__idle_01",
+        "creature-rootwalker__idle_02",
+        "creature-rootwalker__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-stone-hound-battle__idle",
+      "frames": [
+        "creature-stone-hound-battle__idle_00",
+        "creature-stone-hound-battle__idle_01",
+        "creature-stone-hound-battle__idle_02",
+        "creature-stone-hound-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-stone-hound-battle__attack",
+      "frames": [
+        "creature-stone-hound-battle__attack_00",
+        "creature-stone-hound-battle__attack_01",
+        "creature-stone-hound-battle__attack_02",
+        "creature-stone-hound-battle__attack_03",
+        "creature-stone-hound-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-stone-hound-battle__hurt",
+      "frames": [
+        "creature-stone-hound-battle__hurt_00",
+        "creature-stone-hound-battle__hurt_01",
+        "creature-stone-hound-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-stone-hound-battle__faint",
+      "frames": [
+        "creature-stone-hound-battle__faint_00",
+        "creature-stone-hound-battle__faint_01",
+        "creature-stone-hound-battle__faint_02",
+        "creature-stone-hound-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-stone-hound__idle",
+      "frames": [
+        "creature-stone-hound__idle_00",
+        "creature-stone-hound__idle_01",
+        "creature-stone-hound__idle_02",
+        "creature-stone-hound__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-thunder-finch-battle__idle",
+      "frames": [
+        "creature-thunder-finch-battle__idle_00",
+        "creature-thunder-finch-battle__idle_01",
+        "creature-thunder-finch-battle__idle_02",
+        "creature-thunder-finch-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-thunder-finch-battle__attack",
+      "frames": [
+        "creature-thunder-finch-battle__attack_00",
+        "creature-thunder-finch-battle__attack_01",
+        "creature-thunder-finch-battle__attack_02",
+        "creature-thunder-finch-battle__attack_03",
+        "creature-thunder-finch-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-thunder-finch-battle__hurt",
+      "frames": [
+        "creature-thunder-finch-battle__hurt_00",
+        "creature-thunder-finch-battle__hurt_01",
+        "creature-thunder-finch-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-thunder-finch-battle__faint",
+      "frames": [
+        "creature-thunder-finch-battle__faint_00",
+        "creature-thunder-finch-battle__faint_01",
+        "creature-thunder-finch-battle__faint_02",
+        "creature-thunder-finch-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    {
+      "key": "creature-thunder-finch__idle",
+      "frames": [
+        "creature-thunder-finch__idle_00",
+        "creature-thunder-finch__idle_01",
+        "creature-thunder-finch__idle_02",
+        "creature-thunder-finch__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "npc-hearthkeep-odd__idle",
+      "frames": [
+        "npc-hearthkeep-odd__idle_00",
+        "npc-hearthkeep-odd__idle_01",
+        "npc-hearthkeep-odd__idle_02",
+        "npc-hearthkeep-odd__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-hearthkeep-odd__talk",
+      "frames": [
+        "npc-hearthkeep-odd__talk_00",
+        "npc-hearthkeep-odd__talk_01",
+        "npc-hearthkeep-odd__talk_02",
+        "npc-hearthkeep-odd__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "npc-island-hermit-reed__idle",
+      "frames": [
+        "npc-island-hermit-reed__idle_00",
+        "npc-island-hermit-reed__idle_01",
+        "npc-island-hermit-reed__idle_02",
+        "npc-island-hermit-reed__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-island-hermit-reed__talk",
+      "frames": [
+        "npc-island-hermit-reed__talk_00",
+        "npc-island-hermit-reed__talk_01",
+        "npc-island-hermit-reed__talk_02",
+        "npc-island-hermit-reed__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "npc-warden-bryn__idle",
+      "frames": [
+        "npc-warden-bryn__idle_00",
+        "npc-warden-bryn__idle_01",
+        "npc-warden-bryn__idle_02",
+        "npc-warden-bryn__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-warden-bryn__talk",
+      "frames": [
+        "npc-warden-bryn__talk_00",
+        "npc-warden-bryn__talk_01",
+        "npc-warden-bryn__talk_02",
+        "npc-warden-bryn__talk_03"
+      ],
+      "frameRate": 8,
+      "repeat": -1
+    },
+    {
+      "key": "npc-weaver-sable__idle",
+      "frames": [
+        "npc-weaver-sable__idle_00",
+        "npc-weaver-sable__idle_01",
+        "npc-weaver-sable__idle_02",
+        "npc-weaver-sable__idle_03"
+      ],
+      "frameRate": 4,
+      "repeat": -1
+    },
+    {
+      "key": "npc-weaver-sable__talk",
+      "frames": [
+        "npc-weaver-sable__talk_00",
+        "npc-weaver-sable__talk_01",
+        "npc-weaver-sable__talk_02",
+        "npc-weaver-sable__talk_03"
       ],
       "frameRate": 8,
       "repeat": -1

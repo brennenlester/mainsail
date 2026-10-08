@@ -23,8 +23,9 @@ OVERWORLD_PPU = 192  # 48 logical px per tile x 4
 PITCH = 35  # 3/4 top-down
 
 # Battle art lives in the 640-unit design space: 1 world unit = 100 design px,
-# rendered at 3x (BATTLE_CREATURE_DISPLAY is 112x122 design px).
-BATTLE_PPU = 300
+# rendered at 2x (BATTLE_CREATURE_DISPLAY is 112x122 design px; #361 dropped
+# 3x to keep atlas texture memory bounded with the full first-hour roster).
+BATTLE_PPU = 200
 BATTLE_PITCH = 22
 
 FACINGS = {"south": 0, "east": 90, "north": 180, "west": -90}
@@ -74,17 +75,18 @@ SPECS = [
         "folder": "creatures",
         "model": "mossling",
         "args": {"facing_deg": -35, "scale": 0.85},
-        "size": (336, 366),
+        "size": (224, 244),
         "ppu": BATTLE_PPU,
         "pitch": BATTLE_PITCH,
-        "anchor": 56,
-        "outline": 5.0,
+        "anchor": 37,
+        "outline": 3.5,
         "shadow": (0.16, 0.34),
         "statics": [("creature-mossling-battle", "idle", 0.0)],
         "anims": [
             {"name": "idle", "frames": 6, "fps": 8, "repeat": -1},
             {"name": "attack", "frames": 6, "fps": 14, "repeat": 0},
             {"name": "hurt", "frames": 4, "fps": 10, "repeat": 0},
+            {"name": "faint", "frames": 4, "fps": 8, "repeat": 0},
         ],
     },
     {
@@ -101,6 +103,76 @@ SPECS = [
         "statics": [("creature-mossling-encounter", "idle", 0.25)],
         "anims": [],
     },
+]
+
+
+def _creature(cid: str, ow: float, battle: float, encounter: float, facing: tuple[int, int, int] = (-15, -35, -20)) -> list[dict]:
+    """Overworld + battle + encounter specs for one creatures.SPECIES entry
+    (#361). Same canvases, ppu and pitch as the Mossling so the whole roster
+    shares one scale; `ow`/`battle`/`encounter` are per-species model scales
+    (evolutions read larger)."""
+    key = f"creature-{cid}"
+    model = {"model": "creature", "folder": "creatures"}
+    return [
+        {
+            **model,
+            "key": key,
+            "args": {"species": cid, "facing_deg": facing[0], "scale": ow},
+            "size": (192, 208),
+            "ppu": OVERWORLD_PPU,
+            "pitch": PITCH,
+            "anchor": 26,
+            "outline": 4.0,
+            "shadow": (0.3, 0.48),
+            "statics": [(key, "idle", 0.0), (f"{key}-idle", "idle", 0.0)],
+            "anims": [{"name": "idle", "frames": 4, "fps": 6, "repeat": -1}],
+        },
+        {
+            **model,
+            "key": f"{key}-battle",
+            "args": {"species": cid, "facing_deg": facing[1], "scale": battle},
+            "size": (224, 244),
+            "ppu": BATTLE_PPU,
+            "pitch": BATTLE_PITCH,
+            "anchor": 37,
+            "outline": 3.5,
+            "shadow": (0.16, 0.34),
+            "statics": [(f"{key}-battle", "idle", 0.0)],
+            "anims": [
+                {"name": "idle", "frames": 4, "fps": 6, "repeat": -1},
+                {"name": "attack", "frames": 5, "fps": 12, "repeat": 0},
+                {"name": "hurt", "frames": 3, "fps": 10, "repeat": 0},
+                {"name": "faint", "frames": 4, "fps": 8, "repeat": 0},
+            ],
+        },
+        {
+            **model,
+            "key": f"{key}-encounter",
+            "args": {"species": cid, "facing_deg": facing[2], "scale": encounter},
+            "size": (480, 520),
+            "ppu": 420,
+            "pitch": 24,
+            "anchor": 70,
+            "outline": 6.0,
+            "shadow": (0.22, 0.4),
+            "statics": [(f"{key}-encounter", "idle", 0.25)],
+            "anims": [],
+        },
+    ]
+
+
+# First-hour roster (Grove / Shrine / Village + evolutions + the overworld
+# trio). Archipelago species stay on legacy art (follow-up).
+SPECS += [
+    *_creature("bramblewarden", 0.9, 0.8, 0.95),
+    *_creature("ember-wisp", 0.82, 0.88, 0.92),
+    *_creature("hearthflame", 0.86, 0.8, 0.82),
+    *_creature("brook-nymph", 0.85, 0.92, 0.98),
+    *_creature("thunder-finch", 0.85, 0.9, 0.95),
+    *_creature("cinder-toad", 0.82, 0.88, 0.92),
+    *_creature("rootwalker", 0.85, 0.9, 0.95),
+    *_creature("lantern-fox", 0.9, 0.95, 0.95, facing=(-40, -55, -40)),
+    *_creature("stone-hound", 0.88, 0.92, 0.92, facing=(-40, -55, -40)),
 ]
 
 
@@ -163,4 +235,97 @@ SPECS += [
         "statics": [("arena-sky", "sky", 0.0), ("arena-hills", "hills", 0.0), ("arena-platform", "platform", 0.0)],
         "anims": [],
     },
+]
+
+
+# --------------------------------------------------------------------------
+# #361: ground variants, paths, Shrine + Hearth Crossing kit, villagers,
+# canopy backdrops, extra arenas.
+# --------------------------------------------------------------------------
+GROUND = {
+    "grove": {"palette": ("grass", "grass_dark", "grass_light", "#79a858", "#85b360"), "petals": ("petal", "petal_lilac")},
+    "shrine": {"palette": ("shrine_grass", "shrine_grass_dark", "shrine_grass_light", "#7ea371", "#8fb581"), "petals": ("petal_lilac", "moon", "petal_lilac")},
+    "village": {"palette": ("village_grass", "village_grass_dark", "village_grass_light", "#8aaa56", "#9cbb66"), "petals": ("petal_gold", "petal", "rose")},
+}
+# v0 plain (most tiles), v1 a couple of flowers, v2 pebbles, v3 a flower clump.
+FLOOR_VARIANTS = [
+    {"seed": 11, "flowers": 0, "pebbles": 0, "patches": 3},
+    {"seed": 12, "flowers": 2, "pebbles": 0, "patches": 4},
+    {"seed": 13, "flowers": 1, "pebbles": 2, "patches": 3},
+    {"seed": 14, "flowers": 4, "pebbles": 1, "patches": 2},
+]
+
+
+def _floor_set(zone: str) -> list[dict]:
+    g = GROUND[zone]
+    base = {"edge_seed": zone, "palette": g["palette"], "petals": g["petals"]}
+    out = [_floor(f"floor-{zone}-v{i}", {**base, **v}) for i, v in enumerate(FLOOR_VARIANTS)]
+    out.append(_floor(f"floor-{zone}-path", {**base, "seed": 19, "flowers": 0, "pebbles": 2, "patches": 2, "path": True}))
+    if zone != "grove":
+        # Legacy light/dark keys (fallback path, other callers) share the look.
+        out[0]["statics"].append((f"floor-{zone}-light", "idle", 0.0))
+        out[1]["statics"].append((f"floor-{zone}-dark", "idle", 0.0))
+    return out
+
+
+def _canopy_tile(key: str, args: dict) -> dict:
+    return {**_floor(key, args), "model": "canopy", "outline": 0.0}
+
+
+def _villager(npc: str) -> dict:
+    key = f"npc-{npc}"
+    return {
+        "key": key,
+        "folder": "npcs",
+        "model": "villager",
+        "args": {"npc": npc},
+        "size": (192, 288),  # NPC_DISPLAY 48x72
+        "ppu": OVERWORLD_PPU,
+        "pitch": PITCH,
+        "anchor": 26,
+        "outline": 4.0,
+        "shadow": (0.25, 0.45),
+        "statics": [(key, "idle", 0.0)],
+        "anims": [
+            {"name": "idle", "frames": 4, "fps": 4, "repeat": -1},
+            {"name": "talk", "frames": 4, "fps": 8, "repeat": -1},
+        ],
+    }
+
+
+def _arena(variant: str) -> dict:
+    return {
+        "key": f"arena-{variant}",
+        "folder": "world",
+        "model": "arena",
+        "args": {"pitch": BATTLE_PITCH, "variant": variant},
+        "size": (768, 768),
+        "ppu": 120,
+        "pitch": BATTLE_PITCH,
+        "anchor": 480,
+        "outline": 3.0,
+        "shadow": None,
+        "statics": [(f"arena-{variant}-{layer}", layer, 0.0) for layer in ("sky", "hills", "platform")],
+        "anims": [],
+    }
+
+
+SPECS += [
+    *_floor_set("grove"),
+    *_floor_set("shrine"),
+    *_floor_set("village"),
+    _canopy_tile("backdrop-grove", {"seed": 31}),
+    _canopy_tile("backdrop-shrine", {"seed": 32, "colors": ("#466f5e", "#5f8f78", "#3a5d52"), "ground": "#3b5a50", "accents": "petal_lilac"}),
+    _canopy_tile("backdrop-village", {"seed": 33, "colors": ("leaf", "#7a9a48", "leaf_dark"), "ground": "#5d7a3e", "accents": "petal_gold"}),
+    _prop("prop-gate", "gate", (48, 42), 30, {"scale": 0.82}),
+    _prop("prop-gate-locked", "gate", (48, 42), 30, {"locked": True, "scale": 0.82}),
+    _prop("prop-lantern", "lantern", (32, 56), 24),
+    _prop("prop-moon-lantern", "lantern", (32, 56), 24, {"moon": True}),
+    _prop("prop-banner", "banner", (36, 72), 24),
+    _prop("prop-stall", "stall", (64, 56), 34),
+    {**_prop("boundary-village", "fence", (48, 56), 40), "shadow": None},
+    {**_prop("boundary-shrine", "shrine-boundary", (48, 56), 40), "shadow": None},
+    *[_villager(n) for n in ("warden-bryn", "weaver-sable", "hearthkeep-odd", "island-hermit-reed")],
+    _arena("village"),
+    _arena("night"),
 ]

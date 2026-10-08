@@ -1,0 +1,48 @@
+{
+  "anims": [
+    {
+      "key": "creature-rootwalker-battle__idle",
+      "frames": [
+        "creature-rootwalker-battle__idle_00",
+        "creature-rootwalker-battle__idle_01",
+        "creature-rootwalker-battle__idle_02",
+        "creature-rootwalker-battle__idle_03"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    {
+      "key": "creature-rootwalker-battle__attack",
+      "frames": [
+        "creature-rootwalker-battle__attack_00",
+        "creature-rootwalker-battle__attack_01",
+        "creature-rootwalker-battle__attack_02",
+        "creature-rootwalker-battle__attack_03",
+        "creature-rootwalker-battle__attack_04"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    },
+    {
+      "key": "creature-rootwalker-battle__hurt",
+      "frames": [
+        "creature-rootwalker-battle__hurt_00",
+        "creature-rootwalker-battle__hurt_01",
+        "creature-rootwalker-battle__hurt_02"
+      ],
+      "frameRate": 10,
+      "repeat": 0
+    },
+    {
+      "key": "creature-rootwalker-battle__faint",
+      "frames": [
+        "creature-rootwalker-battle__faint_00",
+        "creature-rootwalker-battle__faint_01",
+        "creature-rootwalker-battle__faint_02",
+        "creature-rootwalker-battle__faint_03"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    }
+  ]
+}

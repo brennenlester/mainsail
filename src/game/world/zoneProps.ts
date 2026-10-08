@@ -12,7 +12,12 @@ export type PropKind =
   | "cottage"
   | "gate"
   | "loom"
-  | "shelf";
+  | "shelf"
+  // Decorative village / shrine dressing (#361); not gatherable.
+  | "lantern"
+  | "moon-lantern"
+  | "banner"
+  | "stall";
 
 export type ZoneProp = {
   x: number;
@@ -37,6 +42,8 @@ export const ZONE_PROPS: Partial<Record<ZoneId, ZoneProp[]>> = {
     { x: 4, y: 7, kind: "standing-stone" },
     { x: 6, y: 6, kind: "pebble-pile" },
     { x: 2, y: 5, kind: "fern" },
+    { x: 2, y: 4, kind: "moon-lantern" },
+    { x: 8, y: 4, kind: "moon-lantern" },
   ],
   village: [
     // Plaza (west of code gate)
@@ -44,11 +51,18 @@ export const ZONE_PROPS: Partial<Record<ZoneId, ZoneProp[]>> = {
     { x: 8, y: 5, kind: "gate" },
     { x: 3, y: 6, kind: "fern" },
     { x: 6, y: 3, kind: "pebble-pile" },
+    { x: 3, y: 2, kind: "stall" },
+    { x: 2, y: 4, kind: "lantern" },
+    { x: 7, y: 4, kind: "lantern" },
+    { x: 4, y: 1, kind: "banner" },
+    { x: 6, y: 7, kind: "banner" },
     // Cottage yard (east of code gate)
     { x: 11, y: 3, kind: "cottage" },
     { x: 14, y: 2, kind: "cottage" },
     { x: 11, y: 7, kind: "cottage" },
     { x: 13, y: 2, kind: "pebble-pile" },
+    { x: 9, y: 4, kind: "lantern" },
+    { x: 13, y: 6, kind: "lantern" },
   ],
   "warden-cottage": [
     { x: 5, y: 1, kind: "hearth" },

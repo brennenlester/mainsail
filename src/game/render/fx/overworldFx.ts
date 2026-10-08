@@ -763,6 +763,22 @@ export class OverworldFx {
   private buildGlows(zone: ZoneDefinition, playerDepth: number): void {
     const depth = playerDepth + 1.5;
     for (const prop of getZoneProps(zone.id)) {
+      if (prop.kind === "lantern" || prop.kind === "moon-lantern") {
+        // Village / shrine lamp posts (#361): mostly a night-time glow.
+        const moon = prop.kind === "moon-lantern";
+        const image = this.scene.add
+          .image(
+            this.origin.x + prop.x * TILE_WIDTH + TILE_WIDTH / 2 + 7,
+            this.origin.y + prop.y * TILE_HEIGHT + TILE_HEIGHT / 2 - 30,
+            FX_TEX.halo,
+          )
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setTint(moon ? 0xbcd4ff : 0xffc870)
+          .setScale(1.1)
+          .setDepth(depth);
+        this.glows.push({ image, base: 0.08, night: 0.7, flicker: false });
+        continue;
+      }
       if (prop.kind !== "shrine-altar" && prop.kind !== "hearth") {
         continue;
       }

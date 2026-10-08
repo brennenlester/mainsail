@@ -52,9 +52,8 @@ export class PreloadScene extends Phaser.Scene {
       "creature-eclipse-sovereign",
       "assets/creatures/creature-eclipse-sovereign.png",
     );
-    this.load.image("npc-warden-bryn", "assets/npcs/npc-warden-bryn.png");
-    this.load.image("npc-weaver-sable", "assets/npcs/npc-weaver-sable.png");
-    this.load.image("npc-hearthkeep-odd", "assets/npcs/npc-hearthkeep-odd.png");
+    // Villagers are Blender renders in the atlas (#361); applyNpcSprite falls
+    // back to the procedural villager if a frame is missing.
     this.load.image(
       "minigame-hearth-lots-board",
       "assets/minigames/hearth-lots-board.png",
