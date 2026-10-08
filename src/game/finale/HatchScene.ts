@@ -98,7 +98,15 @@ export class HatchScene extends Phaser.Scene {
   }
 
   create(): void {
-    runCutsceneCreate(this, () => this.build());
+    try {
+      runCutsceneCreate(this, () => this.build());
+    } catch (error) {
+      // Never strand the dialogue underneath: stop, and its shutdown hook
+      // hands the stage back (#401).
+      console.error("Hatch cutscene failed; skipping it.", error);
+      this.phase = "leaving";
+      this.scene.stop();
+    }
   }
 
   private build(): void {

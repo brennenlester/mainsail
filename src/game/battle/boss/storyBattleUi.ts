@@ -69,6 +69,8 @@ export class StoryBattleUi {
    * plays, so the bar drains Mire form to empty before Cinder form refills.
    */
   private shownForm = 0;
+  /** Phase-refill counter; stopped by the next HP refresh (`barHp`). */
+  private refill?: Phaser.Tweens.Tween;
   private warning: Phaser.GameObjects.GameObject[] = [];
   private embers?: Phaser.GameObjects.Particles.ParticleEmitter;
   private burst?: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -155,6 +157,9 @@ export class StoryBattleUi {
    * of the one pool reads as a full bar); null = the foe's own HP.
    */
   barHp(): { current: number; max: number } | null {
+    // A real HP refresh owns the bar from here: drop any phase refill.
+    this.refill?.stop();
+    this.refill = undefined;
     return this.battle.formHp(this.shownForm);
   }
 
@@ -417,7 +422,7 @@ export class StoryBattleUi {
   private playPhaseRefill(instant: boolean): void {
     this.shownForm = this.battle.formIndex;
     const hud = this.hud;
-    const view = this.barHp();
+    const view = this.battle.formHp(this.shownForm);
     if (!hud || !view) {
       return;
     }
@@ -449,7 +454,7 @@ export class StoryBattleUi {
     }
     hud.bar.width = 0;
     hud.bar.setFillStyle(0xffd27a);
-    s.tweens.addCounter({
+    this.refill = s.tweens.addCounter({
       from: 0,
       to: 1,
       delay: 380,
@@ -460,7 +465,10 @@ export class StoryBattleUi {
         hud.bar.width = width * t;
         hud.hp.setText(`${Math.round(view.current * t)}/${view.max}`);
       },
-      onComplete: finish,
+      onComplete: () => {
+        this.refill = undefined;
+        finish();
+      },
     });
   }
 

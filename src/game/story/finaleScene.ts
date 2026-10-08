@@ -31,7 +31,7 @@ export const SHRINE_FINALE: readonly ScriptLine[] = [
     narration: true,
   },
   {
-    text: `A tiny Cinder Toad blinks up at you, glowing like a coal. ${FINALE_HATCHLING.nickname} joins your party — rare, with the Matriarch's spark in its Ember Spit.`,
+    text: `${FINALE_HATCHLING.nickname} blinks up at you, glowing like a coal — rare, with the Matriarch's spark in its Ember Spit.`,
     cue: "hatch",
     narration: true,
   },

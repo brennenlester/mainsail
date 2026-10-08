@@ -18,7 +18,7 @@ import {
 } from "../battle/storySpar";
 import type { StoryCue } from "../story/finaleScene";
 import { clearStoryEgg, playStoryCue, storyStage } from "../story/storyCueFx";
-import { launchHatchScene } from "../finale/HatchScene";
+import { HATCH_SCENE_KEY, launchHatchScene } from "../finale/HatchScene";
 
 const PANEL_MAX_WIDTH = 560;
 const PANEL_PADDING = 22;
@@ -47,6 +47,8 @@ export class DialogueScene extends Phaser.Scene {
   /** The finale hatch cutscene has the stage (#401); this panel waits. */
   private staging = false;
   private hatchPlayed = false;
+  /** The shown line is narration: no portrait, no name row. */
+  private narrated = false;
   /** Top of the panel in stage CSS px (story cues stage above it). */
   private panelTop = 0;
   /** Emitted on game.events when this dialogue closes (finale hook, #393). */
@@ -236,7 +238,8 @@ export class DialogueScene extends Phaser.Scene {
     this.portrait.setPosition(panelLeft + panelW - PANEL_PADDING - 28, panelTop + 6);
     this.nameText.setPosition(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING);
     this.bodyText.setWordWrapWidth(innerW, true);
-    this.bodyText.setPosition(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING + 38);
+    // Narration collapses the name row (#401).
+    this.bodyText.setPosition(panelLeft + PANEL_PADDING, panelTop + PANEL_PADDING + (this.narrated ? 4 : 38));
     this.advanceButton.setPosition(
       panelLeft + panelW - PANEL_PADDING,
       panelTop + panelH - PANEL_PADDING + 6,
@@ -254,9 +257,11 @@ export class DialogueScene extends Phaser.Scene {
       return;
     }
     const narrated = this.narration[this.lineIndex] === true;
+    this.narrated = narrated;
     this.bodyText.setText(this.lines[this.lineIndex] ?? "");
     // Narrator lines read as the story, not as the NPC talking (#401).
     this.nameText.setVisible(!narrated);
+    this.portrait.setVisible(!narrated);
     this.bodyText.setFontStyle(narrated ? "italic 600" : "600");
     this.bodyText.setColor(narrated ? "#4a5866" : "#1c3140");
     const isLast = this.lineIndex >= this.lines.length - 1;
@@ -294,21 +299,27 @@ export class DialogueScene extends Phaser.Scene {
     for (const obj of this.chrome()) {
       obj.setVisible(false);
     }
+    // Idempotent: runs on Continue, and again on the hatch scene's shutdown
+    // (or a failed launch), so the panel can never stay hidden and locked.
+    const restore = (): void => {
+      if (!this.staging || !this.sys.isActive()) {
+        return;
+      }
+      this.staging = false;
+      for (const obj of this.chrome()) {
+        obj.setVisible(true);
+      }
+      this.input.keyboard?.resetKeys();
+      this.renderLine();
+    };
     const { w, h } = this.stageCss();
-    launchHatchScene(this, {
-      stage: storyStage(this, w, h, h),
-      onDone: () => {
-        if (!this.sys.isActive()) {
-          return;
-        }
-        this.staging = false;
-        for (const obj of this.chrome()) {
-          obj.setVisible(true);
-        }
-        this.input.keyboard?.resetKeys();
-        this.renderLine();
-      },
-    });
+    try {
+      launchHatchScene(this, { stage: storyStage(this, w, h, h), onDone: restore });
+      this.scene.get(HATCH_SCENE_KEY).events.once("shutdown", restore);
+    } catch (error) {
+      console.error("Hatch cutscene failed to launch; continuing the dialogue.", error);
+      restore();
+    }
   }
 
   private advance(): void {
