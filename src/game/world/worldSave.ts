@@ -21,6 +21,7 @@ import {
 import { STARTING_ZONE_ID } from "./zones";
 import type { ZoneId } from "./zoneTypes";
 import { persistablePosition } from "../companions/abilities";
+import { clearWalkedMemory } from "../ui/walkHint";
 
 const STORAGE_KEY = "ivyward-save-v1";
 /** Pre-rename key; migrate on read so existing host saves are not lost. */
@@ -97,6 +98,7 @@ export function clearHostSave(): void {
   }
   // Cancel first so pagehide → flushPendingHostSave cannot rewrite after clear (#250).
   cancelPendingHostSave();
+  clearWalkedMemory();
   try {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(LEGACY_STORAGE_KEY);

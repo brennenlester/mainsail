@@ -16,12 +16,14 @@
   cursor: pointer;
 }
 
+/* Fixed so the dock's own clipping never cuts it off; statusPanel.ts anchors
+   it above the button (the dock sits at the bottom of the screen, #391). */
 .status-overflow-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 5;
-  min-width: 9rem;
+  position: fixed;
+  right: 12px;
+  bottom: 64px;
+  z-index: 60;
+  width: min(260px, calc(100vw - 24px));
   padding: 6px;
   border: 2px solid #80b0d0;
   border-radius: 10px;

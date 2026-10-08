@@ -6,6 +6,14 @@ import { OPENING_ARRIVAL_CAPTION, OPENING_ENCOUNTERS } from "./openingScript";
 const CAPTION_ID = "opening-caption";
 const CAPTION_MS = 4200;
 
+let captionShowing = false;
+let captionTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** True while the story caption is up; it outranks the interact / WASD hints (#391). */
+export function isOpeningCaptionShowing(): boolean {
+  return captionShowing;
+}
+
 /**
  * Non-modal story line over the board (#363). Not a dialog box: no focus
  * steal, no button, fades on its own — the player can walk immediately.
@@ -27,10 +35,17 @@ export function showOpeningCaption(text: string): void {
   el.classList.remove("is-showing");
   void el.offsetWidth;
   el.classList.add("is-showing");
-  window.setTimeout(() => el?.classList.remove("is-showing"), CAPTION_MS);
+  captionShowing = true;
+  clearTimeout(captionTimer);
+  captionTimer = setTimeout(() => {
+    captionShowing = false;
+    el?.classList.remove("is-showing");
+  }, CAPTION_MS);
 }
 
 export function hideOpeningCaption(): void {
+  captionShowing = false;
+  clearTimeout(captionTimer);
   document.getElementById(CAPTION_ID)?.classList.remove("is-showing");
 }
 

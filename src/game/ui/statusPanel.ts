@@ -1,4 +1,7 @@
-import { getGateStatusText } from "../story/questProgress";
+import {
+  getStoryStatusLine,
+  peekQuestCompletionMessage,
+} from "../story/questProgress";
 import { getHostLabel, isVisitorMode } from "../world/worldSession";
 import { resetHostGame } from "../world/worldSave";
 import type { ZoneDefinition } from "../world/zoneTypes";
@@ -87,7 +90,7 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
     legendEl.textContent = CONTROL_LEGEND_TEXT;
   }
   if (gateEl) {
-    gateEl.textContent = getGateStatusText();
+    gateEl.textContent = peekQuestCompletionMessage() ?? getStoryStatusLine();
   }
   if (partyEl) {
     renderPartyHpHud(partyEl);
@@ -224,6 +227,10 @@ export function initStatusPanelControls(): void {
       }
       overflowMenu.hidden = false;
       overflowMenu.dataset.open = "1";
+      const anchor = overflowBtn.getBoundingClientRect();
+      const root = document.documentElement;
+      overflowMenu.style.right = `${Math.max(8, root.clientWidth - anchor.right)}px`;
+      overflowMenu.style.bottom = `${Math.max(8, root.clientHeight - anchor.top + 6)}px`;
       overflowBtn.setAttribute("aria-expanded", "true");
     });
     document.addEventListener("click", () => closeOverflow());
@@ -232,12 +239,7 @@ export function initStatusPanelControls(): void {
 
   const resetBtn = document.getElementById("reset-game-btn");
   if (resetBtn) {
-    if (isVisitorMode()) {
-      resetBtn.hidden = true;
-      if (overflowBtn) {
-        overflowBtn.hidden = true;
-      }
-    }
+    resetBtn.hidden = isVisitorMode();
     resetBtn.addEventListener("click", () => {
       if (isVisitorMode()) {
         return;

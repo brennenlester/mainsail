@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import { toBase64Url } from "../world/invite";
 import {
   buildShareUrl,
+  cardSiteLabel,
   decodeShareCode,
   encodeShareSnapshot,
+  formatShareDay,
+  PRODUCTION_HOST,
   readShareParam,
   sanitizeShareName,
   SHARE_CODE_MAX_LENGTH,
   SHARE_FALLBACK_NAME,
+  todayShareDay,
   type ShareSnapshot,
 } from "./shareCode";
 
@@ -214,5 +218,38 @@ describe("sanitizeShareName", () => {
 
   it("caps by code points, not UTF-16 units", () => {
     expect(Array.from(sanitizeShareName("🦊".repeat(30)))).toHaveLength(16);
+  });
+});
+
+describe("share card date (local day, not UTC)", () => {
+  // 2026-10-08 02:30 UTC is still the evening of Oct 7 in Los Angeles (UTC-7, offset +420).
+  const lateUtc = Date.UTC(2026, 9, 8, 2, 30);
+
+  it("uses the player's calendar date", () => {
+    expect(formatShareDay(todayShareDay(lateUtc, 420))).toBe("Oct 7, 2026");
+    expect(formatShareDay(todayShareDay(lateUtc, 0))).toBe("Oct 8, 2026");
+    // Auckland (UTC+13, offset -780) is already Oct 8 at 02:30 UTC... and 13:30 local.
+    expect(formatShareDay(todayShareDay(lateUtc, -780))).toBe("Oct 8, 2026");
+  });
+
+  it("rolls over at local midnight", () => {
+    const justBefore = Date.UTC(2026, 9, 8, 6, 59); // 23:59 Oct 7 in UTC-7
+    const justAfter = Date.UTC(2026, 9, 8, 7, 1); // 00:01 Oct 8 in UTC-7
+    expect(todayShareDay(justAfter, 420) - todayShareDay(justBefore, 420)).toBe(1);
+  });
+});
+
+describe("cardSiteLabel", () => {
+  it("hides the footer URL on localhost and LAN dev hosts", () => {
+    expect(cardSiteLabel("localhost:5173")).toBe("");
+    expect(cardSiteLabel("127.0.0.1:5391")).toBe("");
+    expect(cardSiteLabel("192.168.1.20:5173")).toBe("");
+    expect(cardSiteLabel("studio.local")).toBe("");
+  });
+
+  it("shows the production host for preview deployments and real hosts as-is", () => {
+    expect(cardSiteLabel("mainsail-git-cursor-391-brennen1.vercel.app")).toBe(PRODUCTION_HOST);
+    expect(cardSiteLabel(PRODUCTION_HOST)).toBe(PRODUCTION_HOST);
+    expect(cardSiteLabel("play.ivyward.example")).toBe("play.ivyward.example");
   });
 });

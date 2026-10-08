@@ -4,7 +4,7 @@ import { ZONE_ENCOUNTERS } from "../encounters/tables";
 import { MAX_LEVEL } from "../progression/leveling";
 import { FUSION_ITEM_IDS } from "./consumables";
 import { listRecipePages } from "../ui/recipePanel";
-import { SHRINE_EFFECTS } from "./shrineEffects";
+import { describeShrineEffect, SHRINE_EFFECTS } from "./shrineEffects";
 
 /** Zones with wild tables that carry a signature / late-game encounter identity. */
 const SIGNATURE_ZONES = [
@@ -121,5 +121,21 @@ describe("SHRINE_EFFECTS matrix (#272)", () => {
     expect(growthRows.some((row) => row.effectType === "evolution")).toBe(true);
     expect(growthRows.some((row) => row.effectType === "presence")).toBe(true);
     expect(growthRows).toHaveLength(7);
+  });
+});
+
+describe("describeShrineEffect", () => {
+  it("names creatures and growth in player-facing words, never raw ids", () => {
+    for (const row of SHRINE_EFFECTS) {
+      const line = describeShrineEffect(row);
+      expect(line).not.toMatch(/@ Lv\.|-buff|[a-z]+-[a-z]+ \(/);
+      expect(line).toContain(`Lv ${row.minLevel}+`);
+    }
+    const health = SHRINE_EFFECTS.find((row) => row.effectType === "health-buff")!;
+    expect(describeShrineEffect(health)).toBe("Ember Wisp (Lv 3+): +8 max HP");
+    const evolve = SHRINE_EFFECTS.find(
+      (row) => row.effectType === "evolution" && row.creatureId === "ember-wisp",
+    )!;
+    expect(describeShrineEffect(evolve)).toMatch(/^Ember Wisp \(Lv 1\+\): evolves into /);
   });
 });

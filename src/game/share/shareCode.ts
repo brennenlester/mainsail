@@ -81,8 +81,41 @@ export function clampShareLevel(value: number): number {
   return Math.min(MAX_LEVEL, Math.max(1, Math.floor(value)));
 }
 
-export function todayShareDay(now = Date.now()): number {
-  return Math.floor(now / 86_400_000);
+/**
+ * Calendar day the card was made, as a day number. It is the player's *local*
+ * date (not the UTC day, which flips hours early/late in most timezones), so
+ * `formatShareDay` can render it verbatim.
+ */
+export function todayShareDay(
+  now = Date.now(),
+  tzOffsetMinutes = new Date(now).getTimezoneOffset(),
+): number {
+  return Math.floor((now - tzOffsetMinutes * 60_000) / 86_400_000);
+}
+
+/** Canonical play host (AGENTS.md); shown on cards made from preview builds. */
+export const PRODUCTION_HOST = "mainsail-brennen1.vercel.app";
+
+/**
+ * Footer text for the Companion Card: the real host on a custom domain, the
+ * production host for Vercel previews, and nothing on localhost / LAN dev.
+ */
+export function cardSiteLabel(host: string): string {
+  const hostname = host.replace(/:[0-9]+$/, "").toLowerCase();
+  if (
+    hostname === "" ||
+    hostname === "localhost" ||
+    hostname === "[::1]" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    /^[0-9]{1,3}([.][0-9]{1,3}){3}$/.test(hostname)
+  ) {
+    return "";
+  }
+  if (hostname.endsWith(".vercel.app")) {
+    return PRODUCTION_HOST;
+  }
+  return hostname;
 }
 
 export function encodeShareSnapshot(snapshot: ShareSnapshot): string {
@@ -228,7 +261,7 @@ export function buildShareUrl(snapshot: ShareSnapshot, base = window.location.hr
   return url.toString();
 }
 
-/** UTC date label for a share day, e.g. "Oct 7, 2026". */
+/** Date label for a share day number (a calendar date), e.g. "Oct 7, 2026". */
 export function formatShareDay(day: number): string {
   return new Date(day * 86_400_000).toLocaleDateString("en-US", {
     month: "short",

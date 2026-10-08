@@ -1608,7 +1608,7 @@ export class BattleScene extends Phaser.Scene {
     if (role === "guard") {
       const parry = Math.round((1 - GUARD_FINISHER_DAMAGE_TAKEN) * 100);
       const pct = Math.round((1 - GUARD_DAMAGE_TAKEN) * 100);
-      detail = `parries a finisher −${parry}%, other hits −${pct}%`;
+      detail = `parries finisher −${parry}% · others −${pct}%`;
     } else {
       const matchup = getMatchup(move, this.player);
       const damage =
@@ -1646,8 +1646,15 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setDepth(8);
     const gap = 6;
+    // Room between the foe's HP plate (ends at x≈260) and the right edge. A long
+    // detail line shrinks to fit instead of running off the screen (#391).
+    const room = DESIGN_SIZE - 16 - (INTENT_MIN_LEFT + 8) - 16;
+    let fontSize = 13;
+    while (badge.width + gap + text.width > room && fontSize > 10) {
+      fontSize -= 1;
+      text.setFontSize(fontSize);
+    }
     const contentWidth = badge.width + gap + text.width;
-    // Keep clear of the foe's HP plate (ends at x≈260) and the right edge.
     const minCenter = INTENT_MIN_LEFT + contentWidth / 2 + 8;
     const centerX = Phaser.Math.Clamp(
       this.wildSprite.x,

@@ -34,6 +34,12 @@ function placeKnob(knob: HTMLElement, pad: HTMLElement): void {
   knob.style.transform = `translate(${axes.x * max}px, ${axes.y * max}px)`;
 }
 
+/** True when the on-screen stick is laid out (touch / narrow layouts). */
+export function areTouchControlsVisible(): boolean {
+  const root = document.getElementById("touch-controls");
+  return root !== null && getComputedStyle(root).display !== "none";
+}
+
 export function isTouchControlsEnabled(): boolean {
   return inputEnabled;
 }

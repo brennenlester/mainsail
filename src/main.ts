@@ -34,6 +34,7 @@ import {
   showInvalidCardScreen,
 } from "./game/share/cardPreview";
 import { initShareControls, setShareDisabled } from "./game/share/shareActions";
+import { bindCreatureArt } from "./game/ui/creatureArt";
 
 function consumeNewParam(): void {
   const url = new URL(window.location.href);
@@ -128,8 +129,13 @@ if (inviteResult.status === "invalid") {
   });
   setBootContext({ route, hasSave });
   const game = createGame("game");
+  if (import.meta.env.DEV) {
+    // QA handle for Playwright screenshot passes (dev server only).
+    (window as unknown as { __game?: Phaser.Game }).__game = game;
+  }
   initStatusPanelControls();
   initShareControls(game);
+  bindCreatureArt(game);
   if (shareResult.status === "ok") {
     // Card links skip the title (route is "play") and never show the name intro.
     openCardPreview(game, shareResult.snapshot);

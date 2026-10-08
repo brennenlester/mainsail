@@ -41,3 +41,23 @@ export function applyShrineCraftOverlayRect(el: HTMLElement): void {
   el.style.width = rect.width;
   el.style.height = rect.height;
 }
+
+/**
+ * Square box centered in the (rectangular) stage with the same size as the
+ * 640 overlay design square, so % rects like the craft HUD's keep lining up
+ * with the Phaser panel. Size comes from `--stage-design` (see stageLayout).
+ */
+export function getOverlayDesignBox(): HTMLElement | null {
+  const game = document.getElementById("game");
+  if (!game) {
+    return null;
+  }
+  let box = document.getElementById("overlay-design-box");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "overlay-design-box";
+    box.className = "overlay-design-box";
+    game.appendChild(box);
+  }
+  return box;
+}

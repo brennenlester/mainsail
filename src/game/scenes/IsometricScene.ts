@@ -97,15 +97,15 @@ import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters"
 import {
   claimSecondActWantOnIslandLand,
   consumeQuestToast,
+  getActiveQuestId,
   recordQuestEvent,
 } from "../story/questProgress";
+import { QUEST_ORDER } from "../story/quests";
 import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { consumeAchievementToast } from "../progression/achievements";
 import {
   flashInviteStatus,
   hideManualInviteUrl,
-  measureStatusPanelHeight,
-  measureStatusPanelWidth,
   setCopyInviteHandler,
   showManualInviteUrl,
   unlockHostInviteChrome,
@@ -114,16 +114,20 @@ import {
 import { syncQuestHudPosition } from "../ui/questHud";
 import {
   WALK_HINT_TEXT,
+  hasWalkedBefore,
+  markWalked,
+  movementHintEligible,
+  pickTransientHint,
   shouldShowWalkHint,
 } from "../ui/walkHint";
 import { scriptedOpeningCreature } from "../opening/openingScript";
-import { hideOpeningCaption } from "../opening/openingCaption";
 import {
-  computeBoardDisplaySize,
-  playfieldLayoutMode,
-  PLAYFIELD_SCREEN_MARGIN,
-} from "../ui/playfieldLayout";
+  hideOpeningCaption,
+  isOpeningCaptionShowing,
+} from "../opening/openingCaption";
+import { layoutStage } from "../ui/stageLayout";
 import {
+  areTouchControlsVisible,
   consumeTouchInteract,
   getTouchAxes,
   initTouchControls,
@@ -224,7 +228,12 @@ import { floorVariantKey } from "../render/floorVariants";
 
 const FLOOR_LAYER = 0;
 const PROP_LAYER = 0.45;
-const SCREEN_MARGIN = PLAYFIELD_SCREEN_MARGIN;
+/** World px trimmed from zone bounds when fitting zoom (80px canopy margin → 32). */
+const ZONE_FIT_TRIM = 96;
+/** Highest CSS-px zoom for a zone (interiors on big monitors). */
+const MAX_ZONE_ZOOM_CSS = 2.2;
+/** Canopy / interior backdrop painted past the zone bounds (see drawBackdrop). */
+const ZONE_CANOPY_PAD_MAX = 480;
 const MOVE_SPEED = 6;
 const ZONE_CAMERA_COLORS: Record<ZoneId, number> = {
   grove: 0x83c5a0,
@@ -285,6 +294,7 @@ export class IsometricScene extends Phaser.Scene {
   private unbindPlayerName?: () => void;
   private worldOrigin = { x: 0, y: 0 };
   private onWindowResize = () => this.onResize();
+  private statusObserver?: ResizeObserver;
   /** Party changed via Party UI while the overworld is live (paused paths celebrate on resume). */
   private onPartyChanged = (): void => {
     if (this.scene.isActive()) {
@@ -430,6 +440,12 @@ export class IsometricScene extends Phaser.Scene {
     window.addEventListener("resize", this.onWindowResize);
     window.visualViewport?.addEventListener("resize", this.onWindowResize);
     window.visualViewport?.addEventListener("scroll", this.onWindowResize);
+    // Party / story copy changes the dock height, which decides the canvas height.
+    const statusPanel = document.getElementById("status-panel");
+    if (statusPanel && typeof ResizeObserver !== "undefined") {
+      this.statusObserver = new ResizeObserver(() => this.onResize());
+      this.statusObserver.observe(statusPanel);
+    }
     window.addEventListener(
       OPEN_PORTABLE_SHRINE_EVENT,
       this.onPortableShrineOpen,
@@ -446,6 +462,8 @@ export class IsometricScene extends Phaser.Scene {
     window.removeEventListener("resize", this.onWindowResize);
     window.visualViewport?.removeEventListener("resize", this.onWindowResize);
     window.visualViewport?.removeEventListener("scroll", this.onWindowResize);
+    this.statusObserver?.disconnect();
+    this.statusObserver = undefined;
     window.removeEventListener(
       OPEN_PORTABLE_SHRINE_EVENT,
       this.onPortableShrineOpen,
@@ -503,6 +521,7 @@ export class IsometricScene extends Phaser.Scene {
     }
 
     this.updateInteractPrompt();
+    this.syncWalkHint();
     this.layoutWorldHudTexts();
 
     let dx = 0;
@@ -1251,83 +1270,49 @@ export class IsometricScene extends Phaser.Scene {
     this.layoutLocked = true;
     try {
       const bounds = this.getZoneWorldBounds(zone);
-      const viewportCssW = window.visualViewport?.width ?? window.innerWidth;
-      const viewportCssH = window.visualViewport?.height ?? window.innerHeight;
-      const viewportW = Math.max(1, Math.floor(viewportCssW - SCREEN_MARGIN * 2));
-      const viewportH = Math.max(1, Math.floor(viewportCssH - SCREEN_MARGIN * 2));
-      const mode = playfieldLayoutMode(viewportW, viewportH);
-
-      const playfield = document.getElementById("playfield");
-      const gameEl = document.getElementById("game");
-
-      let boardDisplaySize = computeBoardDisplaySize({
-        viewportW,
-        viewportH,
-        statusHeight: 96,
-        statusWidth: 240,
-        mode,
-      });
-
-      for (let pass = 0; pass < 3; pass += 1) {
-        if (playfield) {
-          if (mode === "landscape") {
-            playfield.style.width = `${viewportW}px`;
-          } else {
-            playfield.style.width = `${boardDisplaySize}px`;
-          }
-        }
-        if (gameEl) {
-          gameEl.style.width = `${boardDisplaySize}px`;
-          gameEl.style.height = `${boardDisplaySize}px`;
-        }
-        updateStatusPanel(zone);
-        const statusHeight = measureStatusPanelHeight();
-        const statusWidth = measureStatusPanelWidth();
-        const nextSize = computeBoardDisplaySize({
-          viewportW,
-          viewportH,
-          statusHeight,
-          statusWidth,
-          mode,
-        });
-        if (nextSize === boardDisplaySize) {
-          break;
-        }
-        boardDisplaySize = nextSize;
-      }
-
-      if (playfield) {
-        if (mode === "landscape") {
-          playfield.style.width = `${viewportW}px`;
-        } else {
-          playfield.style.width = `${boardDisplaySize}px`;
-        }
-      }
-      if (gameEl) {
-        gameEl.style.width = `${boardDisplaySize}px`;
-        gameEl.style.height = `${boardDisplaySize}px`;
-      }
+      // Status copy first: its height decides how much canvas is left (#391).
       updateStatusPanel(zone);
+      const stage = layoutStage();
       syncQuestHudPosition();
-      resizeGameForDisplay(this, boardDisplaySize);
+      resizeGameForDisplay(this, stage.width, stage.height);
       this.scale.refresh();
 
       const cam = this.cameras.main;
-      cam.setBounds(bounds.minX, bounds.minY, bounds.width, bounds.height);
       // Archipelago map is larger than the view: fit a local vertical tile count
       // so startFollow pans N/S/E/W at a playable scale (not a full-map overview).
       const archipelagoFitBoundsHeight =
         ARCHIPELAGO_CAMERA_FIT_HEIGHT * TILE_HEIGHT + 160;
+      // Fit the tiles plus a thin canopy margin (bounds carry 80px per side).
+      const fitW = bounds.width - ZONE_FIT_TRIM;
+      const fitH = bounds.height - ZONE_FIT_TRIM;
       const zoom =
-      zone.id === "archipelago"
-        ? this.scale.height / archipelagoFitBoundsHeight
-        : Math.min(
-            this.scale.width / bounds.width,
-            this.scale.height / bounds.height,
-          );
-    // Allow zoom to scale with HiDPI buffer so the world still fills the view.
-    // No lower clamp: small boards must still fit the full zone after HiDPI resize.
-    cam.setZoom(Phaser.Math.Clamp(zoom, 0.01, 2.8 * RENDER_DPR));
+        zone.id === "archipelago"
+          ? this.scale.height / archipelagoFitBoundsHeight
+          : Math.min(this.scale.width / fitW, this.scale.height / fitH);
+      // Allow zoom to scale with HiDPI buffer; capped so interiors on big
+      // monitors do not blow sprites up past their authored detail.
+      const clamped = Phaser.Math.Clamp(zoom, 0.01, MAX_ZONE_ZOOM_CSS * RENDER_DPR);
+      cam.setZoom(clamped);
+      // The stage is rectangular: where it is larger than the zone, extend the
+      // camera bounds over the painted canopy instead of showing a void.
+      let padX = 0;
+      let padY = 0;
+      if (zone.id !== "archipelago") {
+        padX = Math.min(
+          ZONE_CANOPY_PAD_MAX,
+          Math.max(0, (this.scale.width / clamped - bounds.width) / 2 + 2),
+        );
+        padY = Math.min(
+          ZONE_CANOPY_PAD_MAX,
+          Math.max(0, (this.scale.height / clamped - bounds.height) / 2 + 2),
+        );
+      }
+      cam.setBounds(
+        bounds.minX - padX,
+        bounds.minY - padY,
+        bounds.width + padX * 2,
+        bounds.height + padY * 2,
+      );
     this.layoutWorldHudTexts();
     } finally {
       this.layoutLocked = false;
@@ -1759,8 +1744,29 @@ export class IsometricScene extends Phaser.Scene {
     return isNearShrine(getZone(this.currentZoneId), tileX, tileY);
   }
 
+  /**
+   * Movement ghost: the lowest-priority transient hint. Keyboard-only, once
+   * ever, and never alongside a quest caption or an interact prompt (#391).
+   */
   private syncWalkHint(): void {
-    if (!shouldShowWalkHint(this.walkHintTravel)) {
+    const walked = !shouldShowWalkHint(this.walkHintTravel);
+    if (walked) {
+      markWalked();
+      // Same first-step gate that kills the WASD ghost unlocks host invite (#257).
+      unlockHostInviteChrome();
+    }
+    const eligible = movementHintEligible({
+      touchControls: areTouchControlsVisible(),
+      walkedBefore: walked || hasWalkedBefore(),
+      atFirstBeat: getActiveQuestId() === QUEST_ORDER[0],
+      visitor: isVisitorMode(),
+    });
+    const winner = pickTransientHint({
+      quest: isOpeningCaptionShowing(),
+      interact: Boolean(this.shrinePrompt?.active),
+      movement: eligible,
+    });
+    if (winner !== "movement") {
       const hint = this.walkHint;
       if (hint?.active && !this.walkHintFading) {
         // Fade rather than pop; the main loop keeps placing it until gone.
@@ -1773,16 +1779,18 @@ export class IsometricScene extends Phaser.Scene {
             hint.destroy();
             if (this.walkHint === hint) {
               this.walkHint = undefined;
+              this.walkHintFading = false;
             }
           },
         });
       }
-      // Same first-step gate that kills the WASD ghost unlocks host invite (#257).
-      unlockHostInviteChrome();
+      return;
+    }
+    if (this.walkHint && !this.walkHintFading) {
+      placeWorldHudText(this, this.walkHint, "top", 56);
       return;
     }
     if (this.walkHint) {
-      placeWorldHudText(this, this.walkHint, "top", 56);
       return;
     }
     this.walkHint = attachHudPill(
@@ -1811,7 +1819,8 @@ export class IsometricScene extends Phaser.Scene {
       companion: this.companions?.promptLabel(Boolean(gather)),
       gather: gather ? this.formatGatherPrompt(gather) : undefined,
     });
-    const label = picked?.label;
+    // A quest caption outranks an interact prompt: one transient hint at a time (#391).
+    const label = isOpeningCaptionShowing() ? undefined : picked?.label;
     const action = overlayAction(Boolean(this.shrinePrompt), label);
 
     if (action === "destroy") {

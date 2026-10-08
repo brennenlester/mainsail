@@ -10,42 +10,93 @@ export const RENDER_DPR = Math.min(
 /** Logical layout size for overlay scenes (battle / encounter / shrine). */
 export const DESIGN_SIZE = 640;
 
-/** Match the Phaser buffer to the CSS board size × DPR for crisp sprites. */
+/** Match the Phaser buffer to the CSS stage size × DPR for crisp sprites. */
 export function resizeGameForDisplay(
   scene: Phaser.Scene,
-  boardDisplaySize: number,
+  stageCssWidth: number,
+  stageCssHeight: number,
 ): void {
-  const size = Math.max(1, Math.round(boardDisplaySize * RENDER_DPR));
+  const width = Math.max(1, Math.round(stageCssWidth * RENDER_DPR));
+  const height = Math.max(1, Math.round(stageCssHeight * RENDER_DPR));
   if (
-    scene.scale.gameSize.width !== size ||
-    scene.scale.gameSize.height !== size
+    scene.scale.gameSize.width !== width ||
+    scene.scale.gameSize.height !== height
   ) {
-    scene.scale.resize(size, size);
+    // setGameSize (not resize): FIT must pick up the new aspect ratio.
+    scene.scale.setGameSize(width, height);
   }
 }
 
+/** CSS px of stage height handed to DOM chrome under the design square. */
+export type OverlayReserve = number | (() => number);
+
 /**
  * Frame the 640×640 design space in the HiDPI buffer so overlay layouts
- * (which use 0..640 coords) stay on camera.
+ * (which use 0..640 coords) stay on camera. `reserveBottomCss` keeps that much
+ * stage height free under the art for DOM chrome (the title menu): the square
+ * shrinks to fit above it and, on tall stages, slides up into the spare room.
  */
-export function applyOverlayPixelRatio(scene: Phaser.Scene): void {
+export function applyOverlayPixelRatio(
+  scene: Phaser.Scene,
+  reserveBottomCss: OverlayReserve = 0,
+): void {
   const cam = scene.cameras.main;
+  const reserve =
+    (typeof reserveBottomCss === "function"
+      ? reserveBottomCss()
+      : reserveBottomCss) * RENDER_DPR;
   const zoom = Math.min(
     scene.scale.width / DESIGN_SIZE,
-    scene.scale.height / DESIGN_SIZE,
+    Math.max(1, scene.scale.height - reserve) / DESIGN_SIZE,
   );
   cam.setZoom(zoom);
-  cam.centerOn(DESIGN_SIZE / 2, DESIGN_SIZE / 2);
+  const spare = Math.max(0, scene.scale.height - DESIGN_SIZE * zoom);
+  const shift = Math.min(reserve / 2, spare / 2);
+  cam.centerOn(DESIGN_SIZE / 2, DESIGN_SIZE / 2 + shift / zoom);
+}
+
+/** Backdrop for the area outside the 640 design square on non-square stages (#391). */
+export const OVERLAY_LETTERBOX_COLOR = 0x0f1c2e;
+
+/**
+ * Overlay scenes lay out in a 640×640 design square that is centered and
+ * zoomed to fit the (now rectangular) stage. Paint the rest navy so the
+ * paused world never shows around a battle / shrine / encounter card.
+ */
+export function addOverlayLetterbox(
+  scene: Phaser.Scene,
+  alpha = 1,
+  style: { depth?: number; color?: number } = {},
+): void {
+  const reach = 4000;
+  const bars: Array<[number, number, number, number]> = [
+    [-reach, -reach, reach, reach * 2 + DESIGN_SIZE],
+    [DESIGN_SIZE, -reach, reach, reach * 2 + DESIGN_SIZE],
+    [0, -reach, DESIGN_SIZE, reach],
+    [0, DESIGN_SIZE, DESIGN_SIZE, reach],
+  ];
+  for (const [x, y, w, h] of bars) {
+    scene.add
+      .rectangle(x, y, w, h, style.color ?? OVERLAY_LETTERBOX_COLOR, alpha)
+      .setOrigin(0)
+      .setDepth(style.depth ?? -10_000);
+  }
 }
 
 /** Keep overlay framing correct when the shared Scale Manager resizes. */
-export function bindOverlayPixelRatio(scene: Phaser.Scene): void {
-  applyOverlayPixelRatio(scene);
+export function bindOverlayPixelRatio(
+  scene: Phaser.Scene,
+  options: { letterbox?: boolean; reserveBottomCss?: OverlayReserve } = {},
+): void {
+  applyOverlayPixelRatio(scene, options.reserveBottomCss);
+  if (options.letterbox !== false) {
+    addOverlayLetterbox(scene, 0.95);
+  }
   const onResize = (): void => {
     if (!scene.sys.settings.active && !scene.sys.settings.visible) {
       return;
     }
-    applyOverlayPixelRatio(scene);
+    applyOverlayPixelRatio(scene, options.reserveBottomCss);
   };
   scene.scale.on("resize", onResize);
   scene.events.once("shutdown", () => {

@@ -1,8 +1,9 @@
 import { getCreatureDefinition } from "../creatures/catalog";
 import {
-  getKnownCreaturesForZone,
+  getCreaturesForZone,
   ZONE_ENCOUNTERS,
 } from "../encounters/tables";
+import { creatureArtSlot, fillCreatureArt } from "./creatureArt";
 import { worldState } from "../world/worldState";
 import {
   isAchievementUnlocked,
@@ -46,16 +47,65 @@ function ensureCodexRoot(): HTMLElement {
   return root;
 }
 
+/** Entry for a creature the player has met: art, name, type, favorite. */
+function knownEntryHtml(id: string): string {
+  const def = getCreatureDefinition(id);
+  // Favorite material unlocks with the first encounter (#367).
+  const favorite = getMaterialName(getFavoriteMaterial(id));
+  return `<li class="codex-entry">
+    ${creatureArtSlot(id)}
+    <div class="codex-entry-text">
+      <strong>${def.name}</strong>
+      <span class="codex-type">${def.folkloreType}</span>
+      <span class="codex-fav">loves ${favorite}</span>
+    </div>
+  </li>`;
+}
+
+/** Entry for a creature that lives here but has not been met: a silhouette. */
+function unknownEntryHtml(id: string): string {
+  return `<li class="codex-entry codex-entry--unknown">
+    ${creatureArtSlot(id, { silhouette: true })}
+    <div class="codex-entry-text">
+      <strong>???</strong>
+      <span class="codex-type">Not yet met</span>
+    </div>
+  </li>`;
+}
+
+/** Zone sections with art for met creatures and silhouettes for the rest (#391). */
+export function codexZonesHtml(discovered: ReadonlySet<string>): string {
+  // Safe rooms have no encounter table and are not habitats.
+  const zoneIds = (Object.keys(ZONE_ENCOUNTERS) as ZoneId[]).filter(
+    (zoneId) => ZONE_ENCOUNTERS[zoneId].length > 0,
+  );
+  return zoneIds
+    .map((zoneId) => {
+      const zone = ZONES[zoneId];
+      const dwellers = getCreaturesForZone(zoneId).filter(
+        (id) => !getCreatureDefinition(id).excludeFromCodex,
+      );
+      const rows = dwellers.map((id) =>
+        discovered.has(id) ? knownEntryHtml(id) : unknownEntryHtml(id),
+      );
+      if (rows.length === 0) {
+        return "";
+      }
+      const known = dwellers.filter((id) => discovered.has(id)).length;
+      return `<section class="codex-zone${known === 0 ? " codex-zone-locked" : ""}">
+        <h3>${zone.name}</h3>
+        <ul class="codex-grid">${rows.join("")}</ul>
+      </section>`;
+    })
+    .join("");
+}
+
 function renderCodexBody(): void {
   const body = document.getElementById("codex-body");
   if (!body) {
     return;
   }
   const discovered = new Set(worldState.discoveredCreatures);
-  // Safe rooms have no encounter table and are not habitats.
-  const zoneIds = (Object.keys(ZONE_ENCOUNTERS) as ZoneId[]).filter(
-    (zoneId) => ZONE_ENCOUNTERS[zoneId].length > 0,
-  );
 
   if (discovered.size === 0) {
     body.innerHTML =
@@ -63,30 +113,8 @@ function renderCodexBody(): void {
     return;
   }
 
-  body.innerHTML = zoneIds
-    .map((zoneId) => {
-      const zone = ZONES[zoneId];
-      const known = getKnownCreaturesForZone(zoneId, discovered);
-      if (known.length === 0) {
-        return `<section class="codex-zone codex-zone-locked">
-          <h3>${zone.name}</h3>
-          <p>No known dwellers yet.</p>
-        </section>`;
-      }
-      const creatures = known
-        .map((id) => {
-          const def = getCreatureDefinition(id);
-          // Favorite material unlocks with the first encounter (#367).
-          const favorite = getMaterialName(getFavoriteMaterial(id));
-          return `<li><strong>${def.name}</strong> <span class="codex-type">${def.folkloreType}</span> <span class="codex-fav">· loves ${favorite}</span></li>`;
-        })
-        .join("");
-      return `<section class="codex-zone">
-        <h3>${zone.name}</h3>
-        <ul>${creatures}</ul>
-      </section>`;
-    })
-    .join("");
+  body.innerHTML = codexZonesHtml(discovered);
+  void fillCreatureArt(body);
 }
 
 /**
