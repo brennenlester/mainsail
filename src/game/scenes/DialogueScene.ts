@@ -14,9 +14,10 @@ import { setTouchControlsEnabled } from "../ui/touchControls";
 import {
   beginStorySpar,
   forfeitStorySpar,
-  getActiveStorySpar,
-  launchStorySparRound,
+  launchStorySpar,
 } from "../battle/storySpar";
+import type { StoryCue } from "../story/finaleScene";
+import { playStoryCue } from "../story/storyCueFx";
 
 const PANEL_WIDTH = 470;
 const PANEL_HEIGHT = 220;
@@ -33,6 +34,10 @@ const TEXT_STYLE = {
 export class DialogueScene extends Phaser.Scene {
   private npc!: NpcDefinition;
   private lines: string[] = [];
+  /** Scripted-scene cue per line (#385); usually empty. */
+  private cues: (StoryCue | undefined)[] = [];
+  /** Emitted on game.events when this dialogue closes (finale hook, #393). */
+  private endEvent: string | undefined;
   private prompt: ConversationPrompt = { kind: "advance" };
   private lineIndex = 0;
   private bodyText!: Phaser.GameObjects.Text;
@@ -52,6 +57,8 @@ export class DialogueScene extends Phaser.Scene {
     this.npc = npc;
     const conversation = beginConversation(npc);
     this.lines = conversation.lines;
+    this.cues = conversation.cues ?? [];
+    this.endEvent = conversation.endEvent;
     this.prompt = conversation.prompt;
     this.lineIndex = 0;
     this.closing = false;
@@ -157,6 +164,7 @@ export class DialogueScene extends Phaser.Scene {
 
   private renderLine(): void {
     this.bodyText.setText(this.lines[this.lineIndex] ?? "");
+    playStoryCue(this, this.cues[this.lineIndex]);
     const isLast = this.lineIndex >= this.lines.length - 1;
     const confirming = this.prompt.kind === "confirm-rest" && isLast;
     const challenging = this.prompt.kind === "challenge" && isLast;
@@ -211,15 +219,15 @@ export class DialogueScene extends Phaser.Scene {
   }
 
   /**
-   * Rival / boss challenge (#369): hand off to the story spar adapter. After
-   * each round BattleScene resumes IsometricScene; we reopen this dialogue for
-   * the interlude telegraph or the outcome banter.
+   * Rival / boss challenge (#369, #385): one story battle via the adapter.
+   * BattleScene resumes IsometricScene when it closes; we reopen this
+   * dialogue for the outcome banter.
    */
   private startStorySpar(sparId: StorySparId): void {
     if (this.closing) {
       return;
     }
-    if (!getActiveStorySpar() && !beginStorySpar(sparId)) {
+    if (!beginStorySpar(sparId)) {
       this.close();
       return;
     }
@@ -228,7 +236,13 @@ export class DialogueScene extends Phaser.Scene {
     const iso = this.scene.get("IsometricScene");
     this.cameras.main.fadeOut(130, 255, 255, 255);
     this.time.delayedCall(140, () => {
-      const launched = launchStorySparRound(this, () => {
+      const launched = launchStorySpar(this, (result) => {
+        if (result === null) {
+          // BattleScene never came up: the adapter forfeited; back to the world.
+          iso.scene.stop("BattleScene");
+          iso.scene.resume();
+          return;
+        }
         iso.events.once("resume", () => {
           // Let the world finish its resume fade + layout before pausing it
           // again (or the frame freezes mid-fade, grey), but take input away
@@ -252,6 +266,7 @@ export class DialogueScene extends Phaser.Scene {
       });
       this.scene.stop("DialogueScene");
       if (!launched) {
+        forfeitStorySpar();
         this.scene.resume("IsometricScene");
       }
     });
@@ -261,13 +276,15 @@ export class DialogueScene extends Phaser.Scene {
     if (this.closing) {
       return;
     }
-    // Walking away between rounds forfeits the story spar (cheap failure).
-    forfeitStorySpar();
     this.closing = true;
+    const endEvent = this.endEvent;
     this.cameras.main.fadeOut(130, 255, 255, 255);
     this.time.delayedCall(140, () => {
       this.scene.stop("DialogueScene");
       this.scene.resume("IsometricScene");
+      if (endEvent) {
+        this.game.events.emit(endEvent);
+      }
     });
   }
 }

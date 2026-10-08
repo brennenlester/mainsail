@@ -59,12 +59,12 @@ Repeating cycle (**spine loop**):
 | 2 | Win a training spar (hunter tip teaches one matchup) | **Overworld gate opens** |
 | 3 | Craft a relic at Moon Shrine | First relic (Moss Salve / Ember Charm sets up beat 4) |
 | 4 | Grow your first companion (either Grove evolution) | Visible evolution; **cottage gate opens** (Bryn gifts a missing Grove starter) |
-| 5 | Beat Wren, the rival | Wren spars a scaled 2-creature party in the Hearth Crossing plaza; banter changes on win / loss; first win gives Brook Tonic ×2 and **opens the Mistwood path** |
+| 5 | Beat Wren, the rival | One battle ("Wren, the Rival", VS banner, rival theme). Wren sends a scaled 2-creature team in sequence. Banter changes on a win or a loss. The first win gives Brook Tonic ×2, **opens the Mistwood path**, and adds Pip the Brook Nymph if the party has no water type |
 | 6 | Walk the Mistwood path | **Region unlock** — new creatures |
-| 7 | Face the Cinder Matriarch | **Boss** in Emberfen Hollow: two forms, each **telegraphed** (form + the type that hunts it) before it rises; Wren reappears with a tip; Folklore Dust ×5 + Moonwake Draught |
-| 8 | Return to the Moon Shrine | **Finale** with Wren; main story complete; hook toward the optional Sovereign voyage (Horizon / Eclipse fusion) |
+| 7 | Face the Cinder Matriarch | **Boss battle** in Emberfen Hollow, with an ember arena, a boss theme and a boss bar with a phase pip. Mire form (fen) becomes Cinder form (ember) at 50% HP, inside the same battle. Each form runs a fixed intent pattern. The telegraphed signature, Cinderfall, has a wind-up; Guard parries it and staggers her. Wren assists every few turns (cleanse / heal / daze, or drench when her form hunts your lead; Soaked douses Cinder form). HP and damage scale to the number of challengers. **Hearth Ward** catch-up: ×0.85 after 2 losses in a row and ×0.75 after 4 (persisted per challenge, reset on a win), shown as a player-side chip. Reward: Moonwake Draught + ember egg |
+| 8 | Return to the Moon Shrine | **Finale**: a scripted shrine scene with Wren. The egg hatches into **Cinderling** (a rare Cinder Toad with a signature Ember Spit). Main story complete; hook toward the optional Sovereign voyage (Horizon / Eclipse fusion). Emits `story:finale-complete` for the credits / share card |
 
-Rival and boss rosters, level bonuses, telegraphs, and rewards are data in `src/game/story/storySpars.ts`. Rounds run back-to-back on the existing spar (HP carries over). A loss restores the party for a cheap retry. Wren stays in the plaza for scaled rematches after the arc.
+Rival and boss rosters, forms, patterns, challenger scaling, assist rules and rewards are data in `src/game/story/storySpars.ts`. Each challenge is one BattleScene battle driven by `battle/boss/storyBattle.ts`, which BattleScene and the balance sim share. The win rates are pinned in `battle/boss/storyBattleBalance.test.ts`; the full table comes from `STORY_REPORT=… npx vitest run src/game/battle/boss/storyBattleReport.test.ts`. A loss restores the party for a cheap retry (once per beat). Wren stays in the plaza for escalated rematches after the arc.
 
 Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens.
 

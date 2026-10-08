@@ -41,12 +41,12 @@ The HUD shows `Story N/8: …`, a short “Next” hint, and on some beats a lin
 2. **Win a training spar.** Choose **Spar** and win; a hunter tip teaches one matchup. This **opens the overworld gate**.
 3. **Craft a relic at Moon Shrine.** Stand on the moon altar, press **E**, and craft any relic. Moss Salve or Ember Charm sets up the next beat.
 4. **Grow your first companion.** Apply Moss Salve to a Mossling or Ember Charm to an Ember Wisp. The cottage gate in Hearth Crossing opens; Warden Bryn gives a Grove starter if you are missing one.
-5. **Beat Wren, the rival.** Talk to Wren in the Hearth Crossing plaza and accept her spar. She fights with two companions in a row, and your HP carries over between rounds. Losing patches your party up for a retry. Winning gives Brook Tonic ×2 and **opens the Mistwood path**.
+5. **Beat Wren, the rival.** Talk to Wren in the Hearth Crossing plaza and accept her challenge: one battle ("Wren, the Rival") where she sends out her creatures one after another. Losing patches your party up for a retry. Winning gives Brook Tonic ×2, **opens the Mistwood path**, and if nothing in your party hunts ember, Pip the Brook Nymph joins you.
 6. **Walk the Mistwood path.** Take the east exit of Folklore Fields into Mistwood Reach.
-7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). She fights in two forms and announces each one, along with the type that hunts it, before it rises. Swap your lead or Switch in the spar. Reward: Folklore Dust ×5 and a Moonwake Draught.
-8. **Return to the Moon Shrine.** Talk to Wren there for the finale. The main story is complete.
+7. **Face the Cinder Matriarch.** She waits in Emberfen Hollow (past Mistwood). It is one boss battle with her own arena, music and boss bar. At half HP she transforms from Mire form (fen) to Cinder form (ember). She telegraphs Cinderfall with a wind-up; **Guard parries it and staggers her** (she loses a turn and takes extra damage). Wren fights at your side, cleansing, healing, dazzling or drenching her every few turns. Soaked, the Cinder form is doused and loses its ember bite. Losing is cheap: after 2 losses in a row the **Hearth Ward** softens her (and after 4, more). The same applies to Wren rematches. Reward: a Moonwake Draught and a warm ember egg.
+8. **Return to the Moon Shrine.** Talk to Wren there. The egg hatches into **Cinderling**, a rare Cinder Toad that joins your party, and then Wren points you toward the optional Sovereign voyage. The main story is complete.
 
-Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens. After the arc, Wren stays in the plaza for tougher rematches.
+Gate status reads `Overworld: LOCKED (Story 2/8) · Village: … · Mistwood: LOCKED (Story 5/8)` until each gate opens. After the arc, Wren stays in the plaza for tougher rematches, where her storm finch joins her team.
 
 **Optional side threads** never block the story: village asks, cottage minigames, daily asks, and the **Sovereign voyage**. The voyage goes: craft a Boat → Tide Sovereign on Reed's isle → Stone Sovereign on the cairn isle → Sovereign Seal → Horizon fusion at the Moon Shrine, with Eclipse beyond. After the finale, the HUD shows it as `Optional — Sovereign voyage: …`.
 
