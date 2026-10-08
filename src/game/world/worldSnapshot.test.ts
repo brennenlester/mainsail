@@ -1,4 +1,5 @@
 import { CREATURE_MATERIALS } from "../inventory/materials";
+import { getStorySparLosses, setStorySparLosses } from "../battle/storySpar";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ENCOUNTERABLE_CREATURE_IDS,
@@ -116,6 +117,17 @@ beforeEach(() => {
 describe("isValidWorldSnapshot", () => {
   it("accepts a well-formed host snapshot", () => {
     expect(isValidWorldSnapshot(validSnapshot())).toBe(true);
+  });
+
+  it("keeps a save with unknown story spar losses, dropping the unknown ids (#382)", () => {
+    const snapshot = validSnapshot({ storySparLosses: ["rival-wren", "retired-rival"] });
+    expect(isValidWorldSnapshot(snapshot)).toBe(true);
+    applyWorldSnapshot(snapshot);
+    expect(getStorySparLosses()).toEqual(["rival-wren"]);
+    expect(
+      isValidWorldSnapshot(validSnapshot({ storySparLosses: "rival-wren" as unknown as string[] })),
+    ).toBe(false);
+    setStorySparLosses([]);
   });
 
   it("accepts the optional rare variant flag only as true (#368)", () => {

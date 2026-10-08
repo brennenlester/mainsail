@@ -1,19 +1,25 @@
 import {
   canBeginStorySpar,
   consumeStorySparOutcome,
-  getActiveStorySpar,
-  getCurrentStorySparRound,
+  describeStorySparLineup,
+  grantCoverageGift,
 } from "../battle/storySpar";
-import { getCreatureDefinition } from "../creatures/catalog";
 import { registerStoryNpcProvider, type NpcDefinition } from "../world/npcs";
 import type { ZoneId } from "../world/zoneTypes";
 import { isVisitorMode } from "../world/worldSession";
 import { questProgress, recordQuestEvent } from "./questProgress";
 import type { StorySparId } from "./questTypes";
 import { BOSS_NPC_ID, RIVAL_NPC_ID, STORY_SPARS } from "./storySpars";
+import {
+  FINALE_COMPLETE_EVENT,
+  hasFinaleCompanion,
+  hatchFinaleCompanion,
+  SHRINE_FINALE,
+  type StoryCue,
+} from "./finaleScene";
 
 /**
- * Main-arc characters (#369): Wren the rival and the Cinder Matriarch boss.
+ * Main-arc characters (#369, #385): Wren the rival and the Cinder Matriarch boss.
  * They move with the story beat instead of living in one cottage.
  */
 
@@ -24,6 +30,10 @@ export type StoryConversationPrompt =
 export type StoryConversation = {
   lines: string[];
   prompt: StoryConversationPrompt;
+  /** Per-line presentation cues (scripted scenes, #385). */
+  cues?: (StoryCue | undefined)[];
+  /** Game event emitted when the dialogue closes (scripted scene end). */
+  endEvent?: string;
 };
 
 const RIVAL: Omit<NpcDefinition, "x" | "y"> = {
@@ -104,17 +114,9 @@ export function isStoryNpcId(npcId: string): boolean {
 function talk(
   lines: string[],
   prompt: StoryConversationPrompt = { kind: "advance" },
+  cues?: (StoryCue | undefined)[],
 ): StoryConversation {
-  return { lines, prompt };
-}
-
-function roundIntro(): string {
-  const current = getCurrentStorySparRound();
-  if (!current) {
-    return "";
-  }
-  const name = getCreatureDefinition(current.round.creatureId).name;
-  return `Round ${current.roundNumber}/${current.roundCount}: ${name} (Lv ${current.level}).`;
+  return cues ? { lines, prompt, cues } : { lines, prompt };
 }
 
 function rivalConversation(): StoryConversation {
@@ -131,7 +133,7 @@ function rivalConversation(): StoryConversation {
     }
     return talk([
       "Again?! Okay. Okay. I'm writing this down.",
-      "Next time I'm bringing a better breakfast.",
+      "Next time I'm bringing a better breakfast. And a bigger bird.",
     ]);
   }
   if (outcome?.result === "lost") {
@@ -144,35 +146,23 @@ function rivalConversation(): StoryConversation {
     ]);
   }
 
-  const activeSpar = getActiveStorySpar();
-  if (activeSpar?.id === "rival-wren") {
-    return talk(
-      ["Lucky. That one was my warm-up.", roundIntro()],
-      { kind: "challenge", sparId: "rival-wren", label: "Next round" },
-    );
-  }
-
   const zone = getRivalZone();
-  const canSpar = canBeginStorySpar();
   if (zone === "emberfen") {
+    // Older saves (or a released Pip): make sure the party can answer Cinder form.
+    const lent = grantCoverageGift("rival-wren");
     return talk([
       "You made it. She nearly cooked me — the Matriarch.",
-      "She telegraphs. Before every form she shows you what she's becoming. Watch, then put whoever hunts it in front.",
-      "Mire form first: woodland hunts fen. Then Cinder: water hunts ember — and ember hunts woodland, so don't leave your Mossling line out there.",
+      ...(lent ? [`Nothing in your party hunts ember? Take ${lent}. Water hunts ember.`] : []),
+      "She telegraphs. Mire form first — woodland hunts fen. Knock her to half and she splits into Cinder form: ember hunts woodland, water hunts ember.",
+      "When she gathers embers, Cinderfall is next. GUARD it. A parried Cinderfall staggers her for a whole turn.",
+      "And this time I'm in it with you. Every few turns my lot will patch you up, wash off a burn, or dazzle her.",
     ]);
   }
   if (zone === "shrine") {
-    const lines = [
-      "You actually did it. The fen's gone quiet — first time in years.",
-      "Hear that hum? The shrine is singing toward the sea. Reed, the old hermit out on the far isle, says two Sovereigns sleep out there — Tide and Stone.",
-      "Braid them here and you get Horizon. Braid two Horizons and... nobody alive has seen an Eclipse.",
-      "That one's yours to chase, if you want it. Build a boat. I'll be in the plaza whenever you want a rematch.",
-    ];
-    recordQuestEvent({ type: "story_finale" });
-    return talk(lines);
+    return shrineFinale();
   }
 
-  if (!canSpar) {
+  if (!canBeginStorySpar()) {
     return talk([
       "Your lot's out cold. I don't spar with sleepers — get them rested (Odd's hearth, or a tonic) and come back.",
     ]);
@@ -181,7 +171,7 @@ function rivalConversation(): StoryConversation {
     return talk(
       [
         "So you're the one the Moon Shrine keeps humming about. I'm Wren — I've walked every path from here to the fens.",
-        "Two of mine against yours, one after the other. Your HP carries between rounds, so don't spend it all on the first.",
+        `One battle, my whole team, one after the other: ${describeStorySparLineup("rival-wren")}. No breather between them.`,
         "Win, and I'll get the Mistwood path opened for you. Lose, and I'll patch you up and laugh.",
       ],
       { kind: "challenge", sparId: "rival-wren", label: "Spar Wren" },
@@ -189,16 +179,28 @@ function rivalConversation(): StoryConversation {
   }
   return talk(
     [
-      "Back for more? I've been training too — my lot hit harder now.",
-      "No prizes on rematches. Just bragging rights.",
+      "Back for more? I've been training too — and my storm finch wants a turn.",
+      `${describeStorySparLineup("rival-wren")}. No prizes on rematches. Just bragging rights.`,
     ],
     { kind: "challenge", sparId: "rival-wren", label: "Rematch" },
   );
 }
 
-function telegraphLine(): string {
-  const current = getCurrentStorySparRound();
-  return current?.round.telegraph ?? "";
+/** Beat 8: the egg hatches at the shrine, then the voyage hook (#385, #351). */
+function shrineFinale(): StoryConversation {
+  if (questProgress["shrine-finale"] === "active" && !hasFinaleCompanion()) {
+    hatchFinaleCompanion();
+  }
+  recordQuestEvent({ type: "story_finale" });
+  return {
+    ...talk(
+      SHRINE_FINALE.map((line) => line.text),
+      { kind: "advance" },
+      SHRINE_FINALE.map((line) => line.cue),
+    ),
+    // Hook for the finale credits / share card (#393).
+    endEvent: FINALE_COMPLETE_EVENT,
+  };
 }
 
 function bossConversation(): StoryConversation {
@@ -206,17 +208,16 @@ function bossConversation(): StoryConversation {
   if (outcome?.result === "won") {
     return talk([
       "The Matriarch's fire gutters out. She settles into the peat, and the whole fen exhales.",
-      outcome.rewardText
-        ? `Something glints in the cooling ash — ${outcome.rewardText}.`
-        : "The fen is quiet.",
-      "Wren will want to hear about this. She said she'd wait at the Moon Shrine.",
+      "Where she sank, something glows in the cooling ash — a warm ember egg. It hums against your palm.",
+      outcome.rewardText ? `Beside it: ${outcome.rewardText}.` : "The fen is quiet.",
+      "Wren will want to see this. She said she'd wait at the Moon Shrine.",
     ]);
   }
   if (outcome?.result === "lost") {
     return talk([
       "The Matriarch sinks back into the smoke. She is not done with you.",
       outcome.healed
-        ? "Wren hauls your party clear and patches everyone up. Study her forms, then try again."
+        ? "Wren hauls your party clear and patches everyone up. Watch for the wind-up, Guard the Cinderfall, then try again."
         : "Wren hauls your party clear. Rest them before you try again.",
     ]);
   }
@@ -225,24 +226,15 @@ function bossConversation(): StoryConversation {
       "The Matriarch's heat rolls over you. Your companions can't stand against her like this — rest them first.",
     ]);
   }
-  const activeSpar = getActiveStorySpar();
-  if (activeSpar?.id === "cinder-matriarch") {
-    return talk(
-      ["She shudders and changes.", telegraphLine(), roundIntro()],
-      { kind: "challenge", sparId: "cinder-matriarch", label: "Face her" },
-    );
-  }
+  const boss = STORY_SPARS["cinder-matriarch"].boss;
   return talk(
     [
       "A great toad of ash and peat rises from the fen — the Cinder Matriarch. Her shape will not hold still.",
-      `Telegraph: she fights in ${STORY_SPARS["cinder-matriarch"].rounds.length} forms and announces each one before it rises.`,
-      STORY_SPARS["cinder-matriarch"].rounds[0]?.telegraph ?? "",
+      `She fights in ${boss?.forms.length ?? 2} forms in one battle. ${boss?.forms[0]?.telegraph ?? ""}`,
+      "At half strength she splits into Cinder form. When she gathers embers, Guard: a parried Cinderfall staggers her.",
+      "She swells to meet every companion you bring. Wren stands at your shoulder.",
     ],
-    {
-      kind: "challenge",
-      sparId: "cinder-matriarch",
-      label: "Challenge",
-    },
+    { kind: "challenge", sparId: "cinder-matriarch", label: "Challenge" },
   );
 }
 

@@ -42,6 +42,7 @@ const SFX = {
   moveWater: "sfx-move-water",
   moveGrove: "sfx-move-grove",
   moveNeutral: "sfx-move-neutral",
+  bossSting: "sfx-boss-sting",
 } as const;
 
 const STEP_BY_SURFACE: Record<StepSurface, string> = {
@@ -257,6 +258,11 @@ export function playAbilitySfx(scene?: Phaser.Scene): void {
   playSfx(scene ?? hostScene, SFX.ability, 0.45);
 }
 
+/** Story battle VS banner / boss transformation hit (#385). */
+export function playBossStingSfx(scene: Phaser.Scene): void {
+  playSfx(scene, SFX.bossSting, 0.7);
+}
+
 /** Move cast sound by battle type: fire / water / grove / neutral. */
 export function playMoveTypeSfx(scene: Phaser.Scene, type: string): void {
   playSfx(scene, MOVE_BY_CATEGORY[moveSfxCategory(type)], 0.4);
@@ -291,6 +297,15 @@ export function setAudioZone(zoneId: ZoneId): void {
   ctx.zoneId = zoneId;
   if (hostScene && unlocked) {
     ensureMusic(hostScene);
+  }
+}
+
+/** Story battles swap the spar loop for the boss / rival theme; undefined restores it. */
+export function setBattleTheme(theme: "boss" | "rival" | undefined, scene?: Phaser.Scene): void {
+  ctx.battleTheme = theme;
+  const target = scene ?? hostScene;
+  if (target && unlocked) {
+    ensureMusic(target);
   }
 }
 

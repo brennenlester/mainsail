@@ -598,6 +598,17 @@ ARENA_VARIANTS = {
         "blade": "#3f6a4c", "trees": ("#3f6e55", "#2f5644", "#4f8060"), "top": "#7fa877",
         "ring": ("#6c9468", "#7fa877"), "pblade": "#5a8a62", "moon": 1.35, "stars": True,
     },
+    # Cinder Matriarch boss (#385): ember night over Emberfen. Smoky maroon sky,
+    # a red moon, charred tree line, ash peat, a glowing ring and floating embers.
+    "ember": {
+        "sky": [(0.5, "#6a2e22"), (0.66, "#4a2028"), (0.84, "#2c1424"), (1.0, "#120a16")],
+        "cloud": ("#5a3236", "#43252c"), "hills": ("#3a2626", "#4c302e"), "meadow": "#4e3a2c",
+        "blade": "#6a3a20", "trees": ("#3e3428", "#2c261e", "#4e4232"), "top": "#6e4c36",
+        "ring": ("#ff7a2a", "#5e2c22"), "pblade": "#7a4422",
+        "stone": ("#6e625c", "#4e4440", "#857870"), "moon": 1.2, "stars": True,
+        "moon_color": "#ff8a5a", "moon_glow": "#ff6a3a", "star_color": "#ffb060",
+        "petals": ["#ff8a3a", "#ffcf6a"], "bush": ["#4a3a2a", "#5a4632", "#3a2e22"], "embers": True,
+    },
 }
 
 
@@ -638,10 +649,10 @@ class Arena(Rig):
                 sphere(f"cloud{cx}{k}", p, (r * 1.5, r * 0.6, r), cloud if k % 2 else cloud_shade, sky, low=True, smooth=False, outline=False, rot=cam_rot)
         moon_p = screen(-215, -200, 25)
         if V["moon"]:
-            m = crescent_mesh("skymoon", 0.36 * V["moon"], 0.05, toon("moon", emission=1.1), sky, outline=False)
+            m = crescent_mesh("skymoon", 0.36 * V["moon"], 0.05, toon(V.get("moon_color", "moon"), emission=1.1), sky, outline=False)
             m.location = moon_p
             m.rotation_euler = Euler((math.radians(-pitch), 0, 0))
-            halo = disc("skyhalo", moon_p + fwd * 1.0, 0.95 * V["moon"], radial_material("skyhalo", "moon_glow", 0.35), sky)
+            halo = disc("skyhalo", moon_p + fwd * 1.0, 0.95 * V["moon"], radial_material("skyhalo", V.get("moon_glow", "moon_glow"), 0.35), sky)
             halo.rotation_euler = cam_rot
         else:
             # Low warm sun behind the hills.
@@ -651,7 +662,7 @@ class Arena(Rig):
             glow.rotation_euler = cam_rot
         if V.get("stars"):
             srng = random.Random(seed + 7)
-            star = toon("#f3ead3", emission=1.3)
+            star = toon(V.get("star_color", "#f3ead3"), emission=1.3)
             for i in range(46):
                 p = screen(srng.uniform(-320, 320), srng.uniform(-330, -70), 35)
                 r = srng.uniform(0.018, 0.04)
@@ -683,24 +694,33 @@ class Arena(Rig):
             if x * x / 7.0 + y * y / 1.5 < 1:
                 continue
             if rng.random() < 0.18:
-                _flower(f"mf{i}", (x, y, -0.41), hills, ["petal", "petal_lilac"][i % 2], size=0.05)
+                _flower(f"mf{i}", (x, y, -0.41), hills, V.get("petals", ["petal", "petal_lilac"])[i % 2], size=0.05)
             else:
                 sphere(f"mb{i}", (x, y, -0.41), (0.12, 0.025, 0.03), blade, hills, outline=False, rot=(0, 0, rng.uniform(0, TAU)))
         for x, y, sc in ((-3.2, -3.6, 1.6), (3.3, -3.2, 1.4), (-3.5, 0.9, 1.0), (3.4, 1.2, 1.1)):
             holder = empty(f"bush{x}", (x, y, -0.42), hills)
             holder.scale = (sc,) * 3
-            _canopy(holder, rng, 4, ["leaf", "leaf_light", "leaf_dark"], spread=0.22, z=0.18, radius=(0.17, 0.24))
+            _canopy(holder, rng, 4, V.get("bush", ["leaf", "leaf_light", "leaf_dark"]), spread=0.22, z=0.18, radius=(0.17, 0.24))
+        if V.get("embers"):
+            # Floating embers over the fen (self-lit, no outline).
+            erng = random.Random(seed + 11)
+            ember_mats = [toon(c, emission=1.4) for c in ("#ffb04a", "#ff7a2a", "#ffd88a")]
+            for i in range(40):
+                x, y = erng.uniform(-4, 4), erng.uniform(-6, 2.4)
+                r = erng.uniform(0.015, 0.035)
+                sphere(f"ember{i}", (x, y, erng.uniform(-0.3, 1.4)), (r, r, r), ember_mats[i % 3], hills, outline=False, low=True)
         disc("plat-shadow", (0.3, -0.25, -0.415), 2.7, radial_material("plat-shadow", "navy", 0.4), hills, scale=(1.05, 0.85, 1))
 
         # --- platform: grassy stone dais the combatants stand on
         plat = self.groups["platform"]
         grass_top = toon(V["top"], shadow=0.4, highlight=0.15, rim=0.0)
-        cylinder("dais", (0, 0, -0.22), 2.62, 0.44, toon("stone", shadow=0.5), plat, verts=16, smooth=False)
+        stones = V.get("stone", ("stone", "stone_dark", "#c9c2b0"))
+        cylinder("dais", (0, 0, -0.22), 2.62, 0.44, toon(stones[0], shadow=0.5), plat, verts=16, smooth=False)
         cylinder("daistop", (0, 0, 0.0), 2.55, 0.04, grass_top, plat, verts=16, smooth=False, outline=False)
         # Flat self-lit decals: thin stacked cylinders shadow-acne under the sun.
         disc("ring", (0, 0, 0.021), 1.9, toon(V["ring"][0], emission=1.0), plat)
         disc("inner", (0, 0, 0.022), 1.8, toon(V["ring"][1], emission=1.0), plat)
-        stone_mats = [toon("stone"), toon("stone_dark"), toon("#c9c2b0")]
+        stone_mats = [toon(c) for c in stones]
         for i in range(16):
             a = i * TAU / 16 + rng.uniform(-0.08, 0.08)
             if math.sin(a) < -0.3 and abs(math.cos(a)) < 0.6:
@@ -714,12 +734,12 @@ class Arena(Rig):
             if math.hypot(x + 1.18, y + 1.73) < 0.55 or math.hypot(x - 1.16, y - 0.99) < 0.55:
                 continue  # keep the combatant spots clean
             if i % 4 == 0:
-                _flower(f"pf{i}", (x, y, 0.04), plat, ["petal", "petal_lilac", "petal_gold"][i % 3], size=0.05)
+                _flower(f"pf{i}", (x, y, 0.04), plat, (V.get("petals", []) + ["petal", "petal_lilac", "petal_gold"])[i % 3], size=0.05)
             else:
                 sphere(f"pb{i}", (x, y, 0.04), (0.11, 0.022, 0.03), pblade, plat, outline=False, rot=(0, 0, rng.uniform(0, TAU)))
         for x, y in ((-2.1, 1.5), (2.2, 1.3)):
             holder = empty(f"pbush{x}", (x, y, 0.0), plat)
-            _canopy(holder, rng, 4, ["leaf", "leaf_light", "leaf_dark"], spread=0.22, z=0.18, radius=(0.17, 0.24))
+            _canopy(holder, rng, 4, V.get("bush", ["leaf", "leaf_light", "leaf_dark"]), spread=0.22, z=0.18, radius=(0.17, 0.24))
         if V.get("village"):
             self._village_dressing(hills, plat, random.Random(seed + 3))
 

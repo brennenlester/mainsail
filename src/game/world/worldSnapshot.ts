@@ -35,7 +35,6 @@ import {
 import type { QuestId, QuestStatus } from "../story/questTypes";
 import {
   getStorySparLosses,
-  isStorySparId,
   setStorySparLosses,
 } from "../battle/storySpar";
 import { reopenParentSovereignEncounters } from "../shrine/godFusion";
@@ -820,8 +819,8 @@ export function isValidWorldSnapshot(value: unknown): value is WorldSnapshot {
     }
   }
   if (s.storySparLosses !== undefined) {
+    // Unknown ids are filtered on apply (setStorySparLosses), not fatal (#382 review).
     if (!Array.isArray(s.storySparLosses)) return false;
-    if (!s.storySparLosses.every((id) => isStorySparId(id))) return false;
   }
   if (s.brynGroveStartersGifted !== undefined) {
     if (!Array.isArray(s.brynGroveStartersGifted)) return false;

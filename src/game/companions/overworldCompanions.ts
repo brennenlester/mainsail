@@ -29,6 +29,7 @@ import {
   type SiteInteraction,
 } from "./abilities";
 import { addBond, BOND_GAIN, bondTierName, drainBondTierUps } from "./bond";
+import { getActiveStorySpar } from "../battle/storySpar";
 import { claimSite, getClaimedSites, isSiteClaimed } from "./companionState";
 
 /** What IsometricScene lends the controller — keeps the scene hooks tiny. */
@@ -323,7 +324,8 @@ export class OverworldCompanions {
 
   /** Per-frame: celebrate bond tier-ups and offer nicknames to new friends. */
   update(): void {
-    for (const up of drainBondTierUps()) {
+    // A running story spar may still roll its tier-ups back: celebrate after it settles.
+    for (const up of getActiveStorySpar() ? [] : drainBondTierUps()) {
       const creature = getCreatureInstance(up.instanceId);
       if (!creature) continue;
       const player = this.host.playerTile();

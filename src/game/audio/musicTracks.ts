@@ -10,7 +10,9 @@ export type MusicTrackId =
   | "village"
   | "battle"
   | "night"
-  | "victory";
+  | "victory"
+  | "boss"
+  | "rival";
 
 export type MusicTrackConfig = {
   /** Phaser cache key. */
@@ -47,6 +49,9 @@ export const MUSIC_TRACKS: Readonly<Record<MusicTrackId, MusicTrackConfig>> = {
   village: track("village"),
   battle: track("battle", { gain: 0.26, fadeInMs: 400, fadeOutMs: 700 }),
   night: track("night", { gain: 0.32 }),
+  // Story battles (#385): the Cinder Matriarch and Wren have their own themes.
+  boss: track("boss", { gain: 0.3, fadeInMs: 300, fadeOutMs: 900 }),
+  rival: track("rival", { gain: 0.28, fadeInMs: 300, fadeOutMs: 700 }),
   victory: track("victory", {
     loop: false,
     gain: 0.38,
@@ -64,6 +69,8 @@ export type MusicContext = {
   shrineOpen: boolean;
   /** Encounter or battle scene is active and not yet won. */
   battle: boolean;
+  /** Story battle theme replacing the spar loop (#385). */
+  battleTheme?: "boss" | "rival";
   /** Victory sting window after a win. */
   victory: boolean;
   night: boolean;
@@ -96,7 +103,7 @@ export function selectMusicTrack(ctx: MusicContext): MusicTrackId | null {
     return "victory";
   }
   if (ctx.battle) {
-    return "battle";
+    return ctx.battleTheme ?? "battle";
   }
   if (ctx.screen === "title") {
     return "title";

@@ -1,6 +1,6 @@
 import { getGateStatusText } from "../story/questProgress";
 import { getHostLabel, isVisitorMode } from "../world/worldSession";
-import { resetHostGame } from "../world/worldSave";
+import { isHostSaveLocked, resetHostGame } from "../world/worldSave";
 import type { ZoneDefinition } from "../world/zoneTypes";
 import { openCodex } from "./codex";
 import { openParty } from "./partyPanel";
@@ -243,6 +243,11 @@ export function initStatusPanelControls(): void {
         return;
       }
       closeOverflow();
+      if (isHostSaveLocked()) {
+        // Mid story spar the save is paused; a reset would silently do nothing (#382 review).
+        window.alert("Finish the current story battle first — your world can't be reset mid-fight.");
+        return;
+      }
       const confirmed = window.confirm(
         "Reset your world? Party, quests, and progress will be cleared.",
       );
