@@ -43,7 +43,8 @@ export const WREN_LONE_PARTIES: readonly { party: readonly string[]; levels: rea
 
 /** Expected party level when each beat is reached on a ~20 minute cold run. */
 export const EXPECTED_LEVEL: Readonly<Record<StorySparId, number>> = {
-  "rival-wren": 6,
+  // #411: one required spar (70 XP) puts the arrival party at Lv 4.
+  "rival-wren": 4,
   "cinder-matriarch": 8,
 };
 

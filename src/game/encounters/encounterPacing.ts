@@ -30,6 +30,9 @@ export function isRouteZone(zoneId: ZoneId): boolean {
   return ROUTE_ZONE_IDS.includes(zoneId);
 }
 
+/** Where a walked step happened, for the route dry spell. */
+export type RouteStep = { zoneId: ZoneId; immune?: boolean; safeTile?: boolean };
+
 export type EncounterPacingOutcome = "befriend" | "spar" | "flee";
 
 export class EncounterPacer {
@@ -49,19 +52,28 @@ export class EncounterPacer {
     this.rng = rng;
   }
 
-  /** Count walked distance toward the current gap (and the route dry spell). */
-  walk(tiles: number, onRoute = false): void {
+  /** Count walked distance toward the current gap. */
+  walk(tiles: number): void {
     if (tiles > 0) {
       this.tilesUntilEligible = Math.max(0, this.tilesUntilEligible - tiles);
-      if (onRoute) {
-        this.dryRouteTiles += tiles;
-      }
     }
   }
 
-  /** True when a route dry spell makes the next eligible roll a certain hit. */
-  routeEncounterDue(): boolean {
-    return this.canRoll() && this.dryRouteTiles >= ROUTE_DRY_SPELL_TILES;
+  /**
+   * Count tiles toward the route dry spell, only where a wild roll could
+   * happen: a route zone, not encounter-immune, not on a safe tile.
+   */
+  walkRoute(tiles: number, where: RouteStep): void {
+    if (tiles > 0 && isRouteZone(where.zoneId) && !where.immune && !where.safeTile) {
+      this.dryRouteTiles += tiles;
+    }
+  }
+
+  /** True when a route dry spell makes the next eligible roll in `zoneId` a certain hit. */
+  routeEncounterDue(zoneId: ZoneId): boolean {
+    return (
+      isRouteZone(zoneId) && this.canRoll() && this.dryRouteTiles >= ROUTE_DRY_SPELL_TILES
+    );
   }
 
   /** True when a habitat chance roll may happen. */
@@ -90,8 +102,15 @@ export class EncounterPacer {
       outcome === "flee" ? ENCOUNTER_FLEE_GAP_TILES : ENCOUNTER_MIN_GAP_TILES;
   }
 
-  /** Walked into a new zone: short grace (never shortens a running gap). */
-  onZoneEnter(): void {
+  /**
+   * Walked into a new zone: short grace (never shortens a running gap). Leaving
+   * the story routes drops the dry spell, so it never carries into the shrine
+   * or the archipelago.
+   */
+  onZoneEnter(zoneId?: ZoneId): void {
+    if (zoneId !== undefined && !isRouteZone(zoneId)) {
+      this.dryRouteTiles = 0;
+    }
     this.tilesUntilEligible = Math.max(
       this.tilesUntilEligible,
       ZONE_ENTRY_GRACE_TILES,

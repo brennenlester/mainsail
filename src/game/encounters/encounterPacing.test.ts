@@ -196,11 +196,14 @@ function routeWalk(
   let sinceRoll = 0;
   legs.forEach((leg, i) => {
     if (i > 0) {
-      pacer.onZoneEnter();
+      pacer.onZoneEnter(leg.zoneId);
     }
     for (let t = 0; t < leg.tiles; t += step) {
       walked += step;
-      pacer.walk(step, routes && isRouteZone(leg.zoneId));
+      pacer.walk(step);
+      if (routes) {
+        pacer.walkRoute(step, { zoneId: leg.zoneId });
+      }
       sinceRoll += step;
       if (sinceRoll < ENCOUNTER_TRAVEL_THRESHOLD) {
         continue;
@@ -209,7 +212,7 @@ function routeWalk(
       if (!pacer.canRoll()) {
         continue;
       }
-      if ((routes && pacer.routeEncounterDue()) || pacer.random() < chance) {
+      if ((routes && pacer.routeEncounterDue(leg.zoneId)) || pacer.random() < chance) {
         hits.push(walked);
         pacer.onEncounterResolved("spar");
         pacer.onEncounterEnd();
@@ -275,14 +278,57 @@ describe("living routes (#411)", () => {
     }
   });
 
-  it("never touches non-route zones", () => {
+  it("never counts or fires in non-route zones", () => {
     const pacer = new EncounterPacer(() => 0.99);
-    pacer.walk(ROUTE_DRY_SPELL_TILES * 3, false);
-    expect(pacer.routeEncounterDue()).toBe(false);
-    pacer.walk(ROUTE_DRY_SPELL_TILES, true);
-    expect(pacer.routeEncounterDue()).toBe(true);
+    pacer.walkRoute(ROUTE_DRY_SPELL_TILES * 3, { zoneId: "shrine" });
+    expect(pacer.routeEncounterDue("overworld")).toBe(false);
+    pacer.walkRoute(ROUTE_DRY_SPELL_TILES, { zoneId: "overworld" });
+    expect(pacer.routeEncounterDue("overworld")).toBe(true);
+    // A dry spell built on a route never fires off-route (shrine / islands).
+    expect(pacer.routeEncounterDue("shrine")).toBe(false);
+    expect(pacer.routeEncounterDue("archipelago")).toBe(false);
     pacer.onEncounterResolved("spar");
-    pacer.walk(ENCOUNTER_MIN_GAP_TILES, true);
-    expect(pacer.routeEncounterDue()).toBe(false);
+    pacer.walk(ENCOUNTER_MIN_GAP_TILES);
+    pacer.walkRoute(ENCOUNTER_MIN_GAP_TILES, { zoneId: "overworld" });
+    expect(pacer.routeEncounterDue("overworld")).toBe(false);
+  });
+
+  it("drops the dry spell on leaving the routes (25 Fields tiles, then the shrine)", () => {
+    const legs = [
+      { zoneId: "overworld", tiles: 19 },
+      { zoneId: "shrine", tiles: 20 },
+      { zoneId: "overworld", tiles: 7 },
+    ] as const;
+    // Every chance roll misses: only the dry spell could fire, and it must not
+    // carry through the shrine (25+ route tiles would otherwise be "due").
+    const pacer = new EncounterPacer(() => 0.99);
+    pacer.walkRoute(19, { zoneId: "overworld" });
+    pacer.onZoneEnter("shrine");
+    expect(pacer.routeEncounterDue("shrine")).toBe(false);
+    pacer.walk(ZONE_ENTRY_GRACE_TILES);
+    expect(pacer.routeEncounterDue("shrine")).toBe(false);
+    pacer.onZoneEnter("overworld");
+    pacer.walk(ZONE_ENTRY_GRACE_TILES);
+    pacer.walkRoute(ZONE_ENTRY_GRACE_TILES, { zoneId: "overworld" });
+    expect(pacer.routeEncounterDue("overworld")).toBe(false);
+    expect(routeWalk(legs, 0, true)).toEqual([]);
+  });
+
+  it("never counts while immune or on a safe tile", () => {
+    const pacer = new EncounterPacer(() => 0.99);
+    pacer.walkRoute(ROUTE_DRY_SPELL_TILES * 2, { zoneId: "overworld", immune: true });
+    pacer.walkRoute(ROUTE_DRY_SPELL_TILES * 2, { zoneId: "overworld", safeTile: true });
+    expect(pacer.routeEncounterDue("overworld")).toBe(false);
+    pacer.walkRoute(ROUTE_DRY_SPELL_TILES, { zoneId: "overworld" });
+    expect(pacer.routeEncounterDue("overworld")).toBe(true);
+  });
+
+  it("route-to-route crossings keep the dry spell (Fields -> Mistwood)", () => {
+    const pacer = new EncounterPacer(() => 0.99);
+    pacer.walkRoute(15, { zoneId: "overworld" });
+    pacer.onZoneEnter("mistwood");
+    pacer.walk(ZONE_ENTRY_GRACE_TILES);
+    pacer.walkRoute(ZONE_ENTRY_GRACE_TILES, { zoneId: "mistwood" });
+    expect(pacer.routeEncounterDue("mistwood")).toBe(true);
   });
 });

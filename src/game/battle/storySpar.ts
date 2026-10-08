@@ -420,7 +420,7 @@ export function getRivalFriendNudge(): string | null {
   if (starter) {
     const name = getCreatureDefinition(starter).name;
     const article = /^[AEIOU]/.test(name) ? "an" : "a";
-    return `Bring a friend: Warden Bryn has ${article} ${name} for you. Warden's Cottage, through the east gate.`;
+    return `Bring a friend: Warden Bryn has ${article} ${name} for you (Warden's Cottage, east gate).`;
   }
   if (playerParty.creatures.length > standing) {
     return "Bring a friend: heal your companions at the Moon Shrine altar or add one to your active party.";

@@ -160,9 +160,10 @@ describe("rival conversation", () => {
     expect(intro.prompt).toMatchObject({ kind: "challenge", sparId: "rival-wren" });
     expect(intro.lines.join(" ")).toMatch(/Bring a friend: Warden Bryn has an Ember Wisp for you/);
     expect(getStorySparNpcLine()).toMatch(/^Wren: Bring a friend: Warden Bryn/);
-    // The quest hint names the cottage and the gift, too.
-    expect(QUESTS["rival-wren"].hint).toMatch(/Warden Bryn \(Warden's Cottage/);
-    expect(QUESTS["rival-wren"].hint).toMatch(/Ember Wisp or Mossling/);
+    expect(getStorySparNpcLine()).toMatch(/\(Warden's Cottage, east gate\)/);
+    // The static hint stays generic (never promises a gift Bryn no longer has).
+    expect(QUESTS["rival-wren"].hint).toMatch(/bring two/);
+    expect(QUESTS["rival-wren"].hint).not.toMatch(/Bryn/);
 
     // Not a dead end: Bryn really gives it, and the nudge goes away.
     const bryn = beginConversation(getNpcById("warden-bryn")!);

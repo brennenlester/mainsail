@@ -15,9 +15,7 @@ export type HabitatAvailability =
   | { kind: "always" }
   | { kind: "fleePersists" };
 
-export type HabitatVerbs =
-  | { kind: "all" }
-  | { kind: "withholdSparUnlessFirstSpar" };
+export type HabitatVerbs = { kind: "all" };
 
 export type HabitatResolution =
   | { kind: "flat" }
@@ -73,11 +71,13 @@ export const GROVE_ENCOUNTER_CHANCE = 0.12;
  */
 export const ARCHIPELAGO_ENCOUNTER_CHANCE = 0.08;
 
-/** Non-interior habitats that must each differ from DEFAULT and each other. */
+/**
+ * Wild habitats that must each differ from DEFAULT and each other. Hearth
+ * Crossing is a safe zone with no wild rolls since #411, so it has no profile.
+ */
 export const VARIATION_ZONE_IDS = [
   "grove",
   "shrine",
-  "village",
   "overworld",
   "mistwood",
   "emberfen",
@@ -95,10 +95,6 @@ export const HABITAT_PROFILES: Record<VariationZoneId, HabitatProfile> = {
   shrine: {
     ...DEFAULT_PROFILE,
     resolution: { kind: "folkloreMatchup" },
-  },
-  village: {
-    ...DEFAULT_PROFILE,
-    verbs: { kind: "withholdSparUnlessFirstSpar" },
   },
   overworld: {
     ...DEFAULT_PROFILE,

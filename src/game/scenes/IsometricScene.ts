@@ -94,7 +94,7 @@ import {
   type PendingGodLandEncounter,
 } from "../encounters/godLand";
 import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters";
-import { isRouteZone, overworldEncounterPacer } from "../encounters/encounterPacing";
+import { overworldEncounterPacer } from "../encounters/encounterPacing";
 import { visitShrineAltar, wakeStrandedParty } from "../world/shrineHeal";
 import { isDomKeyboardTarget } from "../ui/canvasFocus";
 import {
@@ -703,8 +703,15 @@ export class IsometricScene extends Phaser.Scene {
     if (this.inEncounter || this.pendingGodLandEncounter) {
       return;
     }
-    overworldEncounterPacer.walk(step, isRouteZone(this.currentZoneId));
-    if (isEncounterImmune(this.time.now)) {
+    overworldEncounterPacer.walk(step);
+    const tileX = Math.round(this.playerGridX);
+    const tileY = Math.round(this.playerGridY);
+    const immune = isEncounterImmune(this.time.now);
+    const safeTile =
+      this.currentZoneId === "overworld" && isOverworldEncounterSafeTile(tileX, tileY);
+    // The dry spell counts only where a wild roll could happen (#411 review).
+    overworldEncounterPacer.walkRoute(step, { zoneId: this.currentZoneId, immune, safeTile });
+    if (immune) {
       return;
     }
     if (
@@ -717,12 +724,7 @@ export class IsometricScene extends Phaser.Scene {
     if (isVisitorMode() || isSafeZone(this.currentZoneId)) {
       return;
     }
-    const tileX = Math.round(this.playerGridX);
-    const tileY = Math.round(this.playerGridY);
-    if (
-      this.currentZoneId === "overworld" &&
-      isOverworldEncounterSafeTile(tileX, tileY)
-    ) {
+    if (safeTile) {
       return;
     }
     this.travelSinceEncounter += step;
@@ -747,7 +749,7 @@ export class IsometricScene extends Phaser.Scene {
     const guaranteed =
       scripted !== null ||
       shouldGuaranteeWildTrigger(profile, this.currentZoneId) ||
-      overworldEncounterPacer.routeEncounterDue();
+      overworldEncounterPacer.routeEncounterDue(this.currentZoneId);
     if (
       !guaranteed &&
       !rollWildTriggerChance(profile, () => overworldEncounterPacer.random())

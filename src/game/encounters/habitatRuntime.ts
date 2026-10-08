@@ -4,7 +4,6 @@ import {
   HUNTER_CHART,
   type FolkloreType,
 } from "../creatures/folkloreTypes";
-import { questProgress } from "../story/questProgress";
 import {
   EAST_LANDING,
   HARBOR_DOCK,
@@ -177,10 +176,7 @@ export function shouldShowSparVerb(
   if (isGodCreature(creatureId)) {
     return true;
   }
-  if (profile.verbs.kind === "withholdSparUnlessFirstSpar") {
-    return questProgress["first-spar"] !== "locked";
-  }
-  return true;
+  return profile.verbs.kind === "all";
 }
 
 export function shouldConcealReveal(
@@ -326,6 +322,6 @@ export function onZoneEnter(
     clearEmberfenFleeChain();
   }
   if (previousZoneId !== null && previousZoneId !== zoneId) {
-    overworldEncounterPacer.onZoneEnter();
+    overworldEncounterPacer.onZoneEnter(zoneId);
   }
 }
