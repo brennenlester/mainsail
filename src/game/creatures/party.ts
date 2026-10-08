@@ -1,3 +1,4 @@
+import { displayName } from "./displayName";
 import { getCreatureDefinition } from "./catalog";
 import {
   createCreatureProgressAtLevel,
@@ -299,7 +300,6 @@ export function hasLivingPartyMembers(): boolean {
 }
 
 function formatCreatureLabel(c: CreatureInstance): string {
-  const def = getCreatureDefinition(c.definitionId);
   const buffs: string[] = [];
   if (c.secondaryElement) {
     buffs.push(`+${c.secondaryElement}`);
@@ -315,7 +315,7 @@ function formatCreatureLabel(c: CreatureInstance): string {
     buffs.push(traitLabel);
   }
   const buffLabel = buffs.length > 0 ? ` [${buffs.join(",")}]` : "";
-  return `${def.name} Lv.${c.level}${buffLabel}`;
+  return `${displayName(c)} Lv.${c.level}${buffLabel}`;
 }
 
 export function getPartySummary(): string {

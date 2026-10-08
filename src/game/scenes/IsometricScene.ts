@@ -117,9 +117,11 @@ import {
   setCopyInviteHandler,
   showManualInviteUrl,
   unlockHostInviteChrome,
+  refreshPartyStatusLine,
   updateStatusPanel,
 } from "../ui/statusPanel";
 import { syncQuestHudPosition } from "../ui/questHud";
+import { isZoneTitleCardShowing } from "../render/fx/titleCard";
 import {
   WALK_HINT_TEXT,
   hasWalkedBefore,
@@ -183,7 +185,7 @@ import {
 } from "../minigames/ids";
 import { canLaunchMinigame } from "../minigames/progress";
 import { findGatherPropNearPlayer } from "../world/gatherNodes";
-import { overlayAction, pickInteractPrompt } from "../world/interactPrompt";
+import { adaptInteractLabel, overlayAction, pickInteractPrompt } from "../world/interactPrompt";
 import { findNearbyDoor, isNearShrine } from "../world/interactProximity";
 import {
   getGatherCooldownRemainingMs,
@@ -324,6 +326,7 @@ export class IsometricScene extends Phaser.Scene {
   private statusObserver?: ResizeObserver;
   /** Party changed via Party UI while the overworld is live (paused paths celebrate on resume). */
   private onPartyChanged = (): void => {
+    refreshPartyStatusLine();
     if (this.scene.isActive()) {
       this.celebrateResume(false);
     }
@@ -486,6 +489,8 @@ export class IsometricScene extends Phaser.Scene {
       this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
       this.celebrateResume(fromShrine);
       this.wakeStrandedPartyIfNeeded();
+      // HP changed behind the pause (shrine heal, battle): redraw the party HUD (#401).
+      refreshPartyStatusLine();
     });
     this.events.on("minigame-closed", () => {
       this.inMinigame = false;
@@ -1948,7 +1953,9 @@ export class IsometricScene extends Phaser.Scene {
       gather: gather ? this.formatGatherPrompt(gather) : undefined,
     });
     // A quest caption outranks an interact prompt: one transient hint at a time (#391).
-    const label = isOpeningCaptionShowing() ? undefined : picked?.label;
+    const label = isOpeningCaptionShowing()
+      ? undefined
+      : picked && adaptInteractLabel(picked.label, this.touchControlsShown);
     const action = overlayAction(Boolean(this.shrinePrompt), label);
 
     if (action === "destroy") {
@@ -2166,6 +2173,7 @@ export class IsometricScene extends Phaser.Scene {
     }
     // Soft overworld (#390): the altar always heals for free.
     const notice = visitShrineAltar() ?? undefined;
+    refreshPartyStatusLine();
     this.scene.pause();
     this.scene.launch("ShrineScene", { mode: "altar", notice });
     return true;
@@ -2469,7 +2477,7 @@ export class IsometricScene extends Phaser.Scene {
   private updateQuestToast(): void {
     // Cutscenes (evolution, finale) own the screen: leave the toast queued so
     // it appears once they end instead of popping over the reveal (#391).
-    if (isCutsceneActive()) {
+    if (isCutsceneActive() || isZoneTitleCardShowing()) {
       return;
     }
     const message = consumeQuestToast();
@@ -2501,6 +2509,9 @@ export class IsometricScene extends Phaser.Scene {
   }
 
   private updateAchievementToast(): void {
+    if (isZoneTitleCardShowing()) {
+      return;
+    }
     const message = consumeAchievementToast();
     if (!message) {
       return;

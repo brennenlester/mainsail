@@ -1,4 +1,4 @@
-import { getCreatureDefinition } from "../creatures/catalog";
+import { displayName } from "../creatures/displayName";
 import {
   getActiveCreatures,
   getEffectiveMaxHp,
@@ -44,7 +44,7 @@ export function hpPipFillCount(
 }
 
 function shortName(creature: CreatureInstance): string {
-  return getCreatureDefinition(creature.definitionId).name;
+  return displayName(creature);
 }
 
 function appendPipRow(parent: HTMLElement, creature: CreatureInstance): void {

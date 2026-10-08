@@ -2,7 +2,7 @@
 
 /** Design px; x0.5625 at a 360 px phone = ~11.3 CSS px. */
 export const WARD_CHIP_FONT_PX = 20;
-export const WARD_HINT_FONT_PX = 18;
+export const WARD_HINT_FONT_PX = 20;
 export const WARD_CHIP_TEXT = "HEARTH WARD";
 
 /** "2 more tries until the ward strengthens" (null at the last step). */

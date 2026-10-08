@@ -1,3 +1,5 @@
+import { displayNameMarked } from "../creatures/displayName";
+import { refreshPartyStatusLine } from "../ui/statusPanel";
 import Phaser from "phaser";
 import {
   playBattleWinSfx,
@@ -729,7 +731,7 @@ export class BattleScene extends Phaser.Scene {
     }
     const trait = partyCreature.trait;
     const combatant: BattleCombatant = {
-      name: def.name,
+      name: displayNameMarked(partyCreature),
       level: partyCreature.level,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
@@ -774,6 +776,7 @@ export class BattleScene extends Phaser.Scene {
     const partyCreature = getActiveCreatures()[index];
     if (partyCreature) {
       partyCreature.currentHp = this.player.currentHp;
+      refreshPartyStatusLine();
     }
   }
 
@@ -1201,15 +1204,14 @@ export class BattleScene extends Phaser.Scene {
     const currentIndex = this.resolvePartyIndex();
     for (let index = 0; index < actives.length; index++) {
       const creature = actives[index];
-      const def = getCreatureDefinition(creature.definitionId);
       const isActive = index === currentIndex;
       const fainted = creature.currentHp <= 0;
       const maxHp = getEffectiveMaxHp(creature);
       const label = fainted
-        ? `${def.name} Lv.${creature.level} (fainted)`
+        ? `${displayNameMarked(creature)} Lv.${creature.level} (fainted)`
         : isActive
-          ? `${def.name} Lv.${creature.level} (active)`
-          : `${def.name} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)`;
+          ? `${displayNameMarked(creature)} Lv.${creature.level} (active)`
+          : `${displayNameMarked(creature)} Lv.${creature.level} (${creature.currentHp}/${maxHp} HP)`;
 
       const btn = this.add
         .text(cx, rowY, label, {
