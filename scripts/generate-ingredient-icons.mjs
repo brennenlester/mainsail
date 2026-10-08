@@ -47,6 +47,8 @@ const DERIVE = {
   "moonwake-draught": { from: "mist-shard", folder: "items", hue: 270 },
   "portable-moonshrine": { from: "stone", folder: "items", hue: 280 },
   boat: { from: "wood", folder: "items", hue: 15 },
+  "folk-seal": { from: "folklore-dust", folder: "items", hue: 200 },
+  "favorite-bait": { from: "wild-fiber", folder: "items", hue: 320 },
   "tide-cleaver": { from: "tide-crown", folder: "items" },
   "cairn-maul": { from: "boulder-crown", folder: "items" },
   "sovereign-seal": { from: "boulder-crown", folder: "items", hue: 30 },

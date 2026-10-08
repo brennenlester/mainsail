@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { CREATURES, getCreatureDefinition } from "../creatures/catalog";
 import { getHunterTarget } from "../creatures/folkloreTypes";
 import { outleveledWildBulk, OUTLEVELED_GAP } from "./battleLogic";
-import { sparStats, winRate, type SparPolicy } from "./sparSim";
+import { sparStats, winRate, type SparPolicy, type SparSetup } from "./sparSim";
+import { BOND_MAX } from "../companions/bond";
+import { getRarityBias } from "../progression/wildLevel";
 
 /**
  * Seeded spar-balance floors (#364, #378). Policies (see sparSim.ts):
@@ -174,5 +176,88 @@ describe("spar balance (seeded sim)", () => {
         }
       }
     }
+  }, HEAVY_TIMEOUT);
+});
+
+describe("bond battle bonus (#366 wiring of #367)", () => {
+  it("max bond is a small edge: floors hold, gains stay under 10 points", () => {
+    const level = 10;
+    for (const policy of POLICIES) {
+      let base = 0;
+      let bonded = 0;
+      let bondedTurns = 0;
+      let pairs = 0;
+      for (const p of BASE_SPECIES) {
+        for (const w of BASE_SPECIES) {
+          base += sparStats({ party: [p], wild: w, policy, level }, 20).winRate;
+          const s = sparStats({ party: [p], wild: w, policy, level, bond: BOND_MAX }, 20);
+          bonded += s.winRate;
+          bondedTurns += s.avgTurns;
+          pairs += 1;
+        }
+      }
+      const gain = (bonded - base) / pairs;
+      expect(gain, policy).toBeGreaterThanOrEqual(0);
+      expect(gain, policy).toBeLessThanOrEqual(0.1);
+      expect(bondedTurns / pairs, policy).toBeGreaterThanOrEqual(5);
+      if (policy === "skilled") {
+        expect(bonded / pairs).toBeLessThanOrEqual(0.85);
+      }
+    }
+  }, HEAVY_TIMEOUT);
+});
+
+describe("befriend in a spar (#366)", () => {
+  const COMMON = BASE_SPECIES.filter((id) => getRarityBias(id) === 0);
+  const RARE = BASE_SPECIES.filter((id) => getRarityBias(id) === 2);
+  const TRIO = ["mossling", "ember-wisp", "brook-nymph"];
+
+  function recruit(wilds: readonly string[], extra: Partial<SparSetup>) {
+    let recruitRate = 0;
+    let attempts = 0;
+    let n = 0;
+    for (const wild of wilds) {
+      for (const level of [5, 15]) {
+        const s = sparStats(
+          {
+            party: TRIO,
+            wild,
+            policy: "befriend",
+            level,
+            wildLevel: level + getRarityBias(wild),
+            ...extra,
+          },
+          SEEDS,
+        );
+        recruitRate += s.recruitRate;
+        attempts += s.avgAttemptsToRecruit;
+        n += 1;
+      }
+    }
+    return { recruitRate: recruitRate / n, attempts: attempts / n };
+  }
+
+  it("a sensible player (weaken, then befriend) recruits commons in 1-3 attempts", () => {
+    const sensible = recruit(COMMON, { befriendAt: 0.6 });
+    expect(sensible.recruitRate).toBeGreaterThanOrEqual(0.8);
+    expect(sensible.attempts).toBeGreaterThanOrEqual(1);
+    expect(sensible.attempts).toBeLessThanOrEqual(2);
+  }, HEAVY_TIMEOUT);
+
+  it("befriending at full HP is a gamble, not a sure thing", () => {
+    const naive = recruit(COMMON, { befriendAt: 0 });
+    const sensible = recruit(COMMON, { befriendAt: 0.6 });
+    expect(naive.recruitRate).toBeGreaterThanOrEqual(0.4);
+    expect(naive.recruitRate).toBeLessThanOrEqual(0.8);
+    expect(sensible.recruitRate - naive.recruitRate).toBeGreaterThanOrEqual(0.15);
+  }, HEAVY_TIMEOUT);
+
+  it("rare, higher-level wilds are harder; a Favorite Bait closes the gap", () => {
+    const common = recruit(COMMON, { befriendAt: 0.6 });
+    const rare = recruit(RARE, { befriendAt: 0.6 });
+    const baited = recruit(RARE, { befriendAt: 0.6, offering: "favorite-bait" });
+    expect(rare.recruitRate).toBeLessThan(common.recruitRate - 0.05);
+    expect(rare.recruitRate).toBeGreaterThanOrEqual(0.45);
+    expect(baited.recruitRate).toBeGreaterThan(rare.recruitRate);
   }, HEAVY_TIMEOUT);
 });

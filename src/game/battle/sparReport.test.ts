@@ -50,7 +50,7 @@ describe.skipIf(!OUT)("spar balance report", () => {
       lines.push(`tutorial ${p} v ${w}: random/max/skilled ${row.join(" ")}`);
     }
     for (const level of LEVELS) {
-      const sums: Record<SparPolicy, { win: number; turns: number; fin: number; st: number }> = {
+      const sums: Record<string,{ win: number; turns: number; fin: number; st: number }> = {
         random: { win: 0, turns: 0, fin: 0, st: 0 },
         "max-damage": { win: 0, turns: 0, fin: 0, st: 0 },
         skilled: { win: 0, turns: 0, fin: 0, st: 0 },

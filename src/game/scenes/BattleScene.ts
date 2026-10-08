@@ -29,9 +29,11 @@ import { getMaterialName } from "../inventory/materials";
 import { getCreatureDefinition } from "../creatures/catalog";
 import type { MatchupResult } from "../creatures/folkloreTypes";
 import {
+  addToParty,
   getActiveCreatures,
   getEffectiveAttack,
   getEffectiveMaxHp,
+  hasCreature,
 } from "../creatures/party";
 import { hasPresenceGrowth, presenceTintForCreature } from "../shrine/presence";
 import { ensureCreatureTextures } from "../creatures/sprites";
@@ -97,10 +99,13 @@ import {
 } from "../battle/wandererWeapons";
 import {
   appendGodSparKillCheatKey,
+  ASSURED_BEFRIEND_LABEL,
   formatGodClaimJoinLine,
   getTideSovereignAttack,
   isGodCreature,
+  isStory1BefriendGuaranteed,
   resolveTideSovereignOutcome,
+  rollBefriendAttempt,
   TIDE_SOVEREIGN_ID,
 } from "../encounters/godSail";
 import {
@@ -115,6 +120,27 @@ import { unlockCodexHud } from "../ui/hudChrome";
 import { getPartyAverageLevel, getWildEffectiveLevel } from "../progression/wildLevel";
 import { scaledStat } from "../progression/leveling";
 import { setPartyEditLocked } from "../ui/partyPanel";
+import { applyBondToCombatant } from "../companions/bond";
+import {
+  afterBefriendMiss,
+  befriendMissLine,
+  formatBefriendBreakdown,
+  formatBefriendOddsLabel,
+  offeringLabel,
+  type BefriendOdds,
+} from "../encounters/befriendChance";
+import {
+  befriendOddsFor,
+  consumeOffering,
+  currentOffering,
+} from "../encounters/befriendRuntime";
+import {
+  onWildEncounterResolved,
+  profileForEncounter,
+  shouldOfferHarborBefriend,
+} from "../encounters/habitatRuntime";
+import type { ZoneId } from "../world/zoneTypes";
+import { isVisitorMode } from "../world/worldSession";
 
 type WandererPartnerData = WandererPartner;
 
@@ -171,6 +197,12 @@ function raiseOverlay(objects: Phaser.GameObjects.GameObject[]): void {
 
 export class BattleScene extends Phaser.Scene {
   private wildCreatureId!: string;
+  private zoneId?: ZoneId;
+  /** Befriend misses this encounter (card + spar); the wild leaves on a streak (#366). */
+  private befriendMisses = 0;
+  /** A missed card befriend made the wild bristle: it strikes first. */
+  private wildOpens = false;
+  private befriendTip: Phaser.GameObjects.GameObject[] = [];
   private wild!: BattleCombatant;
   private player!: BattleCombatant;
   private partyInstanceIndex = -1;
@@ -238,8 +270,15 @@ export class BattleScene extends Phaser.Scene {
   init(data: {
     wildCreatureId: string;
     wandererPartner: WandererPartnerData;
+    zoneId?: ZoneId;
+    befriendMisses?: number;
+    wildOpens?: boolean;
   }): void {
     this.wildCreatureId = data.wildCreatureId;
+    this.zoneId = data.zoneId;
+    this.befriendMisses = data.befriendMisses ?? 0;
+    this.wildOpens = data.wildOpens ?? false;
+    this.befriendTip = [];
     this.waitingForPlayer = true;
     this.partyInstanceIndex = -1;
     this.partyInstanceId = null;
@@ -410,8 +449,9 @@ export class BattleScene extends Phaser.Scene {
     this.refreshHp();
     this.refreshIntent();
     // #336: SPAR_WILD_OPENING_TURNS 0 waits for the player's first strike.
+    const wildOpens = SPAR_WILD_OPENING_TURNS > 0 || this.wildOpens;
     this.log(
-      SPAR_WILD_OPENING_TURNS > 0
+      wildOpens
         ? `A training spar with ${this.wild.name} begins. The wild strikes first!`
         : `A training spar with ${this.wild.name} begins.`,
     );
@@ -423,7 +463,7 @@ export class BattleScene extends Phaser.Scene {
       if (this.battleEnded) {
         return;
       }
-      if (SPAR_WILD_OPENING_TURNS > 0) {
+      if (wildOpens) {
         this.time.delayedCall(260, () => this.wildTurn());
       } else {
         this.waitingForPlayer = true;
@@ -608,6 +648,8 @@ export class BattleScene extends Phaser.Scene {
           ? { moveId: trait.moveId, multiplier: trait.multiplier }
           : undefined,
     };
+    // Bond tier: small outgoing damage bonus (<= +8% at Kindred).
+    applyBondToCombatant(combatant, partyCreature);
     // Returning from the bench keeps its statuses and cooldowns (no second wind-up).
     const benched = this.benchState.get(partyCreature.instanceId);
     if (benched) {
@@ -653,6 +695,7 @@ export class BattleScene extends Phaser.Scene {
       button.destroy();
     }
     this.actionButtons = [];
+    this.hideBefriendTip();
   }
 
   private buildActionButtons(): void {
@@ -677,15 +720,175 @@ export class BattleScene extends Phaser.Scene {
       buttonY = top + Math.ceil(this.player.moves.length / 2) * rowStep;
     }
 
-    if (this.hasSwitchablePartyMembers()) {
+    const canSwitch = this.hasSwitchablePartyMembers();
+    const canBefriend = !this.forcedSwitch && this.canBefriendInBattle();
+    const pairOffset = canSwitch && canBefriend ? colOffset : 0;
+    if (canSwitch) {
       const label =
         this.freeSwitchAvailable && !this.forcedSwitch
           ? "Switch (free this battle)"
           : "Switch";
       this.actionButtons.push(
-        this.addActionButton(cx, buttonY - 4, label, () => this.showSwitchMenu()),
+        this.addActionButton(cx - pairOffset, buttonY - 4, label, () => this.showSwitchMenu()),
       );
     }
+    if (canBefriend) {
+      this.actionButtons.push(this.addBefriendButton(cx + pairOffset, buttonY - 4));
+    }
+  }
+
+  // --- Befriend mid-spar (#366) ---------------------------------------------
+
+  /** Sovereigns, the Story 2 tutorial, owned / harbor-used species and visitors can't. */
+  private canBefriendInBattle(): boolean {
+    const id = this.wildCreatureId;
+    return (
+      !this.battleEnded &&
+      !isGodCreature(id) &&
+      !this.tutorialSpar &&
+      !isVisitorMode() &&
+      !hasCreature(id) &&
+      shouldOfferHarborBefriend(profileForEncounter(this.zoneId, id), id)
+    );
+  }
+
+  private befriendOdds(): BefriendOdds {
+    const index = this.resolvePartyIndex();
+    return befriendOddsFor({
+      creatureId: this.wildCreatureId,
+      zoneId: this.zoneId,
+      hpFraction: this.wild.currentHp / this.wild.maxHp,
+      statuses: this.wild.statuses,
+      lead: index >= 0 ? getActiveCreatures()[index] : null,
+      wildLevel: this.wildLevel,
+    });
+  }
+
+  private addBefriendButton(x: number, y: number): Phaser.GameObjects.Text {
+    const assured = isStory1BefriendGuaranteed(this.wildCreatureId);
+    const odds = this.befriendOdds();
+    const btn = this.addActionButton(
+      x,
+      y,
+      assured ? ASSURED_BEFRIEND_LABEL : formatBefriendOddsLabel(odds.chance),
+      () => this.attemptBefriend(),
+    );
+    btn.setBackgroundColor("#ffe2ec");
+    btn.on("pointerover", () => this.showBefriendTip(btn, assured ? null : odds));
+    btn.on("pointerout", () => this.hideBefriendTip());
+    return btn;
+  }
+
+  /** Tooltip above the button: "Base 35% · Weakened +20% · Rooted +12%". */
+  private showBefriendTip(anchor: Phaser.GameObjects.Text, odds: BefriendOdds | null): void {
+    this.hideBefriendTip();
+    const offering = currentOffering(this.wildCreatureId);
+    const lines = odds
+      ? formatBefriendBreakdown(odds).join(" · ")
+      : "Story guarantee — this one will join.";
+    const footer = odds
+      ? offering !== "none"
+        ? `Uses 1 ${offeringLabel(offering)} · a miss gives the wild a free turn`
+        : "A miss gives the wild a free turn · weaken or Root / Daze it first"
+      : "";
+    const text = this.add
+      .text(DESIGN_SIZE / 2, anchor.y - 34, footer ? `${lines}\n${footer}` : lines, {
+        color: "#fff7e0",
+        backgroundColor: "#101820ee",
+        fontFamily: HUD_FONT,
+        fontSize: "12px",
+        align: "center",
+        padding: { x: 10, y: 6 },
+        wordWrap: { width: 520 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(12);
+    this.befriendTip.push(text);
+  }
+
+  private hideBefriendTip(): void {
+    for (const object of this.befriendTip) {
+      object.destroy();
+    }
+    this.befriendTip = [];
+  }
+
+  /** Spends the player's turn: join, or a miss that hands the wild its turn. */
+  private attemptBefriend(): void {
+    if (
+      !this.waitingForPlayer ||
+      this.switchMenuOpen ||
+      this.wandererFallbackOpen ||
+      this.battleEnded ||
+      !this.canBefriendInBattle()
+    ) {
+      return;
+    }
+    this.clearHunterMatchupTeach();
+    this.hideBefriendTip();
+    this.waitingForPlayer = false;
+    for (const button of this.actionButtons) {
+      (button as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
+    }
+    const odds = this.befriendOdds();
+    const offering = currentOffering(this.wildCreatureId);
+    consumeOffering(this.wildCreatureId, offering);
+    const joined = rollBefriendAttempt(this.wildCreatureId, this.rng, odds.chance);
+    const name = this.wild.name;
+    this.log(
+      offering !== "none"
+        ? `You offer a ${offeringLabel(offering)} to ${name}...`
+        : `You reach out to ${name}...`,
+    );
+    this.fx.heal("wild");
+    this.time.delayedCall(this.fx.mode().fast ? 120 : 520, () => {
+      if (this.battleEnded) {
+        return;
+      }
+      if (joined) {
+        this.befriendJoined();
+        return;
+      }
+      const miss = afterBefriendMiss(this.befriendMisses);
+      this.befriendMisses = miss.misses;
+      this.fx.quickFlash("wild", 0xffffff);
+      let line = befriendMissLine(name, miss, true);
+      if (miss.fled) {
+        if (this.zoneId) {
+          onWildEncounterResolved(this.zoneId, this.wildCreatureId, "flee");
+        }
+        this.log(line);
+        this.finishBattle(
+          { tone: "defeat", line: `${line} No harm done — it may turn up again.` },
+          null,
+        );
+        return;
+      }
+      line += this.tickEndOfTurn(this.player, "player");
+      this.log(line);
+      this.refreshHp();
+      this.buildActionButtons();
+      this.renderIntent();
+      if (isFainted(this.player)) {
+        this.handlePlayerFainted();
+        return;
+      }
+      this.time.delayedCall(this.fx.timings().turnGap, () => this.wildTurn());
+    });
+  }
+
+  private befriendJoined(): void {
+    if (this.zoneId) {
+      onWildEncounterResolved(this.zoneId, this.wildCreatureId, "befriend");
+    }
+    addToParty(this.wildCreatureId, this.wildLevel);
+    const line = `${this.wild.name} joined you!`;
+    this.log(line);
+    this.fx.confettiBurst(DESIGN_SIZE / 2, 90);
+    this.finishBattle(
+      { tone: "special", title: "New friend!", line: `${line} (Lv ${this.wildLevel})` },
+      null,
+    );
   }
 
   private addActionButton(
@@ -698,7 +901,7 @@ export class BattleScene extends Phaser.Scene {
       .text(x, y, label, {
         color: "#1a3040",
         backgroundColor: "#dff4ec",
-        fontFamily: "Source Sans 3, system-ui, sans-serif",
+        fontFamily: HUD_FONT,
         fontSize: "16px",
         fontStyle: "bold",
         padding: { x: 18, y: 9 },
@@ -1538,10 +1741,11 @@ export class BattleScene extends Phaser.Scene {
     this.logText.setText(message);
   }
 
-  private endBattle(playerWon: boolean): void {
+  /** Shared end-of-spar teardown; true when this call ended the battle. */
+  private teardownBattle(): boolean {
     unlockCodexHud();
     if (this.battleEnded) {
-      return;
+      return false;
     }
     this.battleEnded = true;
     this.waitingForPlayer = false;
@@ -1551,6 +1755,30 @@ export class BattleScene extends Phaser.Scene {
     this.hideWandererFallbackMenu();
     this.clearActionButtons();
     this.syncActivePartyHp();
+    return true;
+  }
+
+  /** Non-KO endings (befriend joined / wild slipped away). */
+  private finishBattle(panel: ResultPanelOptions, faintSide: Side | null): void {
+    if (!this.teardownBattle()) {
+      return;
+    }
+    notifyWorldChanged();
+    const show = (): void =>
+      showBattleResultPanel(this, panel, this.fx.mode(), this.fx.timings().xpFill, () =>
+        this.exitBattle(),
+      );
+    if (faintSide) {
+      this.fx.faint(faintSide, show);
+    } else {
+      this.time.delayedCall(260, show);
+    }
+  }
+
+  private endBattle(playerWon: boolean): void {
+    if (!this.teardownBattle()) {
+      return;
+    }
 
     if (playerWon) {
       playFaintSfx(this);

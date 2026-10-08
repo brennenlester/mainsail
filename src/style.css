@@ -64,7 +64,8 @@ body,
 }
 
 /* Spars own the whole board; the quest card would cover the foe's HP plate. */
-body.battle-active #quest-hud {
+body.battle-active #quest-hud,
+body.encounter-active #quest-hud {
   display: none;
 }
 

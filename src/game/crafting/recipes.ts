@@ -171,6 +171,22 @@ export const CRAFT_RECIPES: CraftRecipe[] = [
     altarOnly: true,
     uniqueOwned: true,
   },
+  {
+    // Befriend offering (#366): +odds for any wild, consumed per attempt.
+    id: "folk-seal",
+    name: "Folk Seal",
+    outputItemId: "folk-seal",
+    outputCount: 1,
+    pattern: ["FD", "DF"],
+  },
+  {
+    // Befriend offering (#366): big +odds, flavored with 1 of the wild's favorite material.
+    id: "favorite-bait",
+    name: "Favorite Bait",
+    outputItemId: "favorite-bait",
+    outputCount: 2,
+    pattern: ["FWF"],
+  },
 ];
 
 export type CraftGrid = (string | null)[][];
