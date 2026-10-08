@@ -1,6 +1,6 @@
 import { playLevelUpSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
-import { getActiveCreatures } from "../creatures/party";
+import { getActiveCreatures, getEffectiveMaxHp } from "../creatures/party";
 import { getMaterialForCreature, getMaterialName } from "../inventory/materials";
 import { addMaterial } from "../inventory/playerInventory";
 import { grantSparXp, XP_PER_SPAR_WIN } from "../progression/leveling";
@@ -8,6 +8,7 @@ import { tickBattleBond } from "../companions/bond";
 import { isDefeatScalingExcluded } from "../progression/wildLevel";
 import { recordSparWin } from "../world/sparWins";
 import { recordQuestEvent } from "../story/questProgress";
+import { getActiveStorySpar } from "./storySpar";
 
 export type SparXpShareEntry = {
   creatureName: string;
@@ -28,7 +29,41 @@ export type SparRewardSummary = {
   xpShares: SparXpShareEntry[];
   /** Variance drop rolled on top of the guaranteed rewards, if any. */
   bonusDrop?: { label: string; materialId: string; amount: number };
+  /** HP the standing actives got back after the win (#390). */
+  hpRestored: number;
 };
+
+/**
+ * Soft overworld (#390): a won wild spar gives standing actives a breather.
+ * Tuned with sparSim: an equal-level 1v1 win leaves ~31-40% HP on average
+ * (max-damage / skilled), so +20% of max returns under a third of what a win
+ * costs and the next fight still starts hurt. Fainted actives stay down.
+ */
+export const SPAR_WIN_HEAL_FRACTION = 0.2;
+
+/**
+ * Restore `fraction` of max HP to every standing active. Never during a story
+ * spar: its rounds, rematches and rollbacks keep their own HP rules (#369/#382).
+ */
+export function healAfterSparWin(fraction = SPAR_WIN_HEAL_FRACTION): number {
+  if (getActiveStorySpar() !== null) {
+    return 0;
+  }
+  let restored = 0;
+  for (const creature of getActiveCreatures()) {
+    if (creature.currentHp <= 0) {
+      continue;
+    }
+    const maxHp = getEffectiveMaxHp(creature);
+    const next = Math.min(
+      maxHp,
+      creature.currentHp + Math.max(1, Math.round(maxHp * fraction)),
+    );
+    restored += next - creature.currentHp;
+    creature.currentHp = next;
+  }
+  return restored;
+}
 
 /** Fraction of the spar XP pool the active fighter takes when others are benched. */
 export const FIGHTER_XP_SHARE = 0.5;
@@ -104,6 +139,7 @@ export function grantSparRewards(
     xpGained: 0,
     leveledUp: false,
     xpShares: [],
+    hpRestored: 0,
   };
 
   addMaterial("folklore-dust", SPAR_WIN_DUST_GAIN);
@@ -183,6 +219,8 @@ export function grantSparRewards(
     playLevelUpSfx(1400);
   }
 
+  summary.hpRestored = healAfterSparWin();
+
   recordQuestEvent({ type: "win_spar" });
 
   if (!isDefeatScalingExcluded(wildCreatureId)) {
@@ -218,6 +256,9 @@ export function formatRewardMessage(reward: SparRewardSummary): string {
     if (reward.leveledUp && reward.newLevel) {
       parts.push(`Leveled up to Lv.${reward.newLevel}!`);
     }
+  }
+  if (reward.hpRestored > 0) {
+    parts.push(`Your companions catch their breath (+${reward.hpRestored} HP).`);
   }
   return parts.join(" ");
 }
