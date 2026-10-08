@@ -191,8 +191,8 @@ describe("Story 4 hint names the real shrine tab", () => {
     }
     expect(hint).toContain("Fusion tab");
     expect(hint).not.toMatch(/\bUse\b/);
-    const shrineScene = readFileSync("src/game/scenes/ShrineScene.ts", "utf8");
-    expect(shrineScene).toContain('label: "Fusion"');
+    const shrineTabs = readFileSync("src/game/shrine/shrineTabs.ts", "utf8");
+    expect(shrineTabs).toContain('label: "Fusion"');
   });
 });
 

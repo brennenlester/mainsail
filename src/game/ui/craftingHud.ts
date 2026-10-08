@@ -1,20 +1,27 @@
-import { getItemName, getMaterialName } from "../inventory/materials";
+import {
+  getIngredientName,
+  getItemName,
+  getMaterialName,
+} from "../inventory/materials";
 import { appendMaterialVisual } from "./materialIcon";
 import { openRecipes } from "./recipePanel";
-import { applyShrineCraftOverlayRect, getOverlayDesignBox } from "./shrinePanel";
-import {
-  clearCraftSpotlight,
-  isCraftSpotlightActive,
-  selectSpotlightRecipe,
-} from "../shrine/shrineDisclosure";
-import { getRecipeMaterials } from "../crafting/recipes";
+import { createShrineButton } from "./shrinePanel";
+import { clearCraftSpotlight } from "../shrine/shrineDisclosure";
+import { suggestCraft, type CraftSuggestion } from "../shrine/craftSuggestion";
+import { getActiveQuestId } from "../story/questProgress";
+import { getCreatureDefinition } from "../creatures/catalog";
+import { playerParty } from "../creatures/party";
 import {
   canAddItem,
   playerInventory,
 } from "../inventory/playerInventory";
 import { isVisitorMode } from "../world/worldSession";
 import { notifyWorldChanged } from "../world/worldSaveSchedule";
-import { registerStagedCraftingSource } from "../crafting/stagedMaterials";
+import {
+  registerStagedCraftingSource,
+  withStagedCraftingItems,
+  withStagedCraftingMaterials,
+} from "../crafting/stagedMaterials";
 import {
   GRID_SIZE,
   cloneGrid,
@@ -23,14 +30,17 @@ import {
   isCraftItemIngredient,
   matchGrid,
   PATTERN_GLYPHS,
+  placePattern,
   returnCraftIngredient,
   returnGridToInventory,
   takeCraftIngredient,
   type CraftContext,
   type CraftGrid,
+  type CraftRecipe,
 } from "../crafting/recipes";
 
 const DRAG_THRESHOLD = 8;
+const PRIMARY_SWAP_LOCK_MS = 350;
 const PLACEABLE_ITEM_IDS = new Set(
   Object.values(PATTERN_GLYPHS).filter((id) => isCraftItemIngredient(id)),
 );
@@ -54,22 +64,25 @@ let shrineHost: HTMLElement | null = null;
 
 export function showShrineCraftingHud(options: {
   context: CraftContext;
+  /** Where the craft host mounts (the shrine panel body). Defaults to `#app`. */
+  parent?: HTMLElement | null;
   onCrafted?: (name: string, count: number) => void;
+  /** "Open Fusion" on the relic-ready banner (altar only). */
+  onGoFusion?: () => void;
 }): void {
   if (!shrineHost) {
     shrineHost = document.createElement("div");
     shrineHost.id = "shrine-craft-overlay";
-    shrineHost.className = "shrine-craft-overlay";
-    const parent =
-      getOverlayDesignBox() ?? document.getElementById("app");
+    shrineHost.className = "shrine-craft-host";
+    const parent = options.parent ?? document.getElementById("app");
     parent?.appendChild(shrineHost);
     shrineHud = mountCraftingHud(shrineHost, {
       context: options.context,
       interactive: !isVisitorMode(),
       onCrafted: options.onCrafted,
+      onGoFusion: options.onGoFusion,
     });
   }
-  applyShrineCraftOverlayRect(shrineHost);
   shrineHost.hidden = false;
   // ponytail: shrine craft is panel chrome inside the shrine overlay — do not
   // push a separate Esc stack entry (#255); Recipes/etc. still stack normally.
@@ -98,6 +111,8 @@ type HudOptions = {
   context: CraftContext;
   interactive: boolean;
   onCrafted?: (name: string, count: number) => void;
+  /** Relic-ready banner action; omit where Fusion is not reachable. */
+  onGoFusion?: () => void;
   onInventoryChange?: () => void;
   onClose?: () => void;
   /** When false, omit × (Inventory already has its own close). Default true. */
@@ -127,6 +142,8 @@ export function mountCraftingHud(
   let ignoreClick = false;
   let lastError: string | null = null;
   let ghost: HTMLElement | null = null;
+  let lastPrimaryAction: string | null = null;
+  let primaryLockedUntil = 0;
 
   const root = document.createElement("div");
   root.className = "crafting-hud";
@@ -177,6 +194,178 @@ export function mountCraftingHud(
       return `${match.recipe.name}${count}`;
     }
     return "Drag materials onto the 4×4, then tap the result.";
+  }
+
+  function currentSuggestion(): CraftSuggestion | null {
+    return suggestCraft({
+      questId: getActiveQuestId(),
+      context: options.context,
+      materials: withStagedCraftingMaterials(playerInventory.materials),
+      items: withStagedCraftingItems(playerInventory.items),
+      partyDefinitionIds: playerParty.creatures.map((c) => c.definitionId),
+    });
+  }
+
+  /**
+   * One-tap assist: lay the recipe on the real grid (top-left) from the pack.
+   * The grid stays a normal grid; the player still taps the result.
+   */
+  function fillGridWith(recipe: CraftRecipe): void {
+    if (!interactive) {
+      return;
+    }
+    clearPickup(true);
+    grid = returnGridToInventory(grid);
+    const target = placePattern(emptyGrid(), recipe.pattern, 0, 0);
+    const taken: string[] = [];
+    for (const row of target) {
+      for (const id of row) {
+        if (!id) {
+          continue;
+        }
+        if (!takeCraftIngredient(id)) {
+          for (const done of taken) {
+            returnCraftIngredient(done);
+          }
+          lastError = "Not enough materials for that yet.";
+          inventoryChanged();
+          render();
+          return;
+        }
+        taken.push(id);
+      }
+    }
+    grid = target;
+    lastError = null;
+    inventoryChanged();
+    render();
+  }
+
+  /**
+   * The banner's one primary button changes in place (Fill grid > Craft X >
+   * Open Fusion) and keeps focus, so a double-click or key repeat would run
+   * the next step by accident. Ignore repeats and lock briefly after a swap.
+   */
+  function primaryButton(
+    action: string,
+    label: string,
+    run: () => void,
+  ): HTMLButtonElement {
+    if (lastPrimaryAction && lastPrimaryAction !== action) {
+      primaryLockedUntil = performance.now() + PRIMARY_SWAP_LOCK_MS;
+    }
+    lastPrimaryAction = action;
+    const btn = createShrineButton(label, "primary", (event) => {
+      if (event.detail > 1 || performance.now() < primaryLockedUntil) {
+        return;
+      }
+      run();
+    });
+    btn.dataset.craftAction = action;
+    btn.dataset.craftPrimary = "1";
+    btn.addEventListener("keydown", (event) => {
+      if (event.repeat) {
+        event.preventDefault();
+      }
+    });
+    return btn;
+  }
+
+  function buildSuggestion(): HTMLElement | null {
+    const suggestion = currentSuggestion();
+    if (!suggestion) {
+      return null;
+    }
+    const banner = document.createElement("div");
+    banner.className = "crafting-suggest";
+    const kicker = document.createElement("p");
+    kicker.className = "crafting-suggest-kicker";
+    const title = document.createElement("p");
+    title.className = "crafting-suggest-title";
+    const detail = document.createElement("div");
+    detail.className = "crafting-suggest-detail";
+    const actions = document.createElement("div");
+    actions.className = "crafting-suggest-actions";
+
+    if (suggestion.kind === "fusion") {
+      banner.dataset.craftSuggest = suggestion.itemId;
+      banner.dataset.craftSuggestKind = "fusion";
+      kicker.textContent = "Relic ready";
+      title.textContent = `${getItemName(suggestion.itemId)} is crafted`;
+      const hint = document.createElement("p");
+      hint.className = "crafting-suggest-hint";
+      hint.textContent = options.onGoFusion
+        ? "Open the Fusion tab and give it to your companion."
+        : "Take it to the Moon Shrine altar and open its Fusion tab.";
+      detail.append(hint);
+      if (options.onGoFusion) {
+        actions.append(
+          primaryButton("go-fusion", "Open Fusion", () => options.onGoFusion?.()),
+        );
+      }
+    } else {
+      const { recipe } = suggestion;
+      banner.dataset.craftSuggest = recipe.id;
+      banner.dataset.craftSuggestKind = "craft";
+      kicker.textContent =
+        suggestion.reason === "quest" ? "Your quest asks for" : "You can craft";
+      title.textContent = `${recipe.name}${
+        recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ""
+      }`;
+      if (suggestion.forCreatureId) {
+        const who = document.createElement("span");
+        who.className = "crafting-suggest-for";
+        who.textContent = ` for ${getCreatureDefinition(suggestion.forCreatureId).name}`;
+        title.append(who);
+      }
+      const needs = document.createElement("ul");
+      needs.className = "crafting-suggest-needs";
+      for (const need of suggestion.needs) {
+        const li = document.createElement("li");
+        li.className = need.have >= need.need ? "is-ok" : "is-short";
+        li.textContent = `${getIngredientName(need.materialId)} ${Math.min(
+          need.have,
+          need.need,
+        )}/${need.need}`;
+        needs.append(li);
+      }
+      detail.append(needs);
+      const match = matchGrid(grid, options.context);
+      const gridReady =
+        match.status === "match" && match.recipe.id === recipe.id;
+      if (!suggestion.usable) {
+        const hint = document.createElement("p");
+        hint.className = "crafting-suggest-hint";
+        hint.textContent =
+          "Needs a Mossling or Ember Wisp in your party to be useful.";
+        detail.append(hint);
+      } else if (gridReady) {
+        actions.append(
+          primaryButton("craft-now", `Craft ${recipe.name}`, () => takeResult()),
+        );
+      } else if (suggestion.ready && interactive) {
+        actions.append(
+          primaryButton("fill-grid", "Fill grid", () => fillGridWith(recipe)),
+        );
+      } else if (!suggestion.ready) {
+        const hint = document.createElement("p");
+        hint.className = "crafting-suggest-hint";
+        const missing = suggestion.needs
+          .filter((n) => n.have < n.need)
+          .map((n) => `${getIngredientName(n.materialId)} ×${n.need - n.have}`)
+          .join(", ");
+        hint.textContent = `Still needed: ${missing}.`;
+        detail.append(hint);
+      }
+    }
+    const text = document.createElement("div");
+    text.className = "crafting-suggest-text";
+    text.append(kicker, title, detail);
+    banner.append(text);
+    if (actions.childElementCount > 0) {
+      banner.append(actions);
+    }
+    return banner;
   }
 
   function clearPickup(returnToSource: boolean): void {
@@ -395,6 +584,13 @@ export function mountCraftingHud(
   }
 
   function render(): void {
+    const active = document.activeElement;
+    // The banner's one primary button changes label (Fill grid > Craft ...):
+    // keep keyboard focus on whichever comes next.
+    const keepFocus =
+      active instanceof HTMLElement &&
+      root.contains(active) &&
+      active.dataset.craftPrimary === "1";
     root.replaceChildren();
     const header = document.createElement("div");
     header.className = "crafting-hud-header";
@@ -405,7 +601,7 @@ export function mountCraftingHud(
     recipesBtn.textContent = "Recipes";
     recipesBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      openRecipes();
+      openRecipes(options.context);
     });
     header.append(recipesBtn);
     if (options.showClose !== false) {
@@ -424,33 +620,7 @@ export function mountCraftingHud(
       });
       header.append(closeBtn);
     }
-    let spotlightBanner: HTMLDivElement | null = null;
-    if (isCraftSpotlightActive()) {
-      const spotlight = selectSpotlightRecipe();
-      if (spotlight) {
-        spotlightBanner = document.createElement("div");
-        spotlightBanner.className = "crafting-spotlight";
-        spotlightBanner.dataset.craftSpotlight = spotlight.id;
-        const title = document.createElement("p");
-        title.className = "crafting-spotlight-title";
-        title.textContent = `Try this first: ${spotlight.name}`;
-        const detail = document.createElement("p");
-        detail.className = "crafting-spotlight-detail";
-        const needs = getRecipeMaterials(spotlight)
-          .map((m) => `${getMaterialName(m.materialId)}×${m.count}`)
-          .join(" · ");
-        detail.textContent = needs;
-        const browse = document.createElement("button");
-        browse.type = "button";
-        browse.className = "crafting-spotlight-recipes";
-        browse.textContent = "Full recipe book";
-        browse.addEventListener("click", (event) => {
-          event.stopPropagation();
-          openRecipes();
-        });
-        spotlightBanner.append(title, detail, browse);
-      }
-    }
+    const suggestBanner = buildSuggestion();
 
     const layout = document.createElement("div");
     layout.className = "crafting-hud-layout";
@@ -502,6 +672,15 @@ export function mountCraftingHud(
         list.appendChild(row);
       }
     }
+
+    // Visible "more below" cue while the materials list clips (#402).
+    const syncListCue = (): void => {
+      const more = list.scrollHeight - list.clientHeight > 4 &&
+        list.scrollTop < list.scrollHeight - list.clientHeight - 4;
+      list.dataset.more = more ? "1" : "0";
+    };
+    list.addEventListener("scroll", syncListCue, { passive: true });
+    requestAnimationFrame(syncListCue);
 
     const board = document.createElement("div");
     board.className = "crafting-board";
@@ -567,6 +746,7 @@ export function mountCraftingHud(
     result.dataset.craftResult = "1";
     const match = matchGrid(grid, options.context);
     if (match.status === "match") {
+      result.classList.add("is-ready");
       const atCap = !canAddItem(
         match.recipe.outputItemId,
         match.recipe.outputCount,
@@ -596,10 +776,15 @@ export function mountCraftingHud(
     status.textContent = statusMessage();
 
     layout.append(list, board);
-    if (spotlightBanner) {
-      root.append(header, spotlightBanner, layout, status);
+    if (suggestBanner) {
+      root.append(header, suggestBanner, layout, status);
     } else {
       root.append(header, layout, status);
+    }
+    if (keepFocus) {
+      root
+        .querySelector<HTMLElement>("[data-craft-primary]")
+        ?.focus({ preventScroll: true });
     }
   }
 
