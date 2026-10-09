@@ -265,6 +265,7 @@ export function startTrialRound(): TrialBattle | null {
     round,
     partyAverage: activeAverageLevel(),
     partySize: standing.length,
+    rosterSize: getActiveCreatures().length,
     partyStrength: trialPartyStrength(getActiveCreatures().map((c) => c.definitionId)),
     boons: run.pendingBoons,
     maxLevel: MAX_LEVEL,

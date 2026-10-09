@@ -39,18 +39,34 @@ export const TRIAL_PARTY_SCALE: readonly { hp: number; damage: number }[] = [
 ];
 
 /**
- * Rounds 1-2 tempo (#423): openers were 18-turn slogs of small hits. Foes
- * there have less HP and hit a little harder, so fights are shorter but cost
- * about the same; later rounds and the boss are unchanged.
+ * Rounds 1-2 tempo (#423): openers were 18-turn slogs of small hits, so foes
+ * there hit harder. #426: the #423 HP cut (x0.75 / x0.85) overshot to ~7-turn
+ * rounds and a ~5 minute trial; HP is back near full with a smaller damage
+ * boost, so the openers run ~8 sim turns at about the old cost.
  */
 export const EARLY_ROUND_TEMPO: readonly { hp: number; damage: number }[] = [
-  { hp: 0.75, damage: 1.5 },
-  { hp: 0.85, damage: 1.25 },
+  { hp: 0.9, damage: 1 },
+  { hp: 1, damage: 0.95 },
 ];
+
+/**
+ * Eclipse Shade HP floor (#426): her HP scales with the companions still
+ * standing, so a lone survivor met a 40 HP Shade (20 per form) weaker than
+ * round 3's foe. Her pool is now at least this many times round 3's foe HP
+ * for the whole roster, however many are still standing.
+ */
+export const ECLIPSE_HP_FLOOR = 1.6;
 
 export function trialPartyScale(size: number): { hp: number; damage: number } {
   const i = Math.min(TRIAL_PARTY_SCALE.length, Math.max(1, Math.floor(size))) - 1;
   return TRIAL_PARTY_SCALE[i]!;
+}
+
+/** A regular round foe's max HP before modifiers / party strength. */
+export function regularFoeHp(creatureId: string, level: number, partySize: number, roundIndex: number): number {
+  const tempo = EARLY_ROUND_TEMPO[roundIndex] ?? { hp: 1, damage: 1 };
+  const hp = scaledStat(getCreatureDefinition(creatureId).maxHp, level) * trialPartyScale(partySize).hp * tempo.hp;
+  return Math.max(1, Math.round(hp));
 }
 
 /**
@@ -86,6 +102,8 @@ export type TrialBattleContext = {
   partyAverage: number;
   /** Standing companions when the round starts. */
   partySize: number;
+  /** Active roster size, fainted included (boss HP floor). Default `partySize`. */
+  rosterSize?: number;
   /** `trialPartyStrength` of the active party (default 1). */
   partyStrength?: number;
   /** Boons picked for this round (all but Mend, which acts at once). */
@@ -135,6 +153,11 @@ export class TrialBattle {
       });
       this.regularFoe = null;
       this.decorateFoe(this.boss.foe, false);
+      const floor = this.bossHpFloor(ctx);
+      if (this.boss.foe.maxHp < floor) {
+        this.boss.foe.maxHp = floor;
+        this.boss.foe.currentHp = floor;
+      }
     } else {
       this.boss = null;
       this.regularFoe = this.buildFoe(ctx.round.creatureId, level, ctx.partySize);
@@ -143,6 +166,24 @@ export class TrialBattle {
 
   get isBoss(): boolean {
     return this.boss !== null;
+  }
+
+  /**
+   * `ECLIPSE_HP_FLOOR` x round 3's foe as it was built (its modifiers, this
+   * party's strength) for the whole roster, so fainted companions cannot
+   * shrink the Shade below the foe the party just beat.
+   */
+  private bossHpFloor(ctx: TrialBattleContext): number {
+    const third = ctx.plan.rounds[2];
+    if (!third || third.kind === "boss") {
+      return 0;
+    }
+    const level = Math.min(ctx.maxLevel, Math.max(1, Math.round(ctx.partyAverage) + third.levelBonus));
+    const size = Math.max(ctx.partySize, ctx.rosterSize ?? 0);
+    const hp = regularFoeHp(third.creatureId, level, size, third.index) *
+      combineModifiers(third.modifiers).foeHp *
+      this.strength ** STRENGTH_EXP.hp;
+    return Math.round(ECLIPSE_HP_FLOOR * hp);
   }
 
   /** The combatant on the other side right now. */
@@ -163,7 +204,7 @@ export class TrialBattle {
     const def = getCreatureDefinition(creatureId);
     const scale = trialPartyScale(partySize);
     const tempo = EARLY_ROUND_TEMPO[this.round.index] ?? { hp: 1, damage: 1 };
-    const maxHp = Math.max(1, Math.round(scaledStat(def.maxHp, level) * scale.hp * tempo.hp));
+    const maxHp = regularFoeHp(creatureId, level, partySize, this.round.index);
     const foe: BattleCombatant = primeOpeningCooldowns({
       name: def.name,
       level,

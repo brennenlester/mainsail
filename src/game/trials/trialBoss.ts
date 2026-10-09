@@ -17,15 +17,19 @@ export const ECLIPSE_BOSS_ID = "eclipse-shade";
 export const ECLIPSE_SIGNATURE_ID = "umbral-eclipse";
 export const ECLIPSE_CHARGE_ID = "gathering-dark";
 
-/** Tuned with trialSim (trialBalance.test.ts). */
+/**
+ * Tuned with trialSim (trialBalance.test.ts). #426: the HP floor in
+ * trialBattle.ts makes her pool ~1.5x larger, so she hits softer and a
+ * parry punishes harder.
+ */
 export const ECLIPSE_BOSS_TUNING = {
   baseHp: 30,
   hpMult: 1.2,
-  damageScale: 0.95,
+  damageScale: 0.8,
   attack: [8, 9] as const,
   defense: [6, 5] as const,
   signaturePower: 20,
-  staggerExposure: 1.25,
+  staggerExposure: 1.5,
 };
 
 /** HP / damage by standing companions at the start of the boss round. */

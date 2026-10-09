@@ -6,7 +6,7 @@ import { hasStatus } from "../battle/statusEffects";
 import { STAGGER_MOVE_ID } from "../battle/boss/storyBattle";
 import { KEEN_EDGE_DAMAGE, MOON_SHIELD_TAKEN, type BoonId } from "./boons";
 import type { ModifierId } from "./modifiers";
-import { EARLY_ROUND_TEMPO, TRIAL_PARTY_SCALE, TrialBattle, trialPartyScale, trialPartyStrength } from "./trialBattle";
+import { ECLIPSE_HP_FLOOR, EARLY_ROUND_TEMPO, TRIAL_PARTY_SCALE, TrialBattle, trialPartyScale, trialPartyStrength } from "./trialBattle";
 import { ECLIPSE_SIGNATURE_ID, ECLIPSE_CHARGE_ID, buildEclipseBossDef, counterTypeOf } from "./trialBoss";
 import { generateTrialPlan, type TrialPlan, type TrialRoundPlan } from "./trialPlan";
 import { parseTrialDayKey } from "./trialSeed";
@@ -38,7 +38,7 @@ describe("Eclipse modifiers (#420)", () => {
     expect(trialPartyScale(99)).toEqual(trialPartyScale(5));
   });
 
-  it("rounds 1-2 field quicker foes: less HP, a little more bite (#423)", () => {
+  it("rounds 1-2 apply their tempo scale (#423, #426)", () => {
     const at = (index: number) =>
       new TrialBattle({ plan: PLAN, round: round([], "lantern-fox", index), partyAverage: 10, partySize: 2, boons: [], maxLevel: 50 });
     const middle = at(2);
@@ -226,6 +226,23 @@ describe("Eclipse Shade boss round (#420)", () => {
       maxLevel: 50,
     });
     expect(b.foe.bulk).toBeCloseTo(0.7);
+  });
+
+  it("a lone survivor still meets a real boss: HP floored at 1.6x round 3's foe (#426)", () => {
+    const third = PLAN.rounds[2]!;
+    const boss = PLAN.rounds[4]!;
+    const at = (round: TrialRoundPlan, partySize: number, rosterSize?: number) =>
+      new TrialBattle({ plan: PLAN, round, partyAverage: 10, partySize, rosterSize, boons: [], maxLevel: 50 }).foe.maxHp;
+    for (const roster of [1, 2, 3]) {
+      const lone = at(boss, 1, roster);
+      expect(lone, `1 of ${roster}`).toBeGreaterThanOrEqual(Math.floor(ECLIPSE_HP_FLOOR * at(third, roster)) - 1);
+      // Fainted companions no longer shrink her.
+      expect(lone, `1 of ${roster}`).toBe(at(boss, roster, roster));
+      // Each form is a real fight, not one finisher (#426 playtest: 20 HP per form).
+      expect(lone / 2, `per form, 1 of ${roster}`).toBeGreaterThanOrEqual(35);
+    }
+    // No roster given: the standing party is the roster.
+    expect(at(boss, 2)).toBe(at(boss, 2, 2));
   });
 
   it("names the counter type of each form", () => {
