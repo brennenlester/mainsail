@@ -18,6 +18,7 @@ import { ECLIPSE_BOSS_CREATURE, TRIAL_ROUNDS } from "./trialPlan";
 import { isInTrialTable } from "./dailyTrial";
 import {
   abandonTrial,
+  faultTrial,
   beginTrial,
   chooseTrialBoon,
   currentBoonOffers,
@@ -132,8 +133,8 @@ export class TrialScene extends Phaser.Scene {
 
   /**
    * Defensive guard (#423): an error thrown inside a round (BattleScene,
-   * a trial hook, a DOM handler) ends the run on the results screen instead
-   * of freezing or restarting. A throw inside Phaser's frame callback stops
+   * a trial hook, a DOM handler) ends the run unscored, with a note, instead
+   * of freezing, restarting or passing for a loss. A throw inside Phaser's frame callback stops
    * its rAF loop, so the loop is restarted after the broken battle is
    * queued to stop.
    */
@@ -147,14 +148,19 @@ export class TrialScene extends Phaser.Scene {
       return;
     }
     console.error("Eclipse Trial: ending the run after an error", event.error);
-    if (action === "lose-round") {
+    if (action === "stop-battle") {
       this.s.detachBattle?.();
-      this.clearWatchdog();
       this.scene.stop("BattleScene");
-      this.onRoundClosed(false);
-    } else {
-      this.showResults(finishTrial());
     }
+    this.clearWatchdog();
+    faultTrial();
+    this.scene.resume();
+    this.fitStage();
+    this.overlay.renderMessage(
+      "The Eclipse Gate faltered",
+      "Something went wrong — this run was not scored. Your party and your save are untouched.",
+      () => this.exit(null),
+    );
     const loop = this.game.loop;
     loop.sleep();
     loop.wake();

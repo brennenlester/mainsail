@@ -19,6 +19,7 @@ import {
   chooseTrialBoon,
   currentBoonOffers,
   endTrialRound,
+  faultTrial,
   finishTrial,
   getTrialRun,
   isTrialsUnlocked,
@@ -26,7 +27,7 @@ import {
   startTrialRound,
   trialBlockReason,
 } from "./trialRun";
-import { getTrialRecord, resetTrialRecordForTest } from "./trialState";
+import { getTrialRecord, getTrialRecordSnapshot, hasAttemptedTrial, resetTrialRecordForTest } from "./trialState";
 import { todayTrialDay, trialDayKey } from "./trialSeed";
 import { setDiscoveredCreatures, worldState } from "../world/worldState";
 import { buildTrialPlan } from "./dailyTrial";
@@ -130,6 +131,26 @@ describe("Eclipse Trial sandboxing (#420)", () => {
     expect(isHostPersistSuspended()).toBe(false);
     expect(playerParty.creatures).toEqual(before);
     expect(getTrialRecord().best).toEqual({});
+  });
+
+  it("a fault records nothing: no score, attempt, rewards or codex entries (#423)", () => {
+    setDiscoveredCreatures([]);
+    const before = structuredClone(playerParty.creatures);
+    beginTrial(TODAY, "host");
+    playRound(true);
+    chooseTrialBoon(null);
+    startTrialRound();
+    faultTrial();
+    expect(getTrialRun()).toBeNull();
+    expect(isHostPersistSuspended()).toBe(false);
+    expect(playerParty.creatures).toEqual(before);
+    expect(getTrialRecord().best).toEqual({});
+    expect(hasAttemptedTrial()).toBe(false);
+    expect(getTrialRecordSnapshot()).toBeUndefined();
+    expect(getMaterialCount("folklore-dust")).toBe(2);
+    expect(worldState.discoveredCreatures).toEqual([]);
+    // Safe to call again (a second error event).
+    faultTrial();
   });
 
   it("a tab closed mid-trial keeps the pre-trial save byte for byte", () => {

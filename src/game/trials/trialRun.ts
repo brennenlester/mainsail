@@ -448,13 +448,27 @@ export function finishTrial(): TrialOutcome | null {
 
 /** Walk away / a battle that never came up: restore everything, record nothing. */
 export function abandonTrial(): void {
+  endUnscored(true);
+}
+
+/**
+ * A fault ended the run (#423): restore the party and release the saving
+ * pause, and record nothing at all (no score, no attempt, no codex entries).
+ */
+export function faultTrial(): void {
+  endUnscored(false);
+}
+
+function endUnscored(recordFaced: boolean): void {
   if (!run) {
     return;
   }
   if (snapshot) {
     restoreSnapshot(snapshot);
   }
-  recordDiscoveries(run);
+  if (recordFaced) {
+    recordDiscoveries(run);
+  }
   run = null;
   snapshot = null;
   resumeHostPersist();

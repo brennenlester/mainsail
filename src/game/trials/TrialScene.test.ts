@@ -57,13 +57,82 @@ describe("TrialScene per-run state (#420 review)", () => {
 });
 
 describe("trial fault guard (#423)", () => {
-  it("turns an error into a scored end, never a restart", async () => {
+  it("an error ends the run unscored, never a restart", async () => {
     const { trialFaultAction } = await import("./trialSceneState");
-    expect(trialFaultAction("battle", false)).toBe("lose-round");
-    expect(trialFaultAction("preview", false)).toBe("finish");
-    expect(trialFaultAction("boon", false)).toBe("finish");
+    expect(trialFaultAction("battle", false)).toBe("stop-battle");
+    expect(trialFaultAction("preview", false)).toBe("abort");
+    expect(trialFaultAction("boon", false)).toBe("abort");
     expect(trialFaultAction("done", false)).toBe("ignore");
     expect(trialFaultAction(null, false)).toBe("ignore");
     expect(trialFaultAction("battle", true)).toBe("ignore");
+  });
+
+  it("a forced throw mid-battle shows the note and records nothing", async () => {
+    const { setPartyFromSnapshot, playerParty } = await import("../creatures/party");
+    const { createEmptyQuestProgress, restoreQuestProgress } = await import("../story/questProgress");
+    const { QUEST_ORDER } = await import("../story/quests");
+    const { beginTrial, startTrialRound, getTrialRun, resetTrialRunForTest } = await import("./trialRun");
+    const { getTrialRecordSnapshot, hasAttemptedTrial, resetTrialRecordForTest } = await import("./trialState");
+    const { isHostPersistSuspended } = await import("../world/worldSaveSchedule");
+    const { setDiscoveredCreatures, worldState } = await import("../world/worldState");
+    const { todayTrialDay } = await import("./trialSeed");
+
+    const progress = createEmptyQuestProgress();
+    for (const id of QUEST_ORDER) {
+      progress[id] = "complete";
+    }
+    restoreQuestProgress(progress);
+    resetTrialRunForTest();
+    resetTrialRecordForTest();
+    setDiscoveredCreatures([]);
+    setPartyFromSnapshot(
+      [{ instanceId: "a", definitionId: "bramblewarden", speciesId: "bramblewarden", currentHp: 7, level: 10, xp: 405 } as never],
+      4,
+    );
+    const before = structuredClone(playerParty.creatures);
+    expect(beginTrial(todayTrialDay(), "host")).toBe(true);
+    expect(startTrialRound()).not.toBeNull();
+
+    const scene = new TrialScene() as unknown as {
+      s: ReturnType<typeof freshTrialSceneState>;
+      ui: unknown;
+      scene: unknown;
+      game: unknown;
+      fitStage: () => void;
+      onFault: (event: ErrorEvent) => void;
+    };
+    const renderMessage = vi.fn();
+    const stop = vi.fn();
+    const resume = vi.fn();
+    const sleep = vi.fn();
+    const wake = vi.fn();
+    scene.s = freshTrialSceneState();
+    scene.ui = { renderMessage, destroy: () => undefined };
+    scene.scene = { stop, resume };
+    scene.game = { loop: { sleep, wake } };
+    scene.fitStage = vi.fn();
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    scene.onFault(new ErrorEvent("error", { error: new Error("forced") }));
+
+    expect(stop).toHaveBeenCalledWith("BattleScene");
+    expect(renderMessage).toHaveBeenCalledTimes(1);
+    expect(renderMessage.mock.calls[0]![1]).toMatch(/this run was not scored/);
+    expect(sleep).toHaveBeenCalled();
+    expect(wake).toHaveBeenCalled();
+    expect(getTrialRun()).toBeNull();
+    expect(isHostPersistSuspended()).toBe(false);
+    expect(playerParty.creatures).toEqual(before);
+    expect(hasAttemptedTrial()).toBe(false);
+    expect(getTrialRecordSnapshot()).toBeUndefined();
+    expect(worldState.discoveredCreatures).toEqual([]);
+
+    // A second error event (after the note is up) does nothing more.
+    scene.onFault(new ErrorEvent("error", { error: new Error("again") }));
+    expect(renderMessage).toHaveBeenCalledTimes(1);
+    // An error with no Error object (ResizeObserver notice) is ignored.
+    scene.onFault(new ErrorEvent("error", { message: "ResizeObserver loop" }));
+    expect(renderMessage).toHaveBeenCalledTimes(1);
+    error.mockRestore();
   });
 });
