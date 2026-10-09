@@ -1093,6 +1093,12 @@ body.cutscene-active .touch-controls {
   outline-offset: 2px;
 }
 
+.nickname-hint {
+  font-size: 12px;
+  color: #6a8a88;
+  cursor: pointer;
+}
+
 .nickname-error {
   min-height: 1em;
   font-size: 13px;

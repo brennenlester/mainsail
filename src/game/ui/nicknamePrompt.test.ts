@@ -117,6 +117,62 @@ describe("nickname prompt focus (#409)", () => {
     expect(isNicknamePromptOpen()).toBe(false);
   });
 
+  it("the docked prompt shows a name hint; the Party panel Rename does not (#429)", () => {
+    const hint = (): HTMLElement => document.getElementById("nickname-hint")!;
+    void promptNickname(creature(), { ambient: true });
+    expect(hint().hidden).toBe(false);
+    expect(hint().textContent).toBe("Tap or press N to name your companion (Esc to skip)");
+    void promptNickname(creature("b"));
+    expect(hint().hidden).toBe(true);
+  });
+
+  it("N focuses the docked input when nothing else owns the keyboard (#429)", () => {
+    void promptNickname(creature(), { ambient: true });
+    const other = new KeyboardEvent("keydown", { key: "w", cancelable: true });
+    window.dispatchEvent(other);
+    expect(document.activeElement).not.toBe(input());
+    expect(other.defaultPrevented).toBe(false);
+
+    const withCtrl = new KeyboardEvent("keydown", { key: "n", ctrlKey: true, cancelable: true });
+    window.dispatchEvent(withCtrl);
+    expect(document.activeElement).not.toBe(input());
+
+    const press = new KeyboardEvent("keydown", { key: "n", cancelable: true });
+    window.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input());
+    expect(captured).toEqual([false]);
+  });
+
+  it("typing n inside a focused field is left alone, and N ignores other DOM inputs (#429)", () => {
+    void promptNickname(creature(), { ambient: true });
+    input().focus();
+    const typed = new KeyboardEvent("keydown", { key: "n", cancelable: true });
+    window.dispatchEvent(typed);
+    expect(typed.defaultPrevented).toBe(false);
+
+    input().blur();
+    const elsewhere = document.createElement("input");
+    document.body.appendChild(elsewhere);
+    elsewhere.focus();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "N" }));
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it("tapping the hint focuses the docked input (#429)", () => {
+    void promptNickname(creature(), { ambient: true });
+    document.getElementById("nickname-hint")!.click();
+    expect(document.activeElement).toBe(input());
+  });
+
+  it("N does nothing once the prompt closed (#429)", async () => {
+    const done = promptNickname(creature(), { ambient: true });
+    document.getElementById("nickname-skip")!.click();
+    await done;
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "n" }));
+    expect(document.activeElement).not.toBe(input());
+  });
+
   it("dismissAmbientNicknamePrompt closes a docked prompt but not a modal one", async () => {
     const docked = promptNickname(creature(), { ambient: true });
     dismissAmbientNicknamePrompt();

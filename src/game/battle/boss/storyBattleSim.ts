@@ -28,7 +28,7 @@ export type StorySimSetup = {
   level: number;
   /**
    * Per-member levels (same order as `party`) for mixed parties, e.g. an
-   * evolved Lv 4 lead plus Bryn's Lv 1 gift (#411). Defaults to `level` for
+   * evolved Lv 4 lead plus Bryn's catch-up gift (#411, #429). Defaults to `level` for
    * everyone; the foe scales off the rounded average like the game does.
    */
   levels?: readonly number[];

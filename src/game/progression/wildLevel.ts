@@ -89,6 +89,18 @@ export function getPartyAverageLevel(): number {
   return Math.max(1, Math.round(total / pool.length));
 }
 
+/**
+ * Level for a story-gifted companion (#429): party average - 2, never above
+ * the lead, at least 1. Computed at gift time so it does not trail the lead.
+ */
+export function getGiftCatchUpLevel(): number {
+  const lead = getActiveCreatures()[0] ?? playerParty.creatures[0];
+  if (!lead) {
+    return 1;
+  }
+  return Math.max(1, Math.min(lead.level, getPartyAverageLevel() - 2));
+}
+
 /** Share-card ghost spars pin the opponent to the sharer's level (#368). */
 let wildLevelOverride: number | null = null;
 

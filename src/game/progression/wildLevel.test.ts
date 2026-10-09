@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  getGiftCatchUpLevel,
   getPartyAverageLevel,
   getRarityBias,
   getSpeciesMaxEncounterWeight,
@@ -74,5 +75,16 @@ describe("wildLevel", () => {
     expect(getPartyAverageLevel()).toBe(6);
     expect(getWildEffectiveLevel("mossling")).toBe(6);
     expect(getWildEffectiveLevel("tide-sovereign")).toBe(1);
+  });
+
+  it("gifts a catch-up level: average - 2, min 1, never above the lead (#429)", () => {
+    expect(getGiftCatchUpLevel()).toBe(1);
+    setPartyFromSnapshot([member("a", 6)], 2, ["a"]);
+    expect(getGiftCatchUpLevel()).toBe(4);
+    setPartyFromSnapshot([member("a", 2)], 2, ["a"]);
+    expect(getGiftCatchUpLevel()).toBe(1);
+    // Weak lead, strong mate: average - 2 (5) would pass the lead (4).
+    setPartyFromSnapshot([member("a", 4), member("b", 9)], 3, ["a", "b"]);
+    expect(getGiftCatchUpLevel()).toBe(4);
   });
 });
