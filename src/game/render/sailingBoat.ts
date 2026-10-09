@@ -43,7 +43,7 @@ export function boatBob(timeMs: number, animate: boolean): number {
 export class SailingBoat {
   private readonly hull: Phaser.GameObjects.Image;
   private readonly front: Phaser.GameObjects.Image;
-  private readonly wake: Phaser.GameObjects.Particles.ParticleEmitter | null;
+  private wake: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
 
   private readonly scene: Phaser.Scene;
 
@@ -56,9 +56,14 @@ export class SailingBoat {
     this.front.setDisplaySize(SAILING_BOAT_DISPLAY.width, SAILING_BOAT_DISPLAY.height);
     const top = Math.round(this.front.height * FRONT_CROP_FROM);
     this.front.setCrop(0, top, this.front.width, this.front.height - top);
-    if (effectsEnabled() && !prefersReducedMotion()) {
-      ensureFxTextures(scene);
-      this.wake = scene.add.particles(0, 0, FX_TEX.glow, {
+  }
+
+  /** Wake emitter follows the Effects toggle live (created / dropped between frames). */
+  private syncMotion(): void {
+    const on = effectsEnabled() && !prefersReducedMotion();
+    if (on && !this.wake) {
+      ensureFxTextures(this.scene);
+      this.wake = this.scene.add.particles(0, 0, FX_TEX.glow, {
         emitting: false,
         frequency: 70,
         lifespan: { min: 600, max: 1000 },
@@ -69,7 +74,8 @@ export class SailingBoat {
         tint: [0xffffff, 0xd8f4ff],
         blendMode: Phaser.BlendModes.ADD,
       });
-    } else {
+    } else if (!on && this.wake) {
+      this.wake.destroy();
       this.wake = null;
     }
   }
@@ -79,6 +85,7 @@ export class SailingBoat {
    * offset so the rider rises and falls with the hull.
    */
   sync(x: number, baseY: number, facing: Facing, moving: boolean, depth: number): number {
+    this.syncMotion();
     const bob = boatBob(this.scene.time.now, this.wake !== null);
     const pose = boatPose(facing);
     for (const part of [this.hull, this.front]) {

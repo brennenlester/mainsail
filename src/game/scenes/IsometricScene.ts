@@ -111,6 +111,7 @@ import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
+import { canStartBoatLoad, freshBoatLoadState, noteBoatLoadFailed } from "../render/boatLoadRetry";
 import { claimEclipseGateToast, isTrialsUnlocked } from "../trials/trialUnlock";
 import type { SailingBoat } from "../render/sailingBoat";
 import { claimFinaleCard } from "../finale/finaleTrigger";
@@ -389,7 +390,7 @@ export class IsometricScene extends Phaser.Scene {
   private sailingBoat?: SailingBoat;
   /** Boat code loads on the first voyage (#423): kept out of the boot bundle. */
   private sailingBoatModule?: typeof import("../render/sailingBoat");
-  private sailingBoatLoading = false;
+  private sailingBoatLoad = freshBoatLoadState();
   /** Active-party overworld sprites (presence tell). */
   private partyFollowers: PartyOverworldFollowerState =
     createPartyOverworldFollowerState();
@@ -2612,19 +2613,23 @@ export class IsometricScene extends Phaser.Scene {
     if (!isSailing()) {
       this.sailingBoat?.destroy();
       this.sailingBoat = undefined;
+      // A new voyage gets a fresh set of load attempts.
+      if (!this.sailingBoatLoad.loading && this.sailingBoatLoad.failures > 0) {
+        this.sailingBoatLoad = freshBoatLoadState();
+      }
       return 0;
     }
     if (!this.sailingBoat) {
       if (!this.sailingBoatModule) {
-        if (!this.sailingBoatLoading) {
-          this.sailingBoatLoading = true;
-          void import("../render/sailingBoat")
+        const now = performance.now();
+        if (canStartBoatLoad(this.sailingBoatLoad, now)) {
+          this.sailingBoatLoad.loading = true;
+          import("../render/sailingBoat")
             .then((m) => {
               this.sailingBoatModule = m;
+              this.sailingBoatLoad.loading = false;
             })
-            .finally(() => {
-              this.sailingBoatLoading = false;
-            });
+            .catch(() => noteBoatLoadFailed(this.sailingBoatLoad, performance.now()));
         }
         return 0;
       }
