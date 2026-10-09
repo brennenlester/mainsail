@@ -77,6 +77,7 @@ import {
   hasCreature,
 } from "../creatures/party";
 import { hasPresenceGrowth, presenceTintForCreature } from "../shrine/presence";
+import { applyRareLook, followRareGlow } from "../render/rareGlow";
 import { ensureCreatureTextures } from "../creatures/sprites";
 import { lateCreatureKeys } from "../render/lateAssets";
 import { waitForLateImages } from "../render/lateAssetWait";
@@ -266,6 +267,8 @@ export class BattleScene extends Phaser.Scene {
   private playerHud!: HpHud;
   private wildSprite!: Phaser.GameObjects.Sprite;
   private playerSprite!: Phaser.GameObjects.Sprite;
+  private playerRareGlow: Phaser.GameObjects.Image | null = null;
+  private wildRareGlow: Phaser.GameObjects.Image | null = null;
   /** Presentation layer (#365); rules stay in this scene. */
   private fx!: BattleFx;
   private fainted = new Set<Side>();
@@ -365,6 +368,8 @@ export class BattleScene extends Phaser.Scene {
     this.lastBlockedAt = -Infinity;
     this.trial = data.trial ?? null;
     this.trialStrip = null;
+    this.playerRareGlow = null;
+    this.wildRareGlow = null;
     this.story = data.story
       ? new StoryBattle(getStorySpar(data.story.sparId), {
           partyAverage: getPartyAverageLevel(),
@@ -679,6 +684,15 @@ export class BattleScene extends Phaser.Scene {
 
   /** A resize / rotation waits for the next idle turn, then re-runs the layout (#418). */
   update(): void {
+    // Rare halos ride under their sprite through lunges and hits (#423).
+    for (const [glow, sprite] of [
+      [this.playerRareGlow, this.playerSprite],
+      [this.wildRareGlow, this.wildSprite],
+    ] as const) {
+      if (glow?.active) {
+        followRareGlow(glow, sprite);
+      }
+    }
     if (!this.reflowPending || this.battleEnded || !this.waitingForPlayer || this.switchMenuOpen || this.wandererFallbackOpen) {
       return;
     }
@@ -1044,6 +1058,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private syncPlayerPresenceTint(): void {
+    this.playerRareGlow?.destroy();
+    this.playerRareGlow = null;
     const index = this.resolvePartyIndex();
     if (index < 0) {
       this.playerSprite.clearTint();
@@ -1054,6 +1070,10 @@ export class BattleScene extends Phaser.Scene {
       this.playerSprite.setTint(presenceTintForCreature(creature));
     } else {
       this.playerSprite.clearTint();
+      // Same rare tint + halo as the overworld and party cards (#423).
+      if (creature) {
+        this.playerRareGlow = applyRareLook(this, this.playerSprite, creature);
+      }
     }
   }
 
@@ -1490,8 +1510,10 @@ export class BattleScene extends Phaser.Scene {
     if (this.zoneId) {
       onWildEncounterResolved(this.zoneId, this.wildCreatureId, "befriend");
     }
-    addToParty(this.wildCreatureId, this.wildLevel);
-    const line = `${this.wild.name} joined you!`;
+    const joined = addToParty(this.wildCreatureId, this.wildLevel);
+    // A rare roll shows on the spot, before the result card (#423).
+    this.wildRareGlow = applyRareLook(this, this.wildSprite, joined);
+    const line = `${this.wild.name} joined you!${joined.rare ? " A rare tint ✦" : ""}`;
     this.log(line);
     this.fx.confettiBurst(this.layout.banner.x, this.layout.arenaRegion.y + 40);
     this.finishBattle(
@@ -1687,14 +1709,15 @@ export class BattleScene extends Phaser.Scene {
         ? this.player.statuses
         : this.benchState.get(creature.instanceId)?.statuses;
       let statusX = rowX + rowW - 14;
-      const rightLabel = active ? "IN BATTLE" : fainted ? "FAINTED" : null;
+      // A fainted lead (forced switch) reads FAINTED, not IN BATTLE (#423).
+      const rightLabel = fainted ? "FAINTED" : active ? "IN BATTLE" : null;
       if (rightLabel) {
         const label = this.add
           .text(statusX, -rowH / 2 + 22, rightLabel, {
             fontFamily: HUD_FONT,
             fontSize: "13px",
             fontStyle: "bold",
-            color: active ? CARD.goldCss : CARD.mutedCss,
+            color: active && !fainted ? CARD.goldCss : CARD.mutedCss,
           })
           .setOrigin(1, 0.5);
         row.add(label);

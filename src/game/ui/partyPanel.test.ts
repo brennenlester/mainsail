@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   closeParty,
   creatureCardLabel,
+  giftNoteText,
   hpBarState,
   openParty,
   setPartyEditLocked,
@@ -144,5 +145,15 @@ describe("party panel cards", () => {
     const labels = Array.from(document.querySelectorAll("#party-detail button")).map((b) => b.textContent);
     expect(labels.some((l) => l?.startsWith("Gift"))).toBe(true);
     expect(labels).toContain("Rename");
+  });
+});
+
+describe("giftNoteText (#423)", () => {
+  const cooldown = { ok: false as const, reason: "Still savoring the last one (30s)." };
+  it("keeps the cooldown reason inline after a gift result", () => {
+    expect(giftNoteText("+6 bond", cooldown)).toBe("+6 bond Still savoring the last one (30s).");
+    expect(giftNoteText("", cooldown)).toBe(cooldown.reason);
+    expect(giftNoteText(cooldown.reason, cooldown)).toBe(cooldown.reason);
+    expect(giftNoteText("+6 bond", { ok: true })).toBe("+6 bond");
   });
 });

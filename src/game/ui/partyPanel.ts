@@ -270,8 +270,18 @@ function renderDetail(): void {
   });
   actions.append(giftBtn, renameBtn);
   root.appendChild(actions);
-  const note = detailNote || (check.ok ? "" : check.reason);
-  root.appendChild(el("p", "party-detail-note", note));
+  root.appendChild(el("p", "party-detail-note", giftNoteText(detailNote, check)));
+}
+
+/**
+ * Line under the gift button (#423): the last gift's result, and while the
+ * gift is unavailable, why (cooldown or daily cap) — inline, never only a tooltip.
+ */
+export function giftNoteText(last: string, check: { ok: true } | { ok: false; reason: string }): string {
+  if (check.ok) {
+    return last;
+  }
+  return last && last !== check.reason ? `${last} ${check.reason}` : check.reason;
 }
 
 /** One creature card: portrait, name, level, type chip, HP bar, bond hearts, nickname edit. */

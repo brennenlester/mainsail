@@ -104,6 +104,8 @@ export class TitleScene extends Phaser.Scene {
   private leaving = false;
   /** Name keys typed between New Game and the name form (#410). */
   private typedAhead: string | null = null;
+  /** Enter typed after a buffered name: submit once the form is up (#423). */
+  private submitAhead = false;
   private prompt?: Phaser.GameObjects.Text;
   private logoParts: Phaser.GameObjects.GameObject[] = [];
   private logoTweens: Phaser.Tweens.Tween[] = [];
@@ -125,6 +127,7 @@ export class TitleScene extends Phaser.Scene {
     this.started = false;
     this.leaving = false;
     this.typedAhead = null;
+    this.submitAhead = false;
     this.motion = !prefersReducedMotion();
     document.body.classList.add("title-active");
     this.layoutBoard();
@@ -939,6 +942,7 @@ export class TitleScene extends Phaser.Scene {
     }
     this.leaving = true;
     this.typedAhead = newGame ? "" : null;
+    this.submitAhead = false;
     // Pressing Enter/clicking here is a gesture too: make sure audio is live.
     unlockAudioFromGesture(this);
     setAudioScreen(undefined, this);
@@ -983,6 +987,15 @@ export class TitleScene extends Phaser.Scene {
         const max = input.maxLength > 0 ? input.maxLength : undefined;
         input.value = (this.typedAhead ?? "").slice(0, max);
         input.focus();
+        if (this.submitAhead) {
+          // Enter pressed before the form existed (#423): submit as if typed
+          // into it, once the world is up (same order as a normal submit).
+          this.scene.get("IsometricScene").events.once(Phaser.Scenes.Events.CREATE, () => {
+            if (input.isConnected && input.value.trim() !== "") {
+              input.form?.requestSubmit();
+            }
+          });
+        }
       }
     } else {
       showLoadingVeil("Waking the grove…");
@@ -999,11 +1012,12 @@ export class TitleScene extends Phaser.Scene {
 
   /** Collect plain name keys typed while leaving for New Game. */
   private bufferTypedAhead(event: KeyboardEvent): void {
-    if (this.typedAhead === null || event.ctrlKey || event.metaKey || event.altKey) {
+    if (this.typedAhead === null || this.submitAhead || event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
     const step = stepTypeAhead(this.typedAhead, event);
     this.typedAhead = step.buffer;
+    this.submitAhead = step.submit === true;
     if (step.consumed) {
       event.preventDefault();
     }

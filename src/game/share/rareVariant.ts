@@ -103,3 +103,20 @@ export function rareVariantTint(speciesId: string): number {
   const to255 = (v: number) => Math.round((v + m) * 255);
   return (to255(r) << 16) | (to255(g) << 8) | to255(b);
 }
+
+/**
+ * One rare look for every Phaser sprite (#423): overworld, battle, encounter
+ * card. `tint` is 0xffffff for species that keep their art (Cinderling stays
+ * ember); `glow` is the halo colour behind it. Null for a normal creature.
+ */
+export function rareSpriteLook(creature: {
+  rare?: boolean;
+  speciesId?: string;
+  definitionId: string;
+}): { tint: number; glow: number } | null {
+  if (!isRareVariant(creature)) {
+    return null;
+  }
+  const species = creature.speciesId ?? creature.definitionId;
+  return { tint: rareVariantTint(species), glow: rareVariantGlow(species) };
+}

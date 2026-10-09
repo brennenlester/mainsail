@@ -12,6 +12,13 @@ describe("name type-ahead (#410)", () => {
     expect(buffer).toBe("Tess");
   });
 
+  it("turns Enter after a typed name into a submit intent (#423)", () => {
+    expect(stepTypeAhead("Tess", key("Enter"))).toEqual({ buffer: "Tess", consumed: true, submit: true });
+    // Nothing typed yet: the New Game Enter echo is not a submit.
+    expect(stepTypeAhead("", key("Enter"))).toEqual({ buffer: "", consumed: false });
+    expect(stepTypeAhead("  ", key("Enter")).submit).toBeUndefined();
+  });
+
   it("ignores a leading space and named keys without consuming them", () => {
     expect(stepTypeAhead("", key(" "))).toEqual({ buffer: "", consumed: false });
     expect(stepTypeAhead("Ab", key("Shift"))).toEqual({ buffer: "Ab", consumed: false });

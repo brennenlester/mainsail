@@ -617,8 +617,10 @@ export class StoryBattleUi {
     if (!this.motion.reduced) {
       s.cameras.main.flash(160, 255, 236, 160);
     }
+    // On the boss's body, not above it: head height is where the next-move
+    // plate redraws, and the pop used to sit on top of it (#423).
     const pop = s.add
-      .text(sprite.x, sprite.y - sprite.displayHeight - 8, "PARRIED! STAGGERED", {
+      .text(sprite.x, sprite.y - sprite.displayHeight * 0.5, "PARRIED! STAGGERED", {
         fontFamily: "system-ui, sans-serif",
         fontStyle: "bold",
         fontSize: "22px",
