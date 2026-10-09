@@ -184,6 +184,7 @@ describe("trial record (#420)", () => {
       { claims: [] },
       { bonusDays: [DAY, "2026-10-08", "2026-10-08", null] },
       { bonusDays: "2026-10-08" },
+      { eclipseGateToastShown: "yes", attempted: { x: 1 } },
       JSON.parse('{"__proto__": {"polluted": true}, "best": {"__proto__": {"x": 1}}}'),
     ];
     for (const raw of hostile) {

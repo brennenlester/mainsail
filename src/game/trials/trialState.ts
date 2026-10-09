@@ -30,6 +30,8 @@ export type TrialRecord = {
   bonusDays: string[];
   /** A host trial has been played to its end once (drives the Gate pointer, #423). */
   attempted: boolean;
+  /** The one-time Eclipse Gate pointer toast has been shown (#423): finale card or first world load. */
+  eclipseGateToastShown: boolean;
 };
 
 export const BEST_DAYS_KEPT = 30;
@@ -54,6 +56,7 @@ export function emptyTrialRecord(): TrialRecord {
     claims: {},
     bonusDays: [],
     attempted: false,
+    eclipseGateToastShown: false,
   };
 }
 
@@ -139,6 +142,7 @@ export function sanitizeTrialRecord(raw: unknown, today: TrialDay = todayTrialDa
   }
   // Older saves never stored the flag: any recorded score means a trial was played.
   out.attempted = raw.attempted === true || Object.keys(out.best).length > 0;
+  out.eclipseGateToastShown = raw.eclipseGateToastShown === true;
   return out;
 }
 
@@ -156,13 +160,22 @@ export function getTrialRecordSnapshot(): TrialRecord | undefined {
     r.lastClearedDay === null &&
     Object.keys(r.claims).length === 0 &&
     r.bonusDays.length === 0 &&
-    !r.attempted;
+    !r.attempted &&
+    !r.eclipseGateToastShown;
   return untouched ? undefined : structuredClone(r);
 }
 
 /** True once a host trial has been settled (any outcome). */
 export function hasAttemptedTrial(): boolean {
   return record.attempted;
+}
+
+export function hasShownEclipseGateToast(): boolean {
+  return record.eclipseGateToastShown;
+}
+
+export function markEclipseGateToastShown(): void {
+  record.eclipseGateToastShown = true;
 }
 
 export function bestScoreFor(day: TrialDay): number | null {

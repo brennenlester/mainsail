@@ -20,6 +20,7 @@ export const TRIAL_BRAG_PARAM = "by";
 export const TRIAL_BRAG_VERSION = 1;
 export const TRIAL_BRAG_MAX_LENGTH = 512;
 export const TRIAL_BRAG_PARTY_LIMIT = 7;
+const MAX_BRAG_ROUNDS = 5;
 export const TRIAL_FALLBACK_NAME = "A friend";
 
 const ALLOWED_IDS: ReadonlySet<string> = new Set(CREATURES.map((c) => c.id));
@@ -106,7 +107,9 @@ export function decodeTrialBrag(raw: string | null): TrialBrag | null {
     o.p.length > TRIAL_BRAG_PARTY_LIMIT ||
     !o.p.every((id) => typeof id === "string" && ALLOWED_IDS.has(id)) ||
     // A brag must be self-consistent: the title its score earns, rounds it could score.
-    o.t !== trialTitleIndex(o.s, o.r) ||
+    // Links made before #424 carry the score-only title (a 4-round loss could
+    // reach Shade Breaker+): accepted as a compat window, nothing looser.
+    (o.t !== trialTitleIndex(o.s, o.r) && o.t !== trialTitleIndex(o.s, MAX_BRAG_ROUNDS)) ||
     o.s < minScoreFor(o.r)
   ) {
     return null;

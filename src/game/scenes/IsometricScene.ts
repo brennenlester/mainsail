@@ -111,7 +111,15 @@ import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
-import { eclipseTrialHint } from "../trials/trialUnlock";
+import {
+  BOAT_LOAD_MAX_ATTEMPTS,
+  BOAT_LOAD_RETRY_MS,
+  boatRetryUrl,
+  canStartBoatLoad,
+  freshBoatLoadState,
+  noteBoatLoadFailed,
+} from "../render/boatLoadRetry";
+import { claimEclipseGateToast, isTrialsUnlocked } from "../trials/trialUnlock";
 import type { SailingBoat } from "../render/sailingBoat";
 import { claimFinaleCard } from "../finale/finaleTrigger";
 import { playerParty } from "../creatures/party";
@@ -367,13 +375,17 @@ export class IsometricScene extends Phaser.Scene {
       onContinue: () => {
         updateStatusPanel(getZone(this.currentZoneId));
         // One-time pointer to the post-game Eclipse Gate (#423), after the quest toast.
-        const hint = eclipseTrialHint();
+        const hint = claimEclipseGateToast();
         if (hint) {
+          notifyWorldChanged();
+          this.eclipseToastChecked = true;
           this.time.delayedCall(3200, () => this.showGatherToast(hint, true, 5200));
         }
       },
     });
   };
+  /** The world-load Eclipse Gate toast check ran (old finished saves, #423). */
+  private eclipseToastChecked = false;
   private layoutLocked = false;
   private isMoving = false;
   /** Distance-driven gait phase (cycles); advances only when a step applies. */
@@ -385,7 +397,7 @@ export class IsometricScene extends Phaser.Scene {
   private sailingBoat?: SailingBoat;
   /** Boat code loads on the first voyage (#423): kept out of the boot bundle. */
   private sailingBoatModule?: typeof import("../render/sailingBoat");
-  private sailingBoatLoading = false;
+  private sailingBoatLoad = freshBoatLoadState();
   /** Active-party overworld sprites (presence tell). */
   private partyFollowers: PartyOverworldFollowerState =
     createPartyOverworldFollowerState();
@@ -615,6 +627,7 @@ export class IsometricScene extends Phaser.Scene {
 
     this.updateQuestToast();
     this.updateAchievementToast();
+    this.updateEclipseGateToast();
     this.companions?.update();
     if (this.currentZoneId === "archipelago") {
       this.islandBakes.tick();
@@ -2607,18 +2620,32 @@ export class IsometricScene extends Phaser.Scene {
     if (!isSailing()) {
       this.sailingBoat?.destroy();
       this.sailingBoat = undefined;
+      // A new voyage gets a fresh set of load attempts.
+      if (!this.sailingBoatLoad.loading && this.sailingBoatLoad.failures > 0) {
+        this.sailingBoatLoad = freshBoatLoadState();
+      }
       return 0;
     }
     if (!this.sailingBoat) {
       if (!this.sailingBoatModule) {
-        if (!this.sailingBoatLoading) {
-          this.sailingBoatLoading = true;
-          void import("../render/sailingBoat")
+        const now = performance.now();
+        if (canStartBoatLoad(this.sailingBoatLoad, now)) {
+          this.sailingBoatLoad.loading = true;
+          const retryUrl = boatRetryUrl(this.sailingBoatLoad);
+          (retryUrl
+            ? (import(/* @vite-ignore */ retryUrl) as Promise<typeof import("../render/sailingBoat")>)
+            : import("../render/sailingBoat")
+          )
             .then((m) => {
               this.sailingBoatModule = m;
+              this.sailingBoatLoad.loading = false;
             })
-            .finally(() => {
-              this.sailingBoatLoading = false;
+            .catch((error: unknown) => {
+              noteBoatLoadFailed(this.sailingBoatLoad, performance.now(), error);
+              // One timer per failure (not per frame): the attempt below re-checks the backoff.
+              if (this.sailingBoatLoad.failures < BOAT_LOAD_MAX_ATTEMPTS) {
+                this.time.delayedCall(BOAT_LOAD_RETRY_MS + 50, () => this.syncPlayerToGrid());
+              }
             });
         }
         return 0;
@@ -2672,6 +2699,30 @@ export class IsometricScene extends Phaser.Scene {
       this.questToast?.destroy();
       this.questToast = undefined;
     });
+  }
+
+  /**
+   * Saves that finished the story before the Gate toast existed get it once on
+   * the first world load, after the zone title card and any cutscene (#423).
+   */
+  private updateEclipseGateToast(): void {
+    if (this.eclipseToastChecked) {
+      return;
+    }
+    if (isVisitorMode() || !isTrialsUnlocked()) {
+      this.eclipseToastChecked = true;
+      return;
+    }
+    if (isCutsceneActive() || isZoneTitleCardShowing() || this.fx?.hasPendingTitle()) {
+      return;
+    }
+    this.eclipseToastChecked = true;
+    const hint = claimEclipseGateToast();
+    if (hint) {
+      notifyWorldChanged();
+      // Brief beat so a queued quest toast (same slot) is not clobbered.
+      this.time.delayedCall(1500, () => this.showGatherToast(hint, true, 5200));
+    }
   }
 
   private updateAchievementToast(): void {

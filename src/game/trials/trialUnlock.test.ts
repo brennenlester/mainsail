@@ -10,7 +10,7 @@ import {
   setTrialRecordFromSnapshot,
   settleTrialRun,
 } from "./trialState";
-import { ECLIPSE_TRIAL_HINT, eclipseTrialHint } from "./trialUnlock";
+import { claimEclipseGateToast, ECLIPSE_TRIAL_HINT, eclipseTrialHint } from "./trialUnlock";
 
 const DAY = parseTrialDayKey("2026-10-08")!;
 
@@ -55,5 +55,42 @@ describe("Eclipse Trial hint lifecycle (#423)", () => {
     expect(eclipseTrialHint()).toBeNull();
     expect(sanitizeTrialRecord({ best: { "2026-10-07": 900 } }, DAY).attempted).toBe(true);
     expect(sanitizeTrialRecord({}, DAY).attempted).toBe(false);
+  });
+
+  it("the one-time Gate toast fires once for a finished save, then never again (#423)", () => {
+    questProgress["shrine-finale"] = "locked";
+    expect(claimEclipseGateToast()).toBeNull();
+    questProgress["shrine-finale"] = "complete";
+    expect(claimEclipseGateToast()).toBe(ECLIPSE_TRIAL_HINT);
+    expect(claimEclipseGateToast()).toBeNull();
+    // Survives a save/load round-trip: no repeat on the next visit.
+    const saved = getTrialRecordSnapshot();
+    expect(saved?.eclipseGateToastShown).toBe(true);
+    resetTrialRecordForTest();
+    expect(claimEclipseGateToast()).toBe(ECLIPSE_TRIAL_HINT);
+    resetTrialRecordForTest();
+    setTrialRecordFromSnapshot(saved);
+    expect(claimEclipseGateToast()).toBeNull();
+  });
+
+  it("never claims the Gate toast for visitors (flag stays unset) or after a played trial", () => {
+    questProgress["shrine-finale"] = "complete";
+    setVisitorMode(true);
+    expect(claimEclipseGateToast()).toBeNull();
+    expect(getTrialRecordSnapshot()).toBeUndefined();
+    setVisitorMode(false);
+    settleTrialRun(DAY, { score: 0, rounds: 0, totalRounds: 5 }, true, DAY);
+    expect(claimEclipseGateToast()).toBeNull();
+  });
+
+  it("reads the flag leniently: only a literal true counts", () => {
+    for (const bad of [1, "true", null, [], {}, "yes"]) {
+      expect(sanitizeTrialRecord({ eclipseGateToastShown: bad }, DAY).eclipseGateToastShown).toBe(false);
+    }
+    expect(sanitizeTrialRecord("hostile", DAY).eclipseGateToastShown).toBe(false);
+    expect(sanitizeTrialRecord({ eclipseGateToastShown: true }, DAY).eclipseGateToastShown).toBe(true);
+    // A flag-only record still persists.
+    setTrialRecordFromSnapshot({ eclipseGateToastShown: true });
+    expect(getTrialRecordSnapshot()?.eclipseGateToastShown).toBe(true);
   });
 });

@@ -220,8 +220,10 @@ const MATCHUP_COLOR: Readonly<Record<MatchupResult, string>> = {
 
 /** Befriend breakdown tip: on touch it lapses fast (#388). */
 const BEFRIEND_TIP_TOUCH_MS = 2500;
-// Quoted: an unquoted family name containing a digit makes the canvas font string invalid.
+
+/** Battle HUD text font: the shared card font (already quoted for canvas). */
 const HUD_FONT = CARD_FONT;
+
 /** Space on a plate right of the HP bar for "34/34". */
 const PLATE_HP_TEXT_W = 58;
 

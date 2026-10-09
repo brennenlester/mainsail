@@ -47,12 +47,12 @@ export function teardownTrialSceneState(state: TrialSceneRunState): TrialSceneRu
   return freshTrialSceneState();
 }
 
-export type TrialFaultAction = "lose-round" | "finish" | "ignore";
+export type TrialFaultAction = "stop-battle" | "abort" | "ignore";
 
 /**
  * What a runtime error during a trial does (#423): never a silent restart.
- * Mid-battle the round counts as lost and the results screen comes up;
- * between rounds the run is scored as it stands; once results (or the exit)
+ * The run ends unscored (party restored, nothing recorded) with a note on
+ * screen; a battle in play is stopped first. Once results (or the exit)
  * are showing, nothing more happens.
  */
 export function trialFaultAction(
@@ -62,5 +62,5 @@ export function trialFaultAction(
   if (exiting || phase === null || phase === "done") {
     return "ignore";
   }
-  return phase === "battle" ? "lose-round" : "finish";
+  return phase === "battle" ? "stop-battle" : "abort";
 }

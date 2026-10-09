@@ -143,9 +143,9 @@ Filling every codex page (all 27 creatures that appear in habitat encounter tabl
 
 ### Eclipse Trials (post-game)
 
-1. After the finale (or on an older save that already finished the story) an **Eclipse Gate** sigil glows in the Moon Shrine yard, north of the altar; the dock's **…** menu also gets **Eclipse Trial (daily)**.
+1. After the finale (or on an older save that already finished the story) an **Eclipse Gate** sigil glows in the Moon Shrine yard, north of the altar; the dock's **…** menu also gets **Eclipse Trial (daily)**. To start: stand next to the Gate and press **E** (or pick it from the menu). A one-time toast points it out the first time you load a finished save.
 2. A trial is five battles with your real party — four seeded foes at your party's average level +0..+3, then the **Eclipse Shade** boss (two forms, telegraphed Umbral Eclipse: Guard the turn after she gathers the dark). Each round shows its 1-2 Eclipse modifiers first (Kindled, Twin Shadows, Rootbound, Glass Cannons, Soaked Arena, Moonfed, Short Fuse, Iron Hide). After each cleared round pick one of three boons (keys 1-3) or skip it for score (4 / S).
-3. The seed is the UTC date, so everyone gets the same gauntlet each day. No befriending and nothing to lose: a faint ends the trial and the party (HP, XP, bond, items) is restored exactly. Saving pauses during a trial, so closing the tab mid-trial keeps your pre-trial save.
+3. The seed is the **UTC date** (the screen shows it as "(UTC)" and when the next trial opens), so everyone gets the same gauntlet each day. No befriending and nothing to lose: a faint ends the trial and the party (HP, XP, bond, items) is restored exactly. Saving pauses during a trial, so closing the tab mid-trial keeps your pre-trial save. If something breaks mid-run, the trial ends with a note, unscored, and your party is restored.
 4. Score = rounds cleared + speed + grit (little damage taken) + perfect parries + skipped boons → a title from Ember Initiate to Eclipse Warden. Once per UTC day: Folklore Dust by rounds cleared (3+ rounds; top-up only, 7 max) and, on the first full clear, a small seeded chance of a rare tint for the lead (otherwise a small bond bump).
 5. **Share result** paints a 1080×1350 Trial Result card and a `?trial=YYYY-MM-DD&by=<code>` link. Friends get a "Beat my score" preview; **Try it** runs that day's trial as a sandboxed practice run (their finished party, or a borrowed Lv 9 trio) that never writes a save.
 
@@ -177,8 +177,10 @@ Host progress (party, inventory, quests, position, gate) lives in `localStorage`
 
 **Requirements:** Node.js 20.9+ and npm.
 
+**Play on localhost:** `npm ci && npm run dev`, then open http://localhost:5173. Your save lives in that origin's `localStorage`; append `?new=1` to start fresh.
+
 ```bash
-npm install
+npm ci                    # or npm install
 npm run test:e2e:install  # once: Playwright Chromium
 npm run dev               # http://localhost:5173
 npm test                  # Vitest unit tests
@@ -211,7 +213,7 @@ Tiled is not in the toolbelt: zones stay TypeScript grids in `src/game/world/zon
 These are for local development only; they are not part of normal play:
 
 - **U** — toggle the overworld gate without completing Story 2
-- `?encounter=<creatureId>` / `?spar=<creatureId>` — launch a preview encounter/spar in the Vite dev server
+- `?encounter=<creatureId>` / `?spar=<creatureId>` — launch a preview encounter/spar in the Vite dev server (dev server only)
 
 ### Project layout
 

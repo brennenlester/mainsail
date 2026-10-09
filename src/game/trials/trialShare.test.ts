@@ -77,6 +77,19 @@ describe("trial share links (#420)", () => {
     expect(decodeTrialBrag(code({ ...ok, s: 3000, t: 2, r: 3 }))).not.toBeNull();
   });
 
+  it("still opens brags made before #424, when a loss could earn a boss-gated title", () => {
+    // Old rule: title = raw score band, whatever the rounds.
+    const legacy = { v: 1, n: "Finn", s: 5000, r: 4, t: 3, p: ["mossling"] };
+    expect(decodeTrialBrag(code(legacy))).toEqual({ name: "Finn", score: 5000, rounds: 4, title: 3, party: ["mossling"] });
+    // New-rule title for the same run is also fine.
+    expect(decodeTrialBrag(code({ ...legacy, t: 2 }))).not.toBeNull();
+    // Compat is not a free pass: neither a band above nor a wrong score band.
+    expect(decodeTrialBrag(code({ ...legacy, t: 4 }))).toBeNull();
+    expect(decodeTrialBrag(code({ ...legacy, t: 1 }))).toBeNull();
+    // A score too low for its claimed rounds is still dropped.
+    expect(decodeTrialBrag(code({ ...legacy, s: 100, r: 5, t: 0 }))).toBeNull();
+  });
+
   it("rejects every off-shape payload", () => {
     const valid = { v: 1, n: "Finn", s: 1200, r: 1, t: 0, p: ["mossling"] };
     const variants: unknown[] = [

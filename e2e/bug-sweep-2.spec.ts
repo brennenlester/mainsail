@@ -188,17 +188,25 @@ test("mashing a cooling card never drifts it sideways and throttles the feedback
   expect(sounds).toBeLessThanOrEqual(1);
 });
 
-test("move card titles wrap instead of collapsing to 'Bar…' on a 320px phone", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 568 });
-  await startSpar(page);
-  const titles = (await battle(
+for (const webfonts of [true, false]) {
+  test(`move card titles wrap instead of collapsing to 'Bar…' on a 320px phone (${webfonts ? "webfonts" : "fallback font"})`, async ({
     page,
-    `(s) => s.moveCards.map((c) => c.container.list.filter((o) => o.type === "Text").map((o) => o.text))`,
-  )) as string[][];
-  const flat = titles.flat();
-  expect(flat).toContain("Bark Hide");
-  expect(flat).not.toContain("Bar…");
-});
+  }) => {
+    if (!webfonts) {
+      // Offline / slow Google Fonts: text is measured in the fallback face (wider).
+      await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
+    }
+    await page.setViewportSize({ width: 320, height: 568 });
+    await startSpar(page);
+    const titles = (await battle(
+      page,
+      `(s) => s.moveCards.map((c) => c.container.list.filter((o) => o.type === "Text").map((o) => o.text))`,
+    )) as string[][];
+    const flat = titles.flat();
+    expect(flat).toContain("Bark Hide");
+    expect(flat).not.toContain("Bar…");
+  });
+}
 
 test("the just-joined nickname prompt does not steal WASD", async ({ page }) => {
   await newGame(page, "Walker");
