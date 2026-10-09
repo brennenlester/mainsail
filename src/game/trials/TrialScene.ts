@@ -36,7 +36,7 @@ import { formatTrialDay, nextTrialIn, type TrialDay } from "./trialSeed";
 import { bestScoreFor, currentStreak } from "./trialState";
 import { openTrialShare, renderTrialCardBlob } from "./trialShareActions";
 import { TrialOverlay, type PipState } from "./trialUi";
-import { freshTrialSceneState, teardownTrialSceneState, type TrialSceneRunState } from "./trialSceneState";
+import { freshTrialSceneState, teardownTrialSceneState, trialFaultAction, type TrialSceneRunState } from "./trialSceneState";
 import { TrialBattleStrip } from "./trialBattleHud";
 import { syncEclipseTrialMenu } from "./trialMenu";
 
@@ -97,7 +97,11 @@ export class TrialScene extends Phaser.Scene {
   create(): void {
     document.body.classList.add("trial-active");
     const release = bindCutscene(this);
+    window.addEventListener("error", this.onFault);
+    window.addEventListener("unhandledrejection", this.onFault);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener("error", this.onFault);
+      window.removeEventListener("unhandledrejection", this.onFault);
       release();
       document.body.classList.remove("trial-active");
       this.scale.off("resize", this.drawSky, this);
@@ -127,6 +131,36 @@ export class TrialScene extends Phaser.Scene {
     }
     this.showPreview();
   }
+
+  /**
+   * Defensive guard (#423): an error thrown inside a round (BattleScene,
+   * a trial hook, a DOM handler) ends the run on the results screen instead
+   * of freezing or restarting. A throw inside Phaser's frame callback stops
+   * its rAF loop, so the loop is restarted after the broken battle is
+   * queued to stop.
+   */
+  private onFault = (event: ErrorEvent | PromiseRejectionEvent): void => {
+    // Benign browser notices (ResizeObserver loop) arrive as errors with no Error object.
+    if ("error" in event && !event.error) {
+      return;
+    }
+    const action = trialFaultAction(getTrialRun()?.phase ?? null, this.s.exiting);
+    if (action === "ignore") {
+      return;
+    }
+    console.error("Eclipse Trial: ending the run after an error", "error" in event ? event.error : event.reason);
+    if (action === "lose-round") {
+      this.s.detachBattle?.();
+      this.clearWatchdog();
+      this.scene.stop("BattleScene");
+      this.onRoundClosed(false);
+    } else {
+      this.showResults(finishTrial());
+    }
+    const loop = this.game.loop;
+    loop.sleep();
+    loop.wake();
+  };
 
   /** The dock is hidden for the whole trial: size the canvas to the full stage. */
   private fitStage(): void {

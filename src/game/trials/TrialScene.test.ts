@@ -55,3 +55,15 @@ describe("TrialScene per-run state (#420 review)", () => {
     expect(Object.values(b).every((v) => v === null || v === 0 || v === false)).toBe(true);
   });
 });
+
+describe("trial fault guard (#423)", () => {
+  it("turns an error into a scored end, never a restart", async () => {
+    const { trialFaultAction } = await import("./trialSceneState");
+    expect(trialFaultAction("battle", false)).toBe("lose-round");
+    expect(trialFaultAction("preview", false)).toBe("finish");
+    expect(trialFaultAction("boon", false)).toBe("finish");
+    expect(trialFaultAction("done", false)).toBe("ignore");
+    expect(trialFaultAction(null, false)).toBe("ignore");
+    expect(trialFaultAction("battle", true)).toBe("ignore");
+  });
+});

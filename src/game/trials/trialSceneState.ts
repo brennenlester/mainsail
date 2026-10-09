@@ -46,3 +46,21 @@ export function teardownTrialSceneState(state: TrialSceneRunState): TrialSceneRu
   }
   return freshTrialSceneState();
 }
+
+export type TrialFaultAction = "lose-round" | "finish" | "ignore";
+
+/**
+ * What a runtime error during a trial does (#423): never a silent restart.
+ * Mid-battle the round counts as lost and the results screen comes up;
+ * between rounds the run is scored as it stands; once results (or the exit)
+ * are showing, nothing more happens.
+ */
+export function trialFaultAction(
+  phase: "preview" | "battle" | "boon" | "done" | null,
+  exiting: boolean,
+): TrialFaultAction {
+  if (exiting || phase === null || phase === "done") {
+    return "ignore";
+  }
+  return phase === "battle" ? "lose-round" : "finish";
+}
