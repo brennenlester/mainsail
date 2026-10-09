@@ -34,6 +34,8 @@ export type TrialSimResult = {
   roundsCleared: number;
   cleared: boolean;
   boons: (BoonId | null)[];
+  /** Per-round records (turns, damage) for pacing checks. */
+  rounds: TrialRoundRecord[];
 };
 
 const MAX_TURNS = 80;
@@ -190,6 +192,7 @@ export function simulateTrial(setup: TrialSimSetup, seed: number, plan: TrialPla
       round,
       partyAverage: setup.level,
       partySize: standing,
+      rosterSize: setup.party.length,
       partyStrength: trialPartyStrength(setup.party),
       boons: pending,
       maxLevel: MAX_LEVEL,
@@ -239,7 +242,7 @@ export function simulateTrial(setup: TrialSimSetup, seed: number, plan: TrialPla
   }
   const used = picked.filter((b) => b !== null).length;
   const score = scoreTrial(records, { used, skipped: picked.length - used }, plan.rounds.length);
-  return { score, roundsCleared: score.roundsCleared, cleared: score.cleared, boons: picked };
+  return { score, roundsCleared: score.roundsCleared, cleared: score.cleared, boons: picked, rounds: records };
 }
 
 export type TrialSimStats = {

@@ -72,13 +72,19 @@ export function speciesOf(creature: Pick<CreatureInstance, "speciesId" | "defini
   return creature.speciesId ?? creature.definitionId;
 }
 
-export function canGift(creature: CreatureInstance, now = Date.now()): GiftCheck {
-  const materialId = getFavoriteMaterial(speciesOf(creature));
+/** Milliseconds until this creature takes another gift (0 = no cooldown). */
+export function giftCooldownLeftMs(creature: CreatureInstance, now = Date.now()): number {
   // The cooldown lives on the creature so a reload does not skip it (#417).
   // A stamp in the future (clock set back) counts as expired, not as hours of cooldown.
   const since = now - (creature.lastGiftAt ?? -Infinity);
-  if (since >= 0 && since < GIFT_COOLDOWN_MS) {
-    const s = Math.ceil((GIFT_COOLDOWN_MS - since) / 1000);
+  return since >= 0 && since < GIFT_COOLDOWN_MS ? GIFT_COOLDOWN_MS - since : 0;
+}
+
+export function canGift(creature: CreatureInstance, now = Date.now()): GiftCheck {
+  const materialId = getFavoriteMaterial(speciesOf(creature));
+  const left = giftCooldownLeftMs(creature, now);
+  if (left > 0) {
+    const s = Math.ceil(left / 1000);
     return { ok: false, reason: `Still savoring the last one (${s}s).`, materialId };
   }
   if (bondRoomToday(creature, new Date(now)) <= 0) {

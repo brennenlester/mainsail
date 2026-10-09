@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { CreatureInstance } from "../../creatures/types";
 import { LEVEL_XP_THRESHOLDS } from "../../progression/leveling";
 import type { SparRewardSummary } from "../sparRewards";
 import {
   BASE_TIMINGS,
   battleTimings,
+  fastBattleEnabled,
+  noteBattleWonForFast,
+  setFastBattleEnabled,
   burstCount,
   HIT_PAUSE_MAX_MS,
   HIT_PAUSE_MIN_MS,
@@ -236,5 +239,35 @@ describe("victory summary", () => {
       [0, 1],
       [0, 0.25],
     ]);
+  });
+});
+
+describe("Fast battles turn on after the second win (#426)", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("defaults off, turns on after two won battles, and saves it", () => {
+    expect(fastBattleEnabled()).toBe(false);
+    expect(noteBattleWonForFast()).toBe(false);
+    expect(fastBattleEnabled()).toBe(false);
+    expect(noteBattleWonForFast()).toBe(true);
+    expect(fastBattleEnabled()).toBe(true);
+    expect(window.localStorage.getItem("ivyward-fast-battle")).toBe("1");
+  });
+
+  it("never overrides a choice the player made", () => {
+    setFastBattleEnabled(false);
+    for (let i = 0; i < 5; i++) {
+      expect(noteBattleWonForFast()).toBe(false);
+    }
+    expect(fastBattleEnabled()).toBe(false);
+  });
+
+  it("turning it off after the auto switch sticks", () => {
+    noteBattleWonForFast();
+    noteBattleWonForFast();
+    setFastBattleEnabled(false);
+    noteBattleWonForFast();
+    noteBattleWonForFast();
+    expect(fastBattleEnabled()).toBe(false);
   });
 });

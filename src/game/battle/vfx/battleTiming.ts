@@ -32,6 +32,34 @@ export function setFastBattleEnabled(enabled: boolean): void {
   }
 }
 
+const WINS_KEY = "ivyward-fast-battle-wins";
+/** Won battles before Fast turns itself on for a player who never set it (#426). */
+export const FAST_AUTO_AFTER_WINS = 2;
+
+/**
+ * Count a won battle. On the second, a player who never touched the Fast
+ * toggle gets Fast on, saved like a toggle press; any explicit choice (on or
+ * off) sticks and is never overridden. True when this call turned Fast on.
+ */
+export function noteBattleWonForFast(): boolean {
+  try {
+    const storage = window.localStorage;
+    if (storage.getItem(FAST_KEY) !== null) {
+      return false;
+    }
+    const wins = (Number(storage.getItem(WINS_KEY)) || 0) + 1;
+    if (wins < FAST_AUTO_AFTER_WINS) {
+      storage.setItem(WINS_KEY, String(wins));
+      return false;
+    }
+    storage.setItem(FAST_KEY, "1");
+    storage.removeItem(WINS_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function fastBattleLabel(enabled: boolean): string {
   return enabled ? "Fast ▸▸ On" : "Fast ▸▸ Off";
 }

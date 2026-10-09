@@ -166,6 +166,26 @@ test("a full Eclipse Trial through the gate, boons and the share card", async ({
   await expect(overlay.locator("img.trial-card-img")).toHaveAttribute("src", /^blob:/, { timeout: 20_000 });
   await page.waitForTimeout(1200);
   await shot(page, "07-results");
+  // #426: Done / Share are on screen without scrolling at every reference size.
+  const viewport = page.viewportSize();
+  for (const [width, height] of [
+    [1280, 800],
+    [1024, 768],
+    [390, 844],
+    [844, 390],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(150);
+    for (const name of ["Done", "Share result"]) {
+      const box = await page.getByRole("button", { name }).boundingBox();
+      expect(box, `${name} at ${width}x${height}`).not.toBeNull();
+      expect(box!.y + box!.height, `${name} at ${width}x${height}`).toBeLessThanOrEqual(height);
+      expect(box!.y, `${name} at ${width}x${height}`).toBeGreaterThanOrEqual(0);
+    }
+  }
+  if (viewport) {
+    await page.setViewportSize(viewport);
+  }
   // The share sheet paints the 1080x1350 PNG.
   await page.getByRole("button", { name: "Share result" }).click();
   const sheet = page.locator("#share-overlay");

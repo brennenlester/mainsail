@@ -57,7 +57,33 @@ describe("Eclipse Trial balance (#420)", () => {
     expect(typical.clearRate).toBeLessThan(skilled.clearRate);
   }, 120_000);
 
-  it("no class finds a day unwinnable: skilled floor >= 15% on each of 365 days, median 30-55%", () => {
+  it("paces rounds 1-4 at ~6-9 turns and the boss as the longest fight (#426)", () => {
+    // #426 playtest: rounds 7/7/15/11/7 turns, a ~5 minute trial with a short boss.
+    const turns = [0, 0, 0, 0, 0];
+    const cleared = [0, 0, 0, 0, 0];
+    for (const party of ALL_PARTIES) {
+      for (const day of SAMPLE_DAYS.slice(0, 20)) {
+        const plan = buildTrialPlan(day);
+        for (let i = 0; i < 3; i++) {
+          simulateTrial({ party, level: REFERENCE_LEVEL, policy: "skilled", day }, day * 1000 + i, plan).rounds.forEach((r, k) => {
+            if (r.cleared) {
+              turns[k]! += r.turns;
+              cleared[k]! += 1;
+            }
+          });
+        }
+      }
+    }
+    const avg = turns.map((t, k) => t / Math.max(1, cleared[k]!));
+    console.info(`skilled turns per cleared round ${avg.map((t) => t.toFixed(1)).join(" / ")}`);
+    for (const k of [0, 1, 2, 3]) {
+      expect(avg[k]!, `round ${k + 1}`).toBeGreaterThanOrEqual(6);
+      expect(avg[k]!, `round ${k + 1}`).toBeLessThanOrEqual(9);
+    }
+    expect(avg[4]!).toBeGreaterThan(Math.max(...avg.slice(0, 4)));
+  }, 120_000);
+
+  it("no class finds a day unwinnable: skilled floor >= 15% on each of 365 days, median ~45-55%", () => {
     const rates: Record<string, number[]> = {};
     for (let day = START; day < START + 365; day++) {
       const plan = buildTrialPlan(day);
@@ -79,7 +105,7 @@ describe("Eclipse Trial balance (#420)", () => {
       const median = sorted[Math.floor(sorted.length / 2)]!;
       console.info(`${name.padEnd(12)} worst day ${pct(worst)}  median ${pct(median)}`);
       expect(worst, name).toBeGreaterThanOrEqual(0.15);
-      expect(median, name).toBeGreaterThanOrEqual(0.3);
+      expect(median, name).toBeGreaterThanOrEqual(0.42);
       expect(median, name).toBeLessThanOrEqual(0.55);
     }
   }, 180_000);

@@ -50,6 +50,7 @@ import {
   getStorySparLossStreaks,
   getHearthWard,
   getStoryBattleInit,
+  healPartyIfStoryComplete,
   grantCoverageGift,
   setStorySparLossStreaks,
 } from "./storySpar";
@@ -251,6 +252,37 @@ describe("story spar resolution", () => {
     resolveStorySpar(true);
     expect(getActiveQuestId()).toBe("shrine-finale");
     expect(getItemCount("moonwake-draught")).toBe(1);
+  });
+
+  it("restores the party after the Matriarch win, not after a Wren win (#426)", () => {
+    restoreQuestProgress(progressAt("cinder-matriarch"));
+    beginStorySpar("cinder-matriarch");
+    playerParty.creatures[0]!.currentHp = 0;
+    resolveStorySpar(true);
+    expect(playerParty.creatures.every((c) => c.currentHp === getEffectiveMaxHp(c))).toBe(true);
+    expect(consumeStorySparOutcome("cinder-matriarch")?.healed).toBe(true);
+
+    restoreQuestProgress(progressAt("rival-wren"));
+    for (const c of playerParty.creatures) c.currentHp = 1;
+    beginStorySpar("rival-wren");
+    resolveStorySpar(true);
+    expect(consumeStorySparOutcome("rival-wren")?.healed).toBe(false);
+  });
+
+  it("a finished story loads with the party healed; never mid-story or mid-spar (#426)", () => {
+    for (const c of playerParty.creatures) c.currentHp = 0;
+    expect(healPartyIfStoryComplete()).toBe(false);
+    expect(playerParty.creatures.every((c) => c.currentHp === 0)).toBe(true);
+    const done = createEmptyQuestProgress();
+    for (const id of QUEST_ORDER) done[id] = "complete";
+    restoreQuestProgress(done);
+    expect(healPartyIfStoryComplete()).toBe(true);
+    expect(playerParty.creatures.every((c) => c.currentHp === getEffectiveMaxHp(c))).toBe(true);
+    expect(healPartyIfStoryComplete()).toBe(false);
+    beginStorySpar("rival-wren");
+    playerParty.creatures[0]!.currentHp = 0;
+    expect(healPartyIfStoryComplete()).toBe(false);
+    forfeitStorySpar();
   });
 
   it("refuses to start with a fully fainted party or for visitors", () => {

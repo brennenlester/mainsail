@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GIFT_COOLDOWN_MS } from "../companions/companionState";
+import { getFavoriteMaterial } from "../companions/favorites";
+import { addMaterial } from "../inventory/playerInventory";
 import {
   closeParty,
   creatureCardLabel,
@@ -145,6 +148,30 @@ describe("party panel cards", () => {
     const labels = Array.from(document.querySelectorAll("#party-detail button")).map((b) => b.textContent);
     expect(labels.some((l) => l?.startsWith("Gift"))).toBe(true);
     expect(labels).toContain("Rename");
+  });
+
+  it("re-enables Gift by itself when the cooldown runs out (#426)", () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      addMaterial(getFavoriteMaterial("mossling"), 4);
+      seed([member({ instanceId: "a", lastGiftAt: now - GIFT_COOLDOWN_MS + 2_500 })]);
+      openParty();
+      const gift = () =>
+        Array.from(document.querySelectorAll<HTMLButtonElement>("#party-detail button")).find((b) =>
+          b.textContent?.startsWith("Gift"),
+        )!;
+      const note = () => document.querySelector("#party-detail .party-detail-note")?.textContent;
+      expect(gift().disabled).toBe(true);
+      expect(note()).toBe("Still savoring the last one (3s).");
+      vi.advanceTimersByTime(1_000);
+      expect(note()).toBe("Still savoring the last one (2s).");
+      vi.advanceTimersByTime(2_000);
+      expect(gift().disabled).toBe(false);
+      expect(note()).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

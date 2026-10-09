@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TrialOverlay, type BoonView, type PreviewView } from "./trialUi";
+import { RESULTS_KEY_GUARD_MS, TrialOverlay, type BoonView, type PreviewView } from "./trialUi";
 
 const preview: PreviewView = {
   kicker: "Eclipse Trial · Oct 8, 2026",
@@ -105,6 +105,38 @@ describe("Eclipse Trial screens (#420)", () => {
     expect(ui.root.querySelector("script, b, i")).toBeNull();
     expect(ui.root.querySelector(".trial-result-title")?.textContent).toContain("<img");
     expect(ui.root.querySelector(".trial-result-score")?.textContent).toBe("3,210");
+  });
+
+  it("results: Enter is Done (after a short guard), S shares, Done comes before the card (#426)", () => {
+    vi.useFakeTimers();
+    try {
+      ui = new TrialOverlay(null);
+      const done = vi.fn();
+      const share = vi.fn();
+      ui.renderResults(
+        { kicker: "x", pips: ["done", "done", "done", "done", "done"], title: "Eclipse", score: 9000, breakdown: [], rewards: [], lines: [], animate: false },
+        [
+          { label: "Done", variant: "primary", onClick: done },
+          { label: "Share result", key: "s", onClick: share },
+        ],
+      );
+      // Enter mashed through the last battle lands here first: ignored.
+      press("Enter");
+      expect(done).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(RESULTS_KEY_GUARD_MS);
+      press("Enter");
+      expect(done).toHaveBeenCalledTimes(1);
+      expect(share).not.toHaveBeenCalled();
+      press("s");
+      expect(share).toHaveBeenCalledTimes(1);
+      const order = Array.from(ui.root.querySelectorAll(".trial-actions button, .trial-card-img")).map((n) =>
+        n.tagName === "IMG" ? "img" : n.textContent,
+      );
+      expect(order).toEqual(["Done", "Share result", "img"]);
+      expect(ui.root.querySelector(".trial-actions button")).toBe(document.activeElement);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("hides for battles and gives the keyboard back", () => {

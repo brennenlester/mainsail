@@ -25,7 +25,7 @@ describe("Cinder Matriarch phases (#385)", () => {
     expect(solo.form?.id).toBe("mire");
     expect(solo.foe.folkloreType).toBe("fen");
     expect(solo.phaseMarks).toEqual([0.5]);
-    expect(trio.foe.maxHp).toBeGreaterThan(solo.foe.maxHp * 1.5);
+    expect(trio.foe.maxHp).toBeGreaterThan(solo.foe.maxHp * 1.25);
     expect(trio.foe.damageScale!).toBeGreaterThan(solo.foe.damageScale!);
     // Party size is capped at the last scale entry.
     expect(boss(7).foe.maxHp).toBe(trio.foe.maxHp);

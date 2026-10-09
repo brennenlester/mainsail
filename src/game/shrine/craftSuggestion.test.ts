@@ -19,6 +19,24 @@ function input(overrides: Partial<SuggestInput> = {}): SuggestInput {
 }
 
 describe("suggestCraft", () => {
+  it("asks for the Boat when the voyage's boat step is the objective (#426)", () => {
+    // Playtest: Wood Cudgel was suggested while the HUD said "craft a Boat".
+    const wood = { wood: 3 };
+    expect(suggestCraft(input({ materials: wood }))).toMatchObject({ recipe: { id: "wood-cudgel" } });
+    const short = suggestCraft(input({ voyageStep: "boat", materials: wood }));
+    expect(short).toMatchObject({ kind: "craft", reason: "quest", usable: true, ready: false, recipe: { id: "boat" } });
+    // A full pack: ready, so the banner offers Fill grid.
+    const full = { wood: 6, "wild-fiber": 3, "folklore-dust": 1 };
+    expect(suggestCraft(input({ voyageStep: "boat", materials: full }))).toMatchObject({ ready: true, recipe: { id: "boat" } });
+    // The main quest still wins while it is active; later voyage steps don't ask for the boat.
+    expect(suggestCraft(input({ questId: "shrine-craft", voyageStep: "boat" }))?.kind === "craft").toBe(true);
+    expect(
+      (suggestCraft(input({ questId: "shrine-craft", voyageStep: "boat" })) as { recipe: { id: string } }).recipe.id,
+    ).not.toBe("boat");
+    expect(suggestCraft(input({ voyageStep: "tide" }))).toBeNull();
+    expect(groupRecipesForBook(input({ voyageStep: "boat" })).quest.map((r) => r.id)).toEqual(["boat"]);
+  });
+
   it("follows the craft quest, not the cheapest recipe (no Wood Cudgel with no wood)", () => {
     const s = suggestCraft(
       input({

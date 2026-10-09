@@ -451,9 +451,10 @@ export class TrialScene extends Phaser.Scene {
       lines.push(outcome.noRewardReason);
     }
     const boonsLine = s.boonsSkipped > 0 ? `${s.boonsUsed} taken · ${s.boonsSkipped} skipped` : `${s.boonsUsed} taken`;
+    // Enter = Done (#426: mashing Enter out of the boss opened the share sheet); Share is S.
     const buttons = [
-      { label: "Share result", variant: "primary" as const, onClick: () => this.share(outcome) },
-      { label: "Done", onClick: () => this.exit(outcome) },
+      { label: "Done", variant: "primary" as const, onClick: () => this.exit(outcome) },
+      { label: "Share result", key: "s", onClick: () => this.share(outcome) },
     ];
     this.overlay.renderResults(
       {

@@ -6,6 +6,7 @@ import {
 } from "../crafting/recipes";
 import { isCraftItemIngredient } from "../inventory/materials";
 import type { QuestId } from "../story/questTypes";
+import type { SovereignVoyageStep } from "../story/sovereignVoyage";
 
 /**
  * Quest- and inventory-aware craft suggestions (#402). Pure: callers pass the
@@ -21,6 +22,11 @@ export type SuggestInput = {
   items: Readonly<Record<string, number>>;
   /** `definitionId` of each party member (decides Moss Salve vs Ember Charm). */
   partyDefinitionIds: readonly string[];
+  /**
+   * Sovereign voyage step (#426). With no main quest active the HUD's
+   * objective is the voyage, so its "boat" step asks for the Boat recipe.
+   */
+  voyageStep?: SovereignVoyageStep | null;
 };
 
 export type RecipeNeed = { materialId: string; need: number; have: number };
@@ -119,6 +125,11 @@ function byId(id: string): CraftRecipe | undefined {
   return CRAFT_RECIPES.find((r) => r.id === id);
 }
 
+/** The voyage's "craft a Boat" step is the objective (no main quest active). */
+function voyageRecipeId(input: Pick<SuggestInput, "questId" | "voyageStep">): string | null {
+  return !input.questId && input.voyageStep === "boat" ? "boat" : null;
+}
+
 /** Relics the party can use (one per Grove starter held), in party order. */
 function partyRelicIds(partyDefinitionIds: readonly string[]): string[] {
   return [
@@ -177,6 +188,13 @@ export function suggestCraft(input: SuggestInput): CraftSuggestion | null {
     return best;
   }
 
+  const voyage = voyageRecipeId(input);
+  const boat = voyage ? byId(voyage) : undefined;
+  if (boat && recipeAvailable(boat, input)) {
+    const needs = recipeNeeds(boat, input);
+    return { kind: "craft", reason: "quest", recipe: boat, ready: missingTotal(needs) === 0, usable: true, needs };
+  }
+
   const ready = CRAFT_RECIPES.filter(
     (recipe) =>
       recipeAvailable(recipe, input) &&
@@ -215,7 +233,8 @@ export function groupRecipesForBook(
   input: SuggestInput,
   recipes: readonly CraftRecipe[] = CRAFT_RECIPES,
 ): RecipeBookGroups {
-  const questIds = questRecipeIds(input.questId, input.partyDefinitionIds);
+  const voyage = voyageRecipeId(input);
+  const questIds = [...questRecipeIds(input.questId, input.partyDefinitionIds), ...(voyage ? [voyage] : [])];
   const quest: CraftRecipe[] = [];
   for (const id of questIds) {
     const recipe = recipes.find((r) => r.id === id);

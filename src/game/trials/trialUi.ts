@@ -10,7 +10,8 @@ import { MODIFIERS, type ModifierId } from "./modifiers";
  * Eclipse Trial DOM screens (#420): round preview, boon pick, results. All
  * dynamic text goes through textContent. While a screen is up the game's
  * keyboard is muted (like the share sheet) and keys map to the buttons:
- * Enter = primary, 1-3 = boon cards, 4 / S = skip, Esc = the screen's back.
+ * Enter = primary, 1-3 = boon cards, 4 / S = skip (results: S = share),
+ * Esc = the screen's back.
  */
 
 export type PipState = "done" | "lost" | "now" | "todo";
@@ -54,7 +55,16 @@ export type ResultsView = {
   animate: boolean;
 };
 
-type Button = { label: string; variant?: "primary" | "quiet"; onClick: () => void };
+type Button = {
+  label: string;
+  variant?: "primary" | "quiet";
+  onClick: () => void;
+  /** Extra hotkey (lowercase `KeyboardEvent.key`); the primary also takes Enter. */
+  key?: string;
+};
+
+/** Results ignore keys this long after opening, so Enter mashed through the last battle cannot skip them (#426). */
+export const RESULTS_KEY_GUARD_MS = 700;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -71,6 +81,8 @@ export class TrialOverlay {
   readonly root: HTMLDivElement;
   private readonly sheet: HTMLDivElement;
   private keyMap = new Map<string, () => void>();
+  /** `Date.now()` before which hotkeys are ignored (results guard). */
+  private keysReadyAt = 0;
   private escape: (() => void) | null = null;
   private visible = false;
   private touchWasEnabled = false;
@@ -119,7 +131,9 @@ export class TrialOverlay {
     if (action) {
       event.preventDefault();
       event.stopPropagation();
-      action();
+      if (Date.now() >= this.keysReadyAt) {
+        action();
+      }
     }
   };
 
@@ -172,7 +186,9 @@ export class TrialOverlay {
   private reset(animate: boolean, escape: (() => void) | null): void {
     this.sheet.replaceChildren();
     this.sheet.classList.toggle("trial-anim", animate);
+    this.sheet.classList.remove("trial-sheet--results");
     this.keyMap = new Map();
+    this.keysReadyAt = 0;
     this.escape = escape;
     this.cardImage = null;
     this.status = null;
@@ -248,6 +264,10 @@ export class TrialOverlay {
       row.append(button);
       if (spec.variant === "primary") {
         this.keyMap.set("enter", spec.onClick);
+      }
+      if (spec.key) {
+        this.keyMap.set(spec.key, spec.onClick);
+        button.setAttribute("aria-keyshortcuts", spec.key.toUpperCase());
       }
       return button;
     });
@@ -330,8 +350,14 @@ export class TrialOverlay {
     (grid.firstElementChild as HTMLButtonElement | null)?.focus({ preventScroll: true });
   }
 
+  /**
+   * Results: Enter / Esc = the primary (Done), never Share (#426). Buttons
+   * sit above the card image so they are on screen without scrolling.
+   */
   renderResults(view: ResultsView, buttons: Button[]): void {
-    this.reset(view.animate, buttons.find((b) => b.variant !== "primary")?.onClick ?? buttons[0]?.onClick ?? null);
+    this.reset(view.animate, buttons.find((b) => b.variant === "primary")?.onClick ?? buttons[0]?.onClick ?? null);
+    this.keysReadyAt = Date.now() + RESULTS_KEY_GUARD_MS;
+    this.sheet.classList.add("trial-sheet--results");
     this.header(view.kicker, view.pips, null);
     const title = el("h2", "trial-result-title", view.title);
     title.id = "trial-title";
@@ -351,16 +377,16 @@ export class TrialOverlay {
     for (const line of view.lines) {
       this.sheet.append(el("p", "trial-note", line));
     }
-    const img = el("img", "trial-card-img");
-    img.alt = "Eclipse Trial result card";
-    img.hidden = true;
-    this.sheet.append(img);
-    this.cardImage = img;
     this.actions(buttons);
     const status = el("p", "trial-status");
     status.setAttribute("role", "status");
     this.sheet.append(status);
     this.status = status;
+    const img = el("img", "trial-card-img");
+    img.alt = "Eclipse Trial result card";
+    img.hidden = true;
+    this.sheet.append(img);
+    this.cardImage = img;
   }
 
   renderMessage(title: string, text: string, onBack: () => void): void {

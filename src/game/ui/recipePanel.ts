@@ -9,6 +9,7 @@ import {
 import { playerParty } from "../creatures/party";
 import { playerInventory } from "../inventory/playerInventory";
 import { getActiveQuestId } from "../story/questProgress";
+import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import {
   CRAFT_RECIPES,
   getRecipeMaterials,
@@ -184,6 +185,7 @@ function renderRecipesBody(context: CraftContext): void {
     materials: withStagedCraftingMaterials(playerInventory.materials),
     items: withStagedCraftingItems(playerInventory.items),
     partyDefinitionIds: playerParty.creatures.map((c) => c.definitionId),
+    voyageStep: getSovereignVoyageStep(),
   });
   const append = (
     recipes: CraftRecipe[],
