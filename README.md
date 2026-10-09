@@ -214,8 +214,6 @@ These are for local development only; they are not part of normal play:
 
 - **U** — toggle the overworld gate without completing Story 2
 - `?encounter=<creatureId>` / `?spar=<creatureId>` — launch a preview encounter/spar in the Vite dev server (dev server only)
-- `?new=1` — start over with a fresh save (works in any build)
-- `?trial=YYYY-MM-DD` — open that day's Eclipse Trial as a sandboxed practice run (works in any build; this is the public share link, see **Eclipse Trials**; it never writes a save)
 
 ### Project layout
 

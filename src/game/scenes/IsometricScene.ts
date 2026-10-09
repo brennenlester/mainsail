@@ -111,7 +111,14 @@ import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
-import { canStartBoatLoad, freshBoatLoadState, noteBoatLoadFailed } from "../render/boatLoadRetry";
+import {
+  BOAT_LOAD_MAX_ATTEMPTS,
+  BOAT_LOAD_RETRY_MS,
+  boatRetryUrl,
+  canStartBoatLoad,
+  freshBoatLoadState,
+  noteBoatLoadFailed,
+} from "../render/boatLoadRetry";
 import { claimEclipseGateToast, isTrialsUnlocked } from "../trials/trialUnlock";
 import type { SailingBoat } from "../render/sailingBoat";
 import { claimFinaleCard } from "../finale/finaleTrigger";
@@ -2624,12 +2631,22 @@ export class IsometricScene extends Phaser.Scene {
         const now = performance.now();
         if (canStartBoatLoad(this.sailingBoatLoad, now)) {
           this.sailingBoatLoad.loading = true;
-          import("../render/sailingBoat")
+          const retryUrl = boatRetryUrl(this.sailingBoatLoad);
+          (retryUrl
+            ? (import(/* @vite-ignore */ retryUrl) as Promise<typeof import("../render/sailingBoat")>)
+            : import("../render/sailingBoat")
+          )
             .then((m) => {
               this.sailingBoatModule = m;
               this.sailingBoatLoad.loading = false;
             })
-            .catch(() => noteBoatLoadFailed(this.sailingBoatLoad, performance.now()));
+            .catch((error: unknown) => {
+              noteBoatLoadFailed(this.sailingBoatLoad, performance.now(), error);
+              // One timer per failure (not per frame): the attempt below re-checks the backoff.
+              if (this.sailingBoatLoad.failures < BOAT_LOAD_MAX_ATTEMPTS) {
+                this.time.delayedCall(BOAT_LOAD_RETRY_MS + 50, () => this.syncPlayerToGrid());
+              }
+            });
         }
         return 0;
       }

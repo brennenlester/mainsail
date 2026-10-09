@@ -220,7 +220,12 @@ export class MoveCard {
     if (title.width > room()) {
       // Still tight (small phones): keep the number, drop the matchup words
       // (the effect colour still says hunter / resisted).
-      effect.setText(data.effect.split("  ")[0] ?? data.effect);
+      const first = data.effect.split("  ")[0] ?? data.effect;
+      effect.setText(first);
+      if (title.width > room()) {
+        // Last resort before cutting the name: "parry −60% +4 HP" keeps just "−60%".
+        effect.setText(/[−+-]?\d\S*/.exec(first)?.[0] ?? first);
+      }
     }
     // Still tight: wrap the name onto a second line (never below 13px) rather
     // than cutting "Bark Hide" to "Bar…". Only a name that cannot wrap into two
