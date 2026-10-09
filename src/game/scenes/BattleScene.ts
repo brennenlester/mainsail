@@ -590,7 +590,7 @@ export class BattleScene extends Phaser.Scene {
       // reflow destroyed the old one with every other child.
       this.trialStrip = this.trial.createStrip(
         this,
-        { left: L.topRow.left, right: fastToggle.x - fastToggle.width - 8 * ui, y: L.topRow.y },
+        { left: L.topRow.left, right: fastToggle.x - fastToggle.width - 8 * ui, y: L.topRow.y, tip: L.tip },
         ui,
       );
     } else if (!this.story || this.story.ward >= 1) {
