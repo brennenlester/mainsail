@@ -440,6 +440,21 @@ body.trial-active .opening-caption {
   display: none;
 }
 
+/* Results (#426): 864px tall at 1280x800 put Done / Share below the fold.
+   Tighter rhythm, buttons before the card, and the card sized to the screen. */
+.trial-sheet--results {
+  gap: 8px;
+}
+
+.trial-sheet--results .trial-result-score {
+  font-size: clamp(28px, 7vw, 40px);
+  line-height: 1.1;
+}
+
+.trial-sheet--results .trial-card-img {
+  width: min(100%, 220px, 26vh);
+}
+
 .trial-status {
   min-height: 1.2em;
   margin: 0;
