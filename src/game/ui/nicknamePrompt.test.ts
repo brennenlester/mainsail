@@ -4,7 +4,9 @@ import {
   isNicknamePromptBlocking,
   isNicknamePromptOpen,
   promptNickname,
+  resetDeferredNicknames,
   setNicknameKeyboardHandler,
+  takeDeferredNicknames,
 } from "./nicknamePrompt";
 import { getOverlayStackIds, resetOverlayStack } from "./overlayStack";
 import type { CreatureInstance } from "../creatures/types";
@@ -36,6 +38,7 @@ describe("nickname prompt focus (#409)", () => {
     app.id = "app";
     document.body.appendChild(app);
     captured.length = 0;
+    resetDeferredNicknames();
     setNicknameKeyboardHandler((value) => captured.push(value));
   });
 
@@ -191,5 +194,74 @@ describe("nickname prompt focus (#409)", () => {
     expect(captured).toEqual([false]);
     expect(getOverlayStackIds()).toContain("nickname");
     expect(document.getElementById("nickname-overlay")?.classList.contains("nickname-overlay--ambient")).toBe(false);
+  });
+});
+
+describe("docked prompt deferral (#432)", () => {
+  beforeEach(() => {
+    document.body.replaceChildren();
+    const app = document.createElement("div");
+    app.id = "app";
+    document.body.appendChild(app);
+    resetDeferredNicknames();
+  });
+
+  afterEach(() => {
+    document.getElementById("nickname-skip")?.dispatchEvent(new MouseEvent("click"));
+    resetOverlayStack();
+    resetDeferredNicknames();
+  });
+
+  it("an encounter closing the docked prompt defers its creature, once", async () => {
+    const done = promptNickname(creature("a"), { ambient: true });
+    dismissAmbientNicknamePrompt();
+    dismissAmbientNicknamePrompt();
+    await done;
+    expect(isNicknamePromptOpen()).toBe(false);
+    expect(takeDeferredNicknames()).toEqual(["a"]);
+    expect(takeDeferredNicknames()).toEqual([]);
+  });
+
+  it("naming, Skip and Esc are answers: they never defer", async () => {
+    const named = creature("a");
+    const first = promptNickname(named, { ambient: true });
+    (document.getElementById("nickname-input") as HTMLInputElement).value = "Pip";
+    document.querySelector("#nickname-overlay form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await first;
+    expect(named.nickname).toBe("Pip");
+
+    const skipped = promptNickname(creature("b"), { ambient: true });
+    document.getElementById("nickname-skip")!.click();
+    await skipped;
+
+    const esc = promptNickname(creature("c"), { ambient: true });
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await esc;
+    expect(takeDeferredNicknames()).toEqual([]);
+  });
+
+  it("two interrupted creatures are kept oldest first and can be re-docked in turn", async () => {
+    const a = promptNickname(creature("a"), { ambient: true });
+    dismissAmbientNicknamePrompt();
+    await a;
+    const b = promptNickname(creature("b"), { ambient: true });
+    dismissAmbientNicknamePrompt();
+    await b;
+    expect(takeDeferredNicknames()).toEqual(["a", "b"]);
+
+    // Re-docked and answered this time: nothing is deferred again.
+    const again = promptNickname(creature("a"), { ambient: true });
+    document.getElementById("nickname-skip")!.click();
+    await again;
+    expect(takeDeferredNicknames()).toEqual([]);
+  });
+
+  it("a modal Rename prompt is never deferred", async () => {
+    const rename = promptNickname(creature("a"));
+    dismissAmbientNicknamePrompt();
+    expect(isNicknamePromptBlocking()).toBe(true);
+    document.getElementById("nickname-skip")!.click();
+    await rename;
+    expect(takeDeferredNicknames()).toEqual([]);
   });
 });

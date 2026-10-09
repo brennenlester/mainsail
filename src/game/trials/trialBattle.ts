@@ -394,7 +394,11 @@ export class TrialBattle {
    * (trialBattleHud.ts), keeping this module (and BattleScene's import of
    * it) free of trial UI code.
    */
-  createStrip: (scene: Phaser.Scene, area: { left: number; right: number; y: number }, ui: number) => TrialStrip =
+  createStrip: (
+    scene: Phaser.Scene,
+    area: { left: number; right: number; y: number; tip: { x: number; y: number } },
+    ui: number,
+  ) => TrialStrip =
     () => ({ refresh: () => undefined, destroy: () => undefined });
   /** Shown on the in-battle strip; the runner fills it in. */
   readonly hud = { roundsTotal: 5, scoreSoFar: 0 };

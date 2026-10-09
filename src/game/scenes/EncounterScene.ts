@@ -75,6 +75,7 @@ import { markCreatureDiscovered } from "../world/worldState";
 import { getWildEffectiveLevel } from "../progression/wildLevel";
 import { unlockCodexHud } from "../ui/hudChrome";
 import { isDomKeyboardTarget } from "../ui/canvasFocus";
+import { dismissAmbientNicknamePrompt } from "../ui/nicknamePrompt";
 import { HotkeyGuard } from "../input/hotkeyGuard";
 import { pulseWhenHotkeysArmed } from "../ui/hotkeyReadyPulse";
 import { openingPersonalityLine } from "../opening/openingScript";
@@ -166,6 +167,8 @@ export class EncounterScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The docked "name your friend" prompt waits (deferred) until the world is idle again (#432).
+    dismissAmbientNicknamePrompt();
     // No letterbox (#404): the veil dims the paused world across the whole
     // stage instead of leaving a grey band between navy bars.
     bindOverlayPixelRatio(this, { letterbox: false });

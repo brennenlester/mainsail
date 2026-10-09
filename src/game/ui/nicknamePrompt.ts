@@ -17,6 +17,19 @@ let blocking = false;
 /** Closes whichever prompt is showing; the form is shared, so only one may be live. */
 let pendingFinish: (() => void) | null = null;
 let keyboardHandler: ((captured: boolean) => void) | null = null;
+/** Docked creature currently on screen, so an interruption can hand it back (#432). */
+let dockedId: string | null = null;
+/** Docked prompts the world cut off before the player answered; re-docked once idle. */
+const deferred: string[] = [];
+
+/** Creatures whose docked prompt was interrupted, oldest first; clears the list. */
+export function takeDeferredNicknames(): string[] {
+  return deferred.splice(0);
+}
+
+export function resetDeferredNicknames(): void {
+  deferred.length = 0;
+}
 
 /** The overworld lends its keyboard gate so typed letters reach the input. */
 export function setNicknameKeyboardHandler(
@@ -72,9 +85,16 @@ function ensureRoot(): HTMLElement {
   return root;
 }
 
-/** Close the docked (ambient) prompt, e.g. when a battle, dialogue or shrine takes over. */
+/**
+ * Close the docked (ambient) prompt because a battle, dialogue or shrine took
+ * over. The creature is deferred, not forgotten: it is re-docked once the
+ * world is idle (#432). Player answers (name, Skip, Esc) never defer.
+ */
 export function dismissAmbientNicknamePrompt(): void {
   if (open && !blocking) {
+    if (dockedId && !deferred.includes(dockedId)) {
+      deferred.push(dockedId);
+    }
     pendingFinish?.();
   }
 }
@@ -139,6 +159,7 @@ export function promptNickname(
       root.hidden = true;
       open = false;
       blocking = false;
+      dockedId = null;
       keyboardHandler?.(true);
       if (!ambient) {
         previouslyFocused?.focus();
@@ -185,6 +206,7 @@ export function promptNickname(
     pendingFinish = finish;
     open = true;
     blocking = !ambient;
+    dockedId = ambient ? creature.instanceId : null;
     root.hidden = false;
     if (ambient) {
       input.addEventListener("focus", onFocus);

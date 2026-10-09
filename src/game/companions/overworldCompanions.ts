@@ -12,6 +12,7 @@ import {
   isNicknamePromptOpen,
   promptNickname,
   setNicknameKeyboardHandler,
+  takeDeferredNicknames,
 } from "../ui/nicknamePrompt";
 import { getTopOverlayId } from "../ui/overlayStack";
 import { isHudLocked } from "../ui/hudLock";
@@ -33,6 +34,9 @@ import {
 import { addBond, BOND_GAIN, bondTierName, drainBondTierUps } from "./bond";
 import { getActiveStorySpar } from "../battle/storySpar";
 import { claimSite, getClaimedSites, isSiteClaimed } from "./companionState";
+
+/** Idle time before a deferred nickname prompt re-docks, so title cards and toasts clear first. */
+const NICKNAME_REDOCK_SETTLE_MS = 1200;
 
 /** What IsometricScene lends the controller — keeps the scene hooks tiny. */
 export type CompanionHost = {
@@ -124,6 +128,9 @@ export class OverworldCompanions {
   private cooldownUntil: Partial<Record<AbilityId, number>> = {};
   private knownIds: Set<string>;
   private nicknameQueue: string[] = [];
+  /** performance.now() since the world last became idle (no encounter, dialogue, overlay or title card). */
+  private quietSince: number | null = null;
+  private lastUpdate = 0;
 
   constructor(host: CompanionHost) {
     this.host = host;
@@ -356,6 +363,25 @@ export class OverworldCompanions {
     // The docked prompt never rides into a dialogue, shrine, minigame, encounter or cutscene.
     if (this.host.isBusy() || isHudLocked()) {
       dismissAmbientNicknamePrompt();
+    }
+    // Re-dock prompts an encounter cut off once the world has been idle a beat (#432).
+    const now = performance.now();
+    const quiet = !this.host.isBusy() && !isHudLocked() && getTopOverlayId() === null;
+    // A paused scene (battle) leaves a gap between frames: restart the idle clock.
+    if (!quiet) {
+      this.quietSince = null;
+    } else if (this.quietSince === null || now - this.lastUpdate > 500) {
+      this.quietSince = now;
+    }
+    this.lastUpdate = now;
+    if (quiet && this.quietSince !== null && now - this.quietSince >= NICKNAME_REDOCK_SETTLE_MS) {
+      for (const id of takeDeferredNicknames().reverse()) {
+        // Skip friends already named or gone; visitors never get the prompt.
+        const creature = getCreatureInstance(id);
+        if (creature && !creature.nickname && !isVisitorMode()) {
+          this.nicknameQueue.unshift(id);
+        }
+      }
     }
     if (
       canOpenNicknamePrompt({

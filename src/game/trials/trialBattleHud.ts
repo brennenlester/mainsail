@@ -18,13 +18,13 @@ export class TrialBattleStrip {
   private readonly box: Phaser.GameObjects.Container;
   private readonly chips: { text: Phaser.GameObjects.Text; id: string }[] = [];
   private readonly trial: TrialBattle;
-  /** Sudden death (#429): shown under the strip once the eclipse deepens. */
+  /** Sudden death (#429): rides the arena-sky tip anchor, clear of the plates and HP bars (#432). */
   private readonly deepens: Phaser.GameObjects.Text;
 
   constructor(
     scene: Phaser.Scene,
     trial: TrialBattle,
-    area: { left: number; right: number; y: number },
+    area: { left: number; right: number; y: number; tip: { x: number; y: number } },
     ui: number,
   ) {
     this.trial = trial;
@@ -111,18 +111,20 @@ export class TrialBattleStrip {
       plate.fillRoundedRect(0, -14, width, 28, 10);
       scale = Math.min(ui, room / width);
     }
+    // >= 11 CSS px on screen: lift the design-px font on a zoomed-out phone stage.
+    const fontPx = Math.max(12, Math.ceil(11 / (scene.cameras.main.zoom || 1)));
     this.deepens = scene.add
-      .text(10, 26, "", {
+      .text(area.tip.x, area.tip.y + 4 * ui, "", {
         color: "#fff2f6",
         backgroundColor: "#8a2f6e",
         fontFamily: FONT,
-        fontSize: "12px",
+        fontSize: `${fontPx}px`,
         fontStyle: "bold",
         padding: { x: 5, y: 2 },
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(0.5, 0)
+      .setDepth(6)
       .setVisible(false);
-    this.box.add(this.deepens);
     this.box.setScale(scale);
     this.refresh();
   }
@@ -149,5 +151,6 @@ export class TrialBattleStrip {
 
   destroy(): void {
     this.box.destroy(true);
+    this.deepens.destroy();
   }
 }
