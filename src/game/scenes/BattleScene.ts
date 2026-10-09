@@ -33,6 +33,7 @@ import {
   fastBattleEnabled,
   fastBattleLabel,
   intentGlow,
+  noteBattleWonForFast,
   setFastBattleEnabled,
 } from "../battle/vfx/battleTiming";
 import { damageNumberStyle } from "../battle/vfx/damageNumbers";
@@ -314,6 +315,8 @@ export class BattleScene extends Phaser.Scene {
   private story: StoryBattle | null = null;
   /** Eclipse Trial round (#420): rules in trials/trialBattle; the boss round also sets `story`. */
   private trial: TrialBattle | null = null;
+  /** A won non-trial battle: counts toward Fast turning itself on (#426). */
+  private wonForFast = false;
   private trialStrip: TrialStrip | null = null;
   private titleOverride: string | undefined;
   private blockedToast?: Phaser.GameObjects.Container;
@@ -369,6 +372,7 @@ export class BattleScene extends Phaser.Scene {
     this.blockedToast = undefined;
     this.lastBlockedAt = -Infinity;
     this.trial = data.trial ?? null;
+    this.wonForFast = false;
     this.trialStrip = null;
     this.playerRareGlow = null;
     this.wildRareGlow = null;
@@ -2592,6 +2596,7 @@ export class BattleScene extends Phaser.Scene {
     if (!this.teardownBattle()) {
       return;
     }
+    this.wonForFast = playerWon && !this.trial;
 
     if (playerWon) {
       playFaintSfx(this);
@@ -2720,6 +2725,10 @@ export class BattleScene extends Phaser.Scene {
       if (this.trial) {
         // The trial scene takes over (it listens for this shutdown); the world stays paused.
         return;
+      }
+      if (this.wonForFast) {
+        // After the result panel: the next battle (any kind) reads the saved preference.
+        noteBattleWonForFast();
       }
       this.scene.stop("EncounterScene");
       this.scene.resume("IsometricScene");
