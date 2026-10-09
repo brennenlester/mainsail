@@ -977,7 +977,8 @@ export class BattleScene extends Phaser.Scene {
     const v = L.view;
     // Zone / night variant (#361); hills + dais scale around the dais centre
     // (design y=240 in the layer). The sky covers the whole stage (#404).
-    const variant = this.story ? storyArenaVariant(this.story) : undefined;
+    // Eclipse Trial rounds fight under the eclipse, never the daylight zone arena (#423).
+    const variant = this.trial ? "night" : this.story ? storyArenaVariant(this.story) : undefined;
     const layers = resolveArenaLayers((key) => hasWorldTexture(this, key), variant);
     if (layers) {
       const a = ARENA_LAYER_SCALE * L.s;
@@ -1003,6 +1004,10 @@ export class BattleScene extends Phaser.Scene {
       if (variant === "ember" && !layers.sky.startsWith("arena-ember")) {
         // Ember PNGs missing: warm the fallback arena instead.
         images.forEach((image) => image.setTint(0xffa080));
+      }
+      if (this.trial) {
+        // Eclipse grade: violet overhead fading to an ember-lit floor.
+        images.forEach((image) => image.setTint(0xb89cff, 0xb89cff, 0xffb08a, 0xffb08a));
       }
       return;
     }
