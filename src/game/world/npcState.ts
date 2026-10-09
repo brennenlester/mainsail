@@ -14,6 +14,7 @@ import {
   worldState,
 } from "./worldState";
 import { nextBrynGroveStarter } from "./brynGift";
+import { getGiftCatchUpLevel } from "../progression/wildLevel";
 import { notifyWorldChanged } from "./worldSaveSchedule";
 import { isVisitorMode } from "./worldSession";
 import { ALL_NPC_IDS, type NpcDefinition, type NpcGift } from "./npcs";
@@ -342,7 +343,7 @@ function tryGrantBrynGroveStarter(npc: NpcDefinition): string | null {
   if (!next) {
     return null;
   }
-  addToParty(next, 1);
+  addToParty(next, getGiftCatchUpLevel());
   markCreatureDiscovered(next);
   worldState.brynGroveStartersGifted.push(next);
   notifyWorldChanged();

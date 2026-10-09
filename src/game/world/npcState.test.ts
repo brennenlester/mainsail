@@ -471,6 +471,17 @@ describe("Bryn Grove starter gift (#349)", () => {
     expect(worldState.discoveredCreatures).toContain("ember-wisp");
   });
 
+  it("gifts at a catch-up level: party average - 2, never above the lead (#429)", () => {
+    setVillageGateUnlocked(true, false);
+    setPartyFromSnapshot(
+      [{ instanceId: "1", definitionId: "mossling", speciesId: "mossling", currentHp: 10, level: 6, xp: 0 }],
+      2,
+    );
+    setClaimedNpcGifts([BRYN.id]);
+    openConversation(BRYN);
+    expect(playerParty.creatures.find((c) => c.definitionId === "ember-wisp")?.level).toBe(4);
+  });
+
   it("gifts Mossling when Ember Wisp is the only Grove line", () => {
     setVillageGateUnlocked(true, false);
     setPartyFromSnapshot(
