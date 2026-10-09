@@ -22,15 +22,26 @@ describe("Cinder Matriarch balance", () => {
     const solo = rate(1, "skilled");
     const duo = rate(2, "skilled");
     const trio = rate(3, "skilled");
-    expect(solo).toBeGreaterThanOrEqual(0.22);
-    expect(solo).toBeLessThanOrEqual(0.45);
+    expect(solo).toBeGreaterThanOrEqual(0.25);
+    expect(solo).toBeLessThanOrEqual(0.4);
     expect(duo).toBeGreaterThanOrEqual(0.55);
-    expect(duo).toBeLessThanOrEqual(0.75);
+    expect(duo).toBeLessThanOrEqual(0.72);
     expect(trio).toBeGreaterThanOrEqual(0.75);
-    expect(trio).toBeLessThanOrEqual(0.92);
+    expect(trio).toBeLessThanOrEqual(0.88);
     // A bigger party still helps.
     expect(duo).toBeGreaterThan(solo);
     expect(trio).toBeGreaterThan(duo);
+  });
+
+  it("is a fight, not a slog: duo / trio battles run ~18-23 turns (#426)", () => {
+    // The #385 tune ran 28-34 sim turns (25-30 played) and read as "press the highest number".
+    for (const size of [2, 3] as const) {
+      for (const policy of ["skilled", "guard-read"] as const) {
+        const turns = storyPartyRate("cinder-matriarch", size, policy, 8, SEEDS).avgTurns;
+        expect(turns, `${policy} ${size}`).toBeGreaterThanOrEqual(16);
+        expect(turns, `${policy} ${size}`).toBeLessThanOrEqual(23);
+      }
+    }
   });
 
   it("asks for the telegraph read on a first attempt: max-damage is far behind skilled", () => {

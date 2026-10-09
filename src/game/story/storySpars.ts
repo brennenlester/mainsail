@@ -232,20 +232,24 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
       { after: 2, scale: 0.85 },
       { after: 4, scale: 0.75 },
     ],
+    // #426 pacing: the #385 tune ran 28-34 sim turns for a duo / trio (25-30
+    // played). Less HP (hpMult 3.4 -> 2.6, flatter party scaling), more
+    // damage and a bigger parry punish land ~20-22 turns at the same win
+    // shape (storyBattleBalance.test.ts).
     challengerScale: [
-      { hp: 1, damage: 1 },
-      { hp: 1.6, damage: 1.15 },
-      { hp: 1.85, damage: 1.17 },
+      { hp: 1.2, damage: 1 },
+      { hp: 1.5, damage: 1.2 },
+      { hp: 1.55, damage: 1.4 },
     ],
     boss: {
       spriteCreatureId: "cinder-toad",
       levelBonus: 1,
       baseHp: 30,
-      hpMult: 3.4,
-      damageScale: 1.45,
+      hpMult: 2.6,
+      damageScale: 1.6,
       signatureId: "cinderfall",
       chargeId: "gather-embers",
-      staggerExposure: 1.6,
+      staggerExposure: 1.9,
       forms: [
         {
           id: "mire",
