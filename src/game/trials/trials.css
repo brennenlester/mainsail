@@ -453,6 +453,20 @@ body.trial-active .opening-caption {
     gap: 8px;
     padding: 12px;
   }
+  /* Landscape phones (#423): a slimmer heading and portrait so the round fits. */
+  .trial-banner {
+    padding-top: 0;
+  }
+  .trial-banner h2 {
+    font-size: 26px;
+  }
+  .trial-foe canvas {
+    width: 64px !important;
+    height: 64px !important;
+  }
+  .trial-note {
+    font-size: 13px;
+  }
   .trial-card-img {
     width: min(100%, 200px);
   }

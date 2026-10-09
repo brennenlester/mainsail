@@ -177,6 +177,7 @@ export class TrialOverlay {
     this.cardImage = null;
     this.status = null;
     this.show();
+    this.root.scrollTop = 0;
   }
 
   private header(kicker: string, pips: PipState[], score: number | null): void {
@@ -251,7 +252,8 @@ export class TrialOverlay {
       return button;
     });
     this.sheet.append(row);
-    made[0]?.focus();
+    // No scroll-to-focus: a tall sheet on a short screen must open at its heading (#423).
+    made[0]?.focus({ preventScroll: true });
     return made;
   }
 
@@ -325,7 +327,7 @@ export class TrialOverlay {
       { label: `Skip boon (+${view.skipPoints} score)`, variant: "quiet", onClick: skip },
     ]);
     skipBtn?.setAttribute("aria-keyshortcuts", "4 S");
-    (grid.firstElementChild as HTMLButtonElement | null)?.focus();
+    (grid.firstElementChild as HTMLButtonElement | null)?.focus({ preventScroll: true });
   }
 
   renderResults(view: ResultsView, buttons: Button[]): void {
