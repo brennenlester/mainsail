@@ -98,10 +98,8 @@ export class TrialScene extends Phaser.Scene {
     document.body.classList.add("trial-active");
     const release = bindCutscene(this);
     window.addEventListener("error", this.onFault);
-    window.addEventListener("unhandledrejection", this.onFault);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener("error", this.onFault);
-      window.removeEventListener("unhandledrejection", this.onFault);
       release();
       document.body.classList.remove("trial-active");
       this.scale.off("resize", this.drawSky, this);
@@ -139,16 +137,16 @@ export class TrialScene extends Phaser.Scene {
    * its rAF loop, so the loop is restarted after the broken battle is
    * queued to stop.
    */
-  private onFault = (event: ErrorEvent | PromiseRejectionEvent): void => {
+  private onFault = (event: ErrorEvent): void => {
     // Benign browser notices (ResizeObserver loop) arrive as errors with no Error object.
-    if ("error" in event && !event.error) {
+    if (!event.error) {
       return;
     }
     const action = trialFaultAction(getTrialRun()?.phase ?? null, this.s.exiting);
     if (action === "ignore") {
       return;
     }
-    console.error("Eclipse Trial: ending the run after an error", "error" in event ? event.error : event.reason);
+    console.error("Eclipse Trial: ending the run after an error", event.error);
     if (action === "lose-round") {
       this.s.detachBattle?.();
       this.clearWatchdog();
