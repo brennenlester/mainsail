@@ -112,7 +112,7 @@ import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
 import { eclipseTrialHint } from "../trials/trialUnlock";
-import { SailingBoat } from "../render/sailingBoat";
+import type { SailingBoat } from "../render/sailingBoat";
 import { claimFinaleCard } from "../finale/finaleTrigger";
 import { playerParty } from "../creatures/party";
 import { consumeAchievementToast } from "../progression/achievements";
@@ -383,6 +383,9 @@ export class IsometricScene extends Phaser.Scene {
   private dockBoat?: Phaser.GameObjects.Image;
   /** Boat sprite that follows the player while sailing. */
   private sailingBoat?: SailingBoat;
+  /** Boat code loads on the first voyage (#423): kept out of the boot bundle. */
+  private sailingBoatModule?: typeof import("../render/sailingBoat");
+  private sailingBoatLoading = false;
   /** Active-party overworld sprites (presence tell). */
   private partyFollowers: PartyOverworldFollowerState =
     createPartyOverworldFollowerState();
@@ -2606,7 +2609,22 @@ export class IsometricScene extends Phaser.Scene {
       this.sailingBoat = undefined;
       return 0;
     }
-    this.sailingBoat ??= new SailingBoat(this, getBoatTextureKey());
+    if (!this.sailingBoat) {
+      if (!this.sailingBoatModule) {
+        if (!this.sailingBoatLoading) {
+          this.sailingBoatLoading = true;
+          void import("../render/sailingBoat")
+            .then((m) => {
+              this.sailingBoatModule = m;
+            })
+            .finally(() => {
+              this.sailingBoatLoading = false;
+            });
+        }
+        return 0;
+      }
+      this.sailingBoat = new this.sailingBoatModule.SailingBoat(this, getBoatTextureKey());
+    }
     return this.sailingBoat.sync(screenX, baseY, this.playerFacing, this.isMoving, this.playerDepth);
   }
 
