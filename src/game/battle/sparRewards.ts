@@ -1,5 +1,6 @@
 import { playLevelUpSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
+import { displayNameIn } from "../creatures/displayName";
 import { getActiveCreatures, getEffectiveMaxHp } from "../creatures/party";
 import { getMaterialForCreature, getMaterialName } from "../inventory/materials";
 import { addMaterial } from "../inventory/playerInventory";
@@ -207,7 +208,7 @@ export function grantSparRewards(
     tickBattleBond(actives, activePartyIndex);
     const full = actives
       .filter((c) => bondRoomToday(c) <= 0)
-      .map((c) => c.nickname ?? getCreatureDefinition(c.definitionId).name);
+      .map((c) => displayNameIn(c, actives));
     if (full.length > 0) {
       summary.bondFullNames = full;
     }

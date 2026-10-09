@@ -6,7 +6,7 @@ import {
   hasLivingPartyMembers,
   playerParty,
 } from "../creatures/party";
-import { getCreatureDefinition } from "../creatures/catalog";
+import { CREATURES, getCreatureDefinition } from "../creatures/catalog";
 import type { CreatureInstance } from "../creatures/types";
 import { drainBondTierUps, tickStoryWinBond } from "../companions/bond";
 import {
@@ -306,19 +306,38 @@ export function grantCoverageGift(id: StorySparId): string | null {
   if (covered) {
     return null;
   }
+  // Names in play before the gift joins: player, party/reserve nicknames, every species (#423).
+  const taken = [
+    getPlayerName(),
+    ...playerParty.creatures.map((c) => c.nickname),
+    ...CREATURES.map((d) => d.name),
+  ];
   const creature = addToParty(gift.creatureId, getPartyAverageLevel());
-  const nickname = giftNickname(gift.nickname, getPlayerName());
+  const nickname = giftNickname(gift.nickname, taken);
   creature.nickname = nickname;
   return `${nickname} the ${getCreatureDefinition(gift.creatureId).name}`;
 }
 
-const GIFT_NICKNAME_FALLBACK = "Rill";
+/** Deterministic stand-ins when the preferred gift name is taken (#423). */
+export const GIFT_NICKNAME_FALLBACKS = ["Rill", "Brooklet", "Tansy", "Wade", "Puddle", "Kelp"] as const;
 
-/** A gift never shares the player's own name (#401): a player named Pip would collide. */
-export function giftNickname(preferred: string, playerName: string | null): string {
-  return playerName?.trim().toLowerCase() === preferred.toLowerCase()
-    ? GIFT_NICKNAME_FALLBACK
-    : preferred;
+/**
+ * A gift never shares a name already in play (#401, #423): the player's, a
+ * party/reserve nickname, or a species name. Case- and space-insensitive.
+ */
+export function giftNickname(
+  preferred: string,
+  taken: readonly (string | null | undefined)[],
+): string {
+  const used = new Set(taken.map((n) => n?.trim().toLowerCase()).filter(Boolean));
+  const free = (n: string) => !used.has(n.toLowerCase());
+  const pick = [preferred, ...GIFT_NICKNAME_FALLBACKS].find(free);
+  if (pick) {
+    return pick;
+  }
+  let n = 2;
+  while (!free(`${preferred} ${n}`)) n += 1;
+  return `${preferred} ${n}`;
 }
 
 function finishLoss(spar: ActiveStorySpar, forfeit: boolean): void {

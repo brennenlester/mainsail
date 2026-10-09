@@ -8,6 +8,7 @@ import type { CreatureDefinition, CreatureInstance } from "../../creatures/types
 import { LEVEL_XP_THRESHOLDS, MAX_LEVEL, scaledStat } from "../../progression/leveling";
 import { SHRINE_EFFECTS, effectKey } from "../../shrine/shrineEffects";
 import type { SparRewardSummary } from "../sparRewards";
+import { disambiguateNames } from "../../creatures/displayName";
 
 export type PartySnapshotEntry = Pick<
   CreatureInstance,
@@ -115,6 +116,10 @@ export function buildVictorySummary(
     loot.push(`Bond full for today: ${first}${rest.length > 0 ? ` +${rest.length}` : ""}`);
   }
 
+  // Two "Pip"s on one screen read "Pip" and "Pip ·2" (#423).
+  disambiguateNames(rows.map((r) => r.name)).forEach((name, i) => {
+    rows[i]!.name = name;
+  });
   return { title: "Victory!", rows, loot, evolutionHint };
 }
 

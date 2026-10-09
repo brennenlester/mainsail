@@ -1,4 +1,4 @@
-import { displayNameMarked } from "../creatures/displayName";
+import { displayNameMarkedIn } from "../creatures/displayName";
 import { refreshPartyStatusLine } from "../ui/statusPanel";
 import Phaser from "phaser";
 import {
@@ -1071,7 +1071,7 @@ export class BattleScene extends Phaser.Scene {
     }
     const trait = partyCreature.trait;
     const combatant: BattleCombatant = {
-      name: displayNameMarked(partyCreature),
+      name: displayNameMarkedIn(partyCreature, getActiveCreatures()),
       level: partyCreature.level,
       maxHp: getEffectiveMaxHp(partyCreature),
       currentHp: partyCreature.currentHp,
@@ -1636,7 +1636,7 @@ export class BattleScene extends Phaser.Scene {
       // Right end keeps room for the keycap / IN BATTLE / FAINTED tag.
       const nameRoom = rowX + rowW - 14 - 92 - chipsW - 8 - nameX;
       const name = this.add
-        .text(nameX, -rowH / 2 + 10, displayNameMarked(creature), {
+        .text(nameX, -rowH / 2 + 10, displayNameMarkedIn(creature, getActiveCreatures()), {
           fontFamily: HUD_FONT,
           fontSize: "19px",
           fontStyle: "bold",

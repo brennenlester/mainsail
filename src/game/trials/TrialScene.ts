@@ -3,7 +3,7 @@ import { playBattleWinSfx, playBossStingSfx, playUiClickSfx } from "../audio/gam
 import { fastBattleEnabled } from "../battle/vfx/battleTiming";
 import { UNARMED_WANDERER } from "../battle/wandererWeapons";
 import { getCreatureDefinition } from "../creatures/catalog";
-import { displayName } from "../creatures/displayName";
+import { displayNameIn } from "../creatures/displayName";
 import { getActiveCreatures, getEffectiveMaxHp } from "../creatures/party";
 import { effectsEnabled, prefersReducedMotion } from "../render/fx/fxSettings";
 import { ensureFxTextures, FX_TEX } from "../render/fx/fxTextures";
@@ -326,7 +326,7 @@ export class TrialScene extends Phaser.Scene {
     const score = runningScore();
     const next = run.plan.rounds[run.roundIndex]!;
     const party = getActiveCreatures().map((c) => ({
-      name: displayName(c),
+      name: displayNameIn(c, getActiveCreatures()),
       hp: Math.max(0, c.currentHp),
       max: getEffectiveMaxHp(c),
     }));

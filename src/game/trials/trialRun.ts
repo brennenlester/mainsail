@@ -1,5 +1,6 @@
 import { addBond, BOND_HALVED_ABOVE_TIER, drainBondTierUps } from "../companions/bond";
 import { getCreatureDefinition } from "../creatures/catalog";
+import { displayNameIn } from "../creatures/displayName";
 import {
   ACTIVE_PARTY_LIMIT,
   addToParty,
@@ -366,7 +367,7 @@ function grantRewards(day: TrialDay, score: TrialScore, totalRounds: number): { 
     lines.push(`+${settlement.dust} Folklore Dust`);
   }
   if (settlement.bonus && lead) {
-    const name = lead.nickname || getCreatureDefinition(lead.definitionId).name;
+    const name = displayNameIn(lead, getActiveCreatures());
     if (settlement.bonus.kind === "rare") {
       lead.rare = true;
       lines.push(`${name} drank the eclipse light — a rare tint!`);

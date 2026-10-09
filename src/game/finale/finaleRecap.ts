@@ -4,6 +4,7 @@
  */
 import { bondTier, bondTierName } from "../companions/bond";
 import { getCreatureDefinition } from "../creatures/catalog";
+import { disambiguateNames } from "../creatures/displayName";
 import type { CreatureInstance } from "../creatures/types";
 import { isRareVariant } from "../share/rareVariant";
 import { SHARE_PARTY_LIMIT } from "../share/shareCode";
@@ -81,6 +82,9 @@ export function buildFinaleRecap(input: FinaleInput): FinaleRecap {
     .map(toCompanion)
     .filter((c): c is FinaleCompanion => c !== null)
     .sort(recapOrder);
+  disambiguateNames(all.map((c) => c.name)).forEach((n, i) => {
+    all[i]!.name = n;
+  });
   const companions = all.slice(0, FINALE_RECAP_LIMIT);
   const grown = all.filter((c) => c.evolved || c.presence).length;
   const parts = [`${all.length} ${all.length === 1 ? "companion" : "companions"}`];
