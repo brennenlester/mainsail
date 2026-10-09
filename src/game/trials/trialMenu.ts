@@ -1,6 +1,6 @@
 import type Phaser from "phaser";
 import { isVisitorMode } from "../world/worldSession";
-import { isTrialsUnlocked } from "./trialUnlock";
+import { eclipseTrialHint, isTrialsUnlocked } from "./trialUnlock";
 
 /**
  * "Eclipse Trial" in the dock's "…" menu (#420), shown once the Gate is
@@ -13,6 +13,8 @@ export function syncEclipseTrialMenu(): void {
   const button = document.getElementById(MENU_BUTTON_ID);
   if (button) {
     button.hidden = isVisitorMode() || !isTrialsUnlocked();
+    // Flag it as new until the first trial is played (#423).
+    button.textContent = eclipseTrialHint() ? "Eclipse Trial (daily) · new" : "Eclipse Trial (daily)";
   }
 }
 

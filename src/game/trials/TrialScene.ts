@@ -10,6 +10,7 @@ import { ensureFxTextures, FX_TEX } from "../render/fx/fxTextures";
 import { fetchLateImages, lateCreatureKeys } from "../render/lateAssets";
 import { resizeGameForDisplay } from "../render/pixelRatio";
 import { bindCutscene } from "../ui/hudLock";
+import { refreshQuestHud } from "../ui/questHud";
 import { layoutStage } from "../ui/stageLayout";
 import { SCORE } from "./scoring";
 import { typeLabel } from "./trialBoss";
@@ -37,6 +38,7 @@ import { openTrialShare, renderTrialCardBlob } from "./trialShareActions";
 import { TrialOverlay, type PipState } from "./trialUi";
 import { freshTrialSceneState, teardownTrialSceneState, type TrialSceneRunState } from "./trialSceneState";
 import { TrialBattleStrip } from "./trialBattleHud";
+import { syncEclipseTrialMenu } from "./trialMenu";
 
 export const TRIAL_SCENE_KEY = "TrialScene";
 
@@ -463,6 +465,9 @@ export class TrialScene extends Phaser.Scene {
       this.scene.resume(returnTo);
     }
     this.scene.stop();
+    // The first played trial retires the Gate pointer (#423).
+    refreshQuestHud();
+    syncEclipseTrialMenu();
     onExit?.(outcome);
   }
 }

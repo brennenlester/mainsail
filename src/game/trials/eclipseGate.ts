@@ -43,30 +43,52 @@ export function drawEclipseGate(
   }
   ensureFxTextures(scene);
   const at = groundAt(ECLIPSE_GATE.x, ECLIPSE_GATE.y);
+  // Sized and lit to read from across the shrine yard (#423): wide floor
+  // glow, a double ring, and a soft light pillar under the floating moon.
   const glow = scene.add
     .image(at.x, at.y - 6, FX_TEX.glow)
     .setTint(0xb48cff)
     .setBlendMode(Phaser.BlendModes.ADD)
-    .setScale(2.6, 1.1)
-    .setAlpha(0.7)
+    .setScale(3.8, 1.6)
+    .setAlpha(0.95)
     .setDepth(depth - 1);
+  const ember = scene.add
+    .image(at.x, at.y - 6, FX_TEX.glow)
+    .setTint(0xff9a4a)
+    .setBlendMode(Phaser.BlendModes.ADD)
+    .setScale(2.2, 0.9)
+    .setAlpha(0.8)
+    .setDepth(depth - 1);
+  const pillar = scene.add
+    .image(at.x, at.y - 40, FX_TEX.glow)
+    .setTint(0xc8a8ff)
+    .setBlendMode(Phaser.BlendModes.ADD)
+    .setScale(0.9, 3.4)
+    .setAlpha(0.55)
+    .setDepth(depth);
   const ring = scene.add
     .image(at.x, at.y - 6, FX_TEX.ring)
     .setTint(0xff9a4a)
     .setBlendMode(Phaser.BlendModes.ADD)
-    .setScale(1.3, 0.5)
+    .setScale(1.8, 0.7)
     .setDepth(depth);
-  const moon = scene.add
-    .image(at.x, at.y - 46, FX_TEX.halo)
+  const innerRing = scene.add
+    .image(at.x, at.y - 6, FX_TEX.ring)
     .setTint(0xffd27a)
     .setBlendMode(Phaser.BlendModes.ADD)
-    .setScale(0.6)
+    .setScale(1.1, 0.42)
+    .setDepth(depth);
+  const moon = scene.add
+    .image(at.x, at.y - 52, FX_TEX.halo)
+    .setTint(0xffd27a)
+    .setBlendMode(Phaser.BlendModes.ADD)
+    .setScale(0.85)
     .setDepth(depth + 1);
-  const disc = scene.add.circle(at.x, at.y - 46, 9, 0x0b0714, 1).setStrokeStyle(2, 0xffd27a, 0.9).setDepth(depth + 2);
+  const disc = scene.add.circle(at.x, at.y - 52, 11, 0x0b0714, 1).setStrokeStyle(2.5, 0xffd27a, 1).setDepth(depth + 2);
   if (prefersReducedMotion() || !effectsEnabled()) {
     return;
   }
-  const pulse = scene.tweens.add({ targets: [glow, ring], alpha: { from: 0.95, to: 0.45 }, duration: 1400, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+  const pulse = scene.tweens.add({ targets: [glow, ember, ring, innerRing, pillar], alpha: { from: 1, to: 0.55 }, duration: 1400, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
   const bob = scene.tweens.add({ targets: [moon, disc], y: "-=6", duration: 1800, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
   // Zone loads destroy the display list without tween cleanup: never leave endless tweens behind.
   glow.once(Phaser.GameObjects.Events.DESTROY, () => {

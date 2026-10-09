@@ -11,6 +11,7 @@ import {
   getSovereignVoyageHint,
   isSovereignVoyageStarted,
 } from "../story/sovereignVoyage";
+import { eclipseTrialHint } from "../trials/trialUnlock";
 
 /** Pin the quest tracker to the top-right of the game board (not the status panel). */
 export function syncQuestHudPosition(): void {
@@ -47,6 +48,7 @@ export function refreshQuestHud(): void {
     if (getActiveQuestId() && isSovereignVoyageStarted()) {
       parts.push(getSovereignVoyageHint() ?? "");
     }
+    parts.push(eclipseTrialHint() ?? "");
     parts.push(getActiveSideQuestHint() ?? "");
     questHintEl.textContent = parts.filter(Boolean).join(" · ");
   }

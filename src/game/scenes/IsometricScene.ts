@@ -111,6 +111,7 @@ import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
+import { eclipseTrialHint } from "../trials/trialUnlock";
 import { claimFinaleCard } from "../finale/finaleTrigger";
 import { playerParty } from "../creatures/party";
 import { consumeAchievementToast } from "../progression/achievements";
@@ -362,7 +363,14 @@ export class IsometricScene extends Phaser.Scene {
       party: playerParty.creatures,
       // The quest-complete toast + HUD voyage hint (#369) are the hook; make
       // sure the dock shows them as soon as the world resumes.
-      onContinue: () => updateStatusPanel(getZone(this.currentZoneId)),
+      onContinue: () => {
+        updateStatusPanel(getZone(this.currentZoneId));
+        // One-time pointer to the post-game Eclipse Gate (#423), after the quest toast.
+        const hint = eclipseTrialHint();
+        if (hint) {
+          this.time.delayedCall(3200, () => this.showGatherToast(hint, true, 5200));
+        }
+      },
     });
   };
   private layoutLocked = false;
@@ -2510,6 +2518,7 @@ export class IsometricScene extends Phaser.Scene {
         fontSize: "15px",
         padding: { x: 12, y: 8 },
         align: "center",
+        wordWrap: { width: 360 },
       })
       .setOrigin(0.5, 0)
       .setDepth(hudDepthAbovePlayer(this.playerDepth));
