@@ -57,7 +57,17 @@ export function openTrialPreviewFromUrl(game: Phaser.Game, day: TrialDay): void 
   openTrialPreview(game, day, link.status === "ok" ? link.brag : null);
 }
 
-export function openTrialPreview(game: Phaser.Game, day: TrialDay, brag: TrialBrag | null): void {
+/**
+ * `afterPractice`: back from a practice run (#429). Focus lands on the
+ * sheet's heading, not on Try it, so Enter mashed through the result's
+ * Done cannot start another run; Tab still reaches both buttons.
+ */
+export function openTrialPreview(
+  game: Phaser.Game,
+  day: TrialDay,
+  brag: TrialBrag | null,
+  afterPractice = false,
+): void {
   const date = formatTrialDay(day);
   const isToday = day === todayTrialDay();
   const sheet = openShareSheet({
@@ -80,7 +90,7 @@ export function openTrialPreview(game: Phaser.Game, day: TrialDay, brag: TrialBr
               day,
               mode: "sandbox",
               // Back to the preview: Try it again or Play now.
-              onExit: () => openTrialPreview(game, day, brag),
+              onExit: () => openTrialPreview(game, day, brag, true),
             });
           });
         },
@@ -88,6 +98,13 @@ export function openTrialPreview(game: Phaser.Game, day: TrialDay, brag: TrialBr
       { label: "Play now", onClick: () => window.location.assign(playNowUrl()) },
     ],
   });
+  if (afterPractice) {
+    const heading = sheet.root.querySelector<HTMLElement>(".share-title");
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  }
   if (!brag) {
     sheet.image.hidden = true;
     return;

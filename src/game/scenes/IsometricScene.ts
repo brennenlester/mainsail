@@ -94,7 +94,7 @@ import {
   type PendingGodLandEncounter,
 } from "../encounters/godLand";
 import { isOverworldEncounterSafeTile } from "../encounters/overworldEncounters";
-import { overworldEncounterPacer } from "../encounters/encounterPacing";
+import { isQuietAfterStory, overworldEncounterPacer } from "../encounters/encounterPacing";
 import { visitShrineAltar, wakeStrandedParty } from "../world/shrineHeal";
 import { isDomKeyboardTarget } from "../ui/canvasFocus";
 import { prefersReducedMotion } from "../render/fx/fxSettings";
@@ -775,7 +775,12 @@ export class IsometricScene extends Phaser.Scene {
     ) {
       return;
     }
-    if (isVisitorMode() || isSafeZone(this.currentZoneId) || isStoryBeatSuppressingWild(this.currentZoneId)) {
+    if (
+      isVisitorMode() ||
+      isSafeZone(this.currentZoneId) ||
+      isStoryBeatSuppressingWild(this.currentZoneId) ||
+      isQuietAfterStory(this.currentZoneId, questProgress["shrine-finale"] === "complete")
+    ) {
       return;
     }
     if (safeTile) {

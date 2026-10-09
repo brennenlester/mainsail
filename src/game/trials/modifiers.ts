@@ -26,7 +26,7 @@ export type ModifierEffect = {
   playerGuardTaken?: number;
   /** Both sides: outgoing damage x `damage`, battle bulk x `bulk` (<1 = more fragile). */
   glass?: { damage: number; bulk: number };
-  /** Foe heals this share of max HP after each of its turns. */
+  /** Foe heals this share of max HP after each of its turns (capped per round, MOONFED_ROUND_CAP). */
   foeRegen?: number;
   /** No opening finisher wind-up, for both sides. */
   finishersReady?: boolean;
@@ -62,7 +62,13 @@ export const TWIN_SHADOWS_EVERY = 4;
 export const ROOTBOUND_GUARD_TAKEN = 0.5;
 export const GLASS = { damage: 1.3, bulk: 0.7 } as const;
 export const MOONFED_REGEN = 0.04;
-export const IRON_HIDE = { hp: 1.35, damage: 0.9 } as const;
+/**
+ * Most Moonfed restores in one round, as a share of the foe's max HP (#429):
+ * uncapped, a slow lead barely out-damaged the regen and rounds stalled.
+ */
+export const MOONFED_ROUND_CAP = 0.25;
+/** #429: +35% HP made Iron Hide rounds the slowest in the sim (mean 12 turns); now +20%. */
+export const IRON_HIDE = { hp: 1.2, damage: 0.9 } as const;
 
 const pct = (x: number): number => Math.round(x * 100);
 /** "1.86": two decimals at most. */
@@ -124,7 +130,7 @@ export const MODIFIERS: Readonly<Record<ModifierId, ModifierDefinition>> = {
   moonfed: {
     id: "moonfed",
     name: "Moonfed",
-    summary: `The foe heals ${pct(MOONFED_REGEN)}% max HP after each of its turns.`,
+    summary: `The foe heals ${pct(MOONFED_REGEN)}% max HP after each of its turns (at most ${pct(MOONFED_ROUND_CAP)}% per round).`,
     chip: "MOONFED",
     glyph: "M",
     color: "#e8d8ff",

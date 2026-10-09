@@ -39,6 +39,11 @@
   overflow-wrap: anywhere;
 }
 
+/* Programmatic focus target (back from a practice run, #429): no ring. */
+.share-title:focus {
+  outline: none;
+}
+
 .share-sub {
   margin: -6px 0 0;
   color: #e8d8c0;
