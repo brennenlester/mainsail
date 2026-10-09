@@ -29,6 +29,7 @@ import {
 import {
   canGift,
   GIFT_COST,
+  giftCooldownLeftMs,
   giftFavorite,
 } from "../companions/companionState";
 import { getPersonality } from "../companions/personality";
@@ -270,7 +271,36 @@ function renderDetail(): void {
   });
   actions.append(giftBtn, renameBtn);
   root.appendChild(actions);
-  root.appendChild(el("p", "party-detail-note", giftNoteText(detailNote, check)));
+  const note = el("p", "party-detail-note", giftNoteText(detailNote, check));
+  root.appendChild(note);
+  scheduleGiftRefresh(creature, giftBtn, note);
+}
+
+let giftTimer: number | undefined;
+
+/**
+ * While the gift cools down, tick the countdown and re-enable the button
+ * when it ends (#426: it stayed disabled until something re-rendered).
+ * Updates in place so keyboard focus stays put.
+ */
+function scheduleGiftRefresh(creature: CreatureInstance, btn: HTMLButtonElement, note: HTMLElement): void {
+  window.clearTimeout(giftTimer);
+  giftTimer = undefined;
+  const left = giftCooldownLeftMs(creature);
+  if (left <= 0) {
+    return;
+  }
+  giftTimer = window.setTimeout(() => {
+    giftTimer = undefined;
+    if (!btn.isConnected) {
+      return;
+    }
+    const check = canGift(creature);
+    btn.disabled = isVisitorMode() || !check.ok;
+    btn.title = check.ok ? "Raise bond" : check.reason;
+    note.textContent = giftNoteText(detailNote, check);
+    scheduleGiftRefresh(creature, btn, note);
+  }, Math.min(1000, left));
 }
 
 /**
@@ -460,6 +490,8 @@ export function openParty(): void {
 
 export function closeParty(): void {
   popOverlay("party");
+  window.clearTimeout(giftTimer);
+  giftTimer = undefined;
   const root = document.getElementById("party-overlay");
   if (root) {
     root.hidden = true;
