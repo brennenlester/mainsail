@@ -41,8 +41,9 @@ export const TRIAL_PARTY_SCALE: readonly { hp: number; damage: number }[] = [
 /**
  * Rounds 1-2 tempo (#423): openers were 18-turn slogs of small hits, so foes
  * there hit harder. #426: the #423 HP cut (x0.75 / x0.85) overshot to ~7-turn
- * rounds and a ~5 minute trial; HP is back near full with a smaller damage
- * boost, so the openers run ~8 sim turns at about the old cost.
+ * rounds and a ~5 minute trial. HP is back near full and the damage boost is
+ * gone (with full HP it spiked early losses for non-starter parties), so the
+ * openers run ~8 sim turns.
  */
 export const EARLY_ROUND_TEMPO: readonly { hp: number; damage: number }[] = [
   { hp: 0.9, damage: 1 },
