@@ -9,6 +9,7 @@ import { createShrineButton } from "./shrinePanel";
 import { clearCraftSpotlight } from "../shrine/shrineDisclosure";
 import { suggestCraft, type CraftSuggestion } from "../shrine/craftSuggestion";
 import { getActiveQuestId } from "../story/questProgress";
+import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { playerParty } from "../creatures/party";
 import {
@@ -203,6 +204,7 @@ export function mountCraftingHud(
       materials: withStagedCraftingMaterials(playerInventory.materials),
       items: withStagedCraftingItems(playerInventory.items),
       partyDefinitionIds: playerParty.creatures.map((c) => c.definitionId),
+      voyageStep: getSovereignVoyageStep(),
     });
   }
 
