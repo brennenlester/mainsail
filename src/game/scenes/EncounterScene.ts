@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { playEncounterSfx, playUiClickSfx } from "../audio/gameAudio";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { addToParty, hasCreature } from "../creatures/party";
+import { applyRareLook } from "../render/rareGlow";
 import { formatEncounterMatchup } from "../battle/battleLogic";
 import { resolveMatchup } from "../creatures/folkloreTypes";
 import { ensureCreatureTextures } from "../creatures/sprites";
@@ -755,9 +756,13 @@ export class EncounterScene extends Phaser.Scene {
         this.showResult(formatGodClaimJoinLine("Stone Sovereign", "Cairn Maul", result, false));
       }
     } else {
-      addToParty(this.creatureId, getWildEffectiveLevel(this.creatureId));
+      const joined = addToParty(this.creatureId, getWildEffectiveLevel(this.creatureId));
+      // A rare roll shows on the card right away, same look as battle and party (#423).
+      if (this.portrait) {
+        applyRareLook(this, this.portrait, joined);
+      }
       this.celebrate();
-      this.showResult(`${name} joined you!`);
+      this.showResult(`${name} joined you!${joined.rare ? " A rare tint ✦" : ""}`);
     }
   }
 

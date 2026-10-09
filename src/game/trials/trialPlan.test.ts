@@ -14,6 +14,7 @@ import {
 } from "./trialPlan";
 import {
   formatTrialDay,
+  nextTrialIn,
   isValidTrialDay,
   MAX_TRIAL_DAY,
   MIN_TRIAL_DAY,
@@ -32,6 +33,12 @@ describe("trial seeds (#420)", () => {
     expect(todayTrialDay(Date.UTC(2026, 9, 9))).toBe(DAY + 1);
     expect(trialDayKey(DAY)).toBe("2026-10-08");
     expect(formatTrialDay(DAY)).toBe("Oct 8, 2026");
+  });
+
+  it("counts down to the next UTC-midnight trial (#423)", () => {
+    expect(nextTrialIn(Date.UTC(2026, 9, 8, 18, 48))).toBe("new trial in 5 h 12 m");
+    expect(nextTrialIn(Date.UTC(2026, 9, 8, 23, 59, 30))).toBe("new trial in 1 m");
+    expect(nextTrialIn(Date.UTC(2026, 9, 8, 0, 0))).toBe("new trial in 24 h 0 m");
   });
 
   it("parses only real in-range YYYY-MM-DD dates", () => {

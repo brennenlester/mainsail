@@ -3,13 +3,14 @@ import { playBattleWinSfx, playBossStingSfx, playUiClickSfx } from "../audio/gam
 import { fastBattleEnabled } from "../battle/vfx/battleTiming";
 import { UNARMED_WANDERER } from "../battle/wandererWeapons";
 import { getCreatureDefinition } from "../creatures/catalog";
-import { displayName } from "../creatures/displayName";
+import { displayNameIn } from "../creatures/displayName";
 import { getActiveCreatures, getEffectiveMaxHp } from "../creatures/party";
 import { effectsEnabled, prefersReducedMotion } from "../render/fx/fxSettings";
 import { ensureFxTextures, FX_TEX } from "../render/fx/fxTextures";
 import { fetchLateImages, lateCreatureKeys } from "../render/lateAssets";
 import { resizeGameForDisplay } from "../render/pixelRatio";
 import { bindCutscene } from "../ui/hudLock";
+import { refreshQuestHud } from "../ui/questHud";
 import { layoutStage } from "../ui/stageLayout";
 import { SCORE } from "./scoring";
 import { typeLabel } from "./trialBoss";
@@ -31,12 +32,13 @@ import {
   type TrialMode,
   type TrialOutcome,
 } from "./trialRun";
-import { formatTrialDay, type TrialDay } from "./trialSeed";
+import { formatTrialDay, nextTrialIn, type TrialDay } from "./trialSeed";
 import { bestScoreFor, currentStreak } from "./trialState";
 import { openTrialShare, renderTrialCardBlob } from "./trialShareActions";
 import { TrialOverlay, type PipState } from "./trialUi";
-import { freshTrialSceneState, teardownTrialSceneState, type TrialSceneRunState } from "./trialSceneState";
+import { freshTrialSceneState, teardownTrialSceneState, trialFaultAction, type TrialSceneRunState } from "./trialSceneState";
 import { TrialBattleStrip } from "./trialBattleHud";
+import { syncEclipseTrialMenu } from "./trialMenu";
 
 export const TRIAL_SCENE_KEY = "TrialScene";
 
@@ -95,7 +97,9 @@ export class TrialScene extends Phaser.Scene {
   create(): void {
     document.body.classList.add("trial-active");
     const release = bindCutscene(this);
+    window.addEventListener("error", this.onFault);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener("error", this.onFault);
       release();
       document.body.classList.remove("trial-active");
       this.scale.off("resize", this.drawSky, this);
@@ -125,6 +129,36 @@ export class TrialScene extends Phaser.Scene {
     }
     this.showPreview();
   }
+
+  /**
+   * Defensive guard (#423): an error thrown inside a round (BattleScene,
+   * a trial hook, a DOM handler) ends the run on the results screen instead
+   * of freezing or restarting. A throw inside Phaser's frame callback stops
+   * its rAF loop, so the loop is restarted after the broken battle is
+   * queued to stop.
+   */
+  private onFault = (event: ErrorEvent): void => {
+    // Benign browser notices (ResizeObserver loop) arrive as errors with no Error object.
+    if (!event.error) {
+      return;
+    }
+    const action = trialFaultAction(getTrialRun()?.phase ?? null, this.s.exiting);
+    if (action === "ignore") {
+      return;
+    }
+    console.error("Eclipse Trial: ending the run after an error", event.error);
+    if (action === "lose-round") {
+      this.s.detachBattle?.();
+      this.clearWatchdog();
+      this.scene.stop("BattleScene");
+      this.onRoundClosed(false);
+    } else {
+      this.showResults(finishTrial());
+    }
+    const loop = this.game.loop;
+    loop.sleep();
+    loop.wake();
+  };
 
   /** The dock is hidden for the whole trial: size the canvas to the full stage. */
   private fitStage(): void {
@@ -183,7 +217,8 @@ export class TrialScene extends Phaser.Scene {
   }
 
   private kicker(): string {
-    const day = formatTrialDay(this.data_.day);
+    // Trials roll over at UTC midnight: say so, since local evening may already be "tomorrow" (#423).
+    const day = `${formatTrialDay(this.data_.day)} (UTC)`;
     return this.data_.mode === "sandbox" ? `Eclipse Trial · ${day} · practice` : `Eclipse Trial · ${day}`;
   }
 
@@ -224,7 +259,7 @@ export class TrialScene extends Phaser.Scene {
         boons: run.pendingBoons,
         note:
           round.index === 0
-            ? "Five battles with your party, the last a boss. No befriending and nothing to lose: a faint ends the trial and everyone is restored."
+            ? `Five battles with your party, the last a boss. No befriending and nothing to lose: if your whole party faints the trial ends, and everyone is restored afterward. Today's trial is the same for everyone; ${nextTrialIn()}.`
             : boss
               ? "Two forms. When she gathers the dark, Guard the next turn to parry and stagger her."
               : undefined,
@@ -326,7 +361,7 @@ export class TrialScene extends Phaser.Scene {
     const score = runningScore();
     const next = run.plan.rounds[run.roundIndex]!;
     const party = getActiveCreatures().map((c) => ({
-      name: displayName(c),
+      name: displayNameIn(c, getActiveCreatures()),
       hp: Math.max(0, c.currentHp),
       max: getEffectiveMaxHp(c),
     }));
@@ -463,6 +498,9 @@ export class TrialScene extends Phaser.Scene {
       this.scene.resume(returnTo);
     }
     this.scene.stop();
+    // The first played trial retires the Gate pointer (#423).
+    refreshQuestHud();
+    syncEclipseTrialMenu();
     onExit?.(outcome);
   }
 }

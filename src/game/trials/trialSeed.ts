@@ -98,6 +98,18 @@ export function formatTrialDay(day: TrialDay): string {
   });
 }
 
+/**
+ * Local-time pointer to the next UTC-midnight trial (#423): an evening player
+ * in the Americas sees tomorrow's date, so say when the next one starts.
+ */
+export function nextTrialIn(now = Date.now()): string {
+  const left = Math.max(0, (todayTrialDay(now) + 1) * DAY_MS - now);
+  const minutes = Math.ceil(left / 60_000);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `new trial in ${h} h ${m} m` : `new trial in ${m} m`;
+}
+
 /** FNV-1a over a string: stable across platforms. */
 export function hashString(key: string): number {
   let h = 2166136261;

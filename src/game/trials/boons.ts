@@ -77,3 +77,12 @@ export const BOON_IDS = Object.keys(BOONS) as BoonId[];
 export function isBoonId(value: unknown): value is BoonId {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(BOONS, value);
 }
+
+/**
+ * A boon as the round it shapes describes it (#423): the pick screen says
+ * "Next round: ...", the round itself just says what it does.
+ */
+export function boonThisRoundText(id: BoonId): string {
+  const text = BOONS[id].summary.replace(/^Next round:\s*/, "");
+  return `${BOONS[id].name}: ${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}

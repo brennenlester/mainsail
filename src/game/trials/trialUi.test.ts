@@ -51,6 +51,14 @@ describe("Eclipse Trial screens (#420)", () => {
     expect(leave).toHaveBeenCalledTimes(1);
   });
 
+  it("the round a boon shapes names it without repeating 'Next round' (#423)", () => {
+    ui = new TrialOverlay(null);
+    ui.renderPreview({ ...preview, boons: ["keen-edge"] }, () => undefined, () => undefined);
+    const text = ui.root.querySelector(".trial-sheet")!.textContent!;
+    expect(text).toContain("Keen Edge: Your companions deal +10% damage.");
+    expect(text).not.toContain("Next round");
+  });
+
   it("boon cards answer to 1-3; 4 or S skips; chips show the next round", () => {
     ui = new TrialOverlay(null);
     const pick = vi.fn();

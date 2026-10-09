@@ -111,6 +111,8 @@ import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
+import { eclipseTrialHint } from "../trials/trialUnlock";
+import type { SailingBoat } from "../render/sailingBoat";
 import { claimFinaleCard } from "../finale/finaleTrigger";
 import { playerParty } from "../creatures/party";
 import { consumeAchievementToast } from "../progression/achievements";
@@ -362,7 +364,14 @@ export class IsometricScene extends Phaser.Scene {
       party: playerParty.creatures,
       // The quest-complete toast + HUD voyage hint (#369) are the hook; make
       // sure the dock shows them as soon as the world resumes.
-      onContinue: () => updateStatusPanel(getZone(this.currentZoneId)),
+      onContinue: () => {
+        updateStatusPanel(getZone(this.currentZoneId));
+        // One-time pointer to the post-game Eclipse Gate (#423), after the quest toast.
+        const hint = eclipseTrialHint();
+        if (hint) {
+          this.time.delayedCall(3200, () => this.showGatherToast(hint, true, 5200));
+        }
+      },
     });
   };
   private layoutLocked = false;
@@ -373,7 +382,10 @@ export class IsometricScene extends Phaser.Scene {
   /** Moored boat sprite at the Harbor dock (hidden while sailing). */
   private dockBoat?: Phaser.GameObjects.Image;
   /** Boat sprite that follows the player while sailing. */
-  private sailingBoat?: Phaser.GameObjects.Image;
+  private sailingBoat?: SailingBoat;
+  /** Boat code loads on the first voyage (#423): kept out of the boot bundle. */
+  private sailingBoatModule?: typeof import("../render/sailingBoat");
+  private sailingBoatLoading = false;
   /** Active-party overworld sprites (presence tell). */
   private partyFollowers: PartyOverworldFollowerState =
     createPartyOverworldFollowerState();
@@ -678,7 +690,9 @@ export class IsometricScene extends Phaser.Scene {
       this.walkPhase += step * WALK_CYCLES_PER_TILE;
       if (walkFootfallsSince(prevPhase, this.walkPhase) > 0) {
         playStepSfx(this, _time);
-        this.fx?.footstep(this.player.x, this.playerBaseY);
+        if (!isSailing()) {
+          this.fx?.footstep(this.player.x, this.playerBaseY);
+        }
       }
       updateHostPosition(
         this.currentZoneId,
@@ -2510,6 +2524,7 @@ export class IsometricScene extends Phaser.Scene {
         fontSize: "15px",
         padding: { x: 12, y: 8 },
         align: "center",
+        wordWrap: { width: 360 },
       })
       .setOrigin(0.5, 0)
       .setDepth(hudDepthAbovePlayer(this.playerDepth));
@@ -2525,7 +2540,9 @@ export class IsometricScene extends Phaser.Scene {
     const screen = this.toScreen(this.playerGridX, this.playerGridY);
 
     this.playerBaseY = screen.y + TILE_HEIGHT / 2 - 2;
-    const bob = this.isMoving ? walkBobOffset(this.walkPhase) : 0;
+    // Afloat, the trainer rides the hull's bob instead of a walking bounce.
+    const sailBob = this.syncSailingBoat(screen.x, this.playerBaseY);
+    const bob = isSailing() ? sailBob : this.isMoving ? walkBobOffset(this.walkPhase) : 0;
     this.player.setPosition(screen.x, this.playerBaseY + bob);
     this.player.setDepth(this.playerDepth);
     if (isSailing()) {
@@ -2547,8 +2564,6 @@ export class IsometricScene extends Phaser.Scene {
       );
     }
     this.syncNameTagPosition();
-    // Boat stays on the waterline; only the trainer bobs with gait.
-    this.syncSailingBoat(screen.x, this.playerBaseY);
   }
 
   private refreshNameTag(): void {
@@ -2587,23 +2602,30 @@ export class IsometricScene extends Phaser.Scene {
     this.nameTag.setDepth(hudDepthAbovePlayer(this.playerDepth));
   }
 
-  private syncSailingBoat(screenX: number, baseY: number): void {
+  /** Boat under the trainer while sailing (#423); returns the rider's bob. */
+  private syncSailingBoat(screenX: number, baseY: number): number {
     if (!isSailing()) {
-      if (this.sailingBoat) {
-        this.sailingBoat.destroy();
-        this.sailingBoat = undefined;
-      }
-      return;
+      this.sailingBoat?.destroy();
+      this.sailingBoat = undefined;
+      return 0;
     }
     if (!this.sailingBoat) {
-      this.sailingBoat = this.add
-        .image(screenX, baseY, ...imagineTexture(this, getBoatTextureKey()))
-        .setOrigin(0.5, 1);
-      fitDisplay(this.sailingBoat, PROP_DISPLAY["prop-boat"]);
-    } else {
-      this.sailingBoat.setPosition(screenX, baseY);
+      if (!this.sailingBoatModule) {
+        if (!this.sailingBoatLoading) {
+          this.sailingBoatLoading = true;
+          void import("../render/sailingBoat")
+            .then((m) => {
+              this.sailingBoatModule = m;
+            })
+            .finally(() => {
+              this.sailingBoatLoading = false;
+            });
+        }
+        return 0;
+      }
+      this.sailingBoat = new this.sailingBoatModule.SailingBoat(this, getBoatTextureKey());
     }
-    this.sailingBoat.setDepth(this.playerDepth - 1);
+    return this.sailingBoat.sync(screenX, baseY, this.playerFacing, this.isMoving, this.playerDepth);
   }
 
   private playPlayerAnimation(): void {

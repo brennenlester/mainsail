@@ -18,6 +18,7 @@ import {
 } from "./hudChrome";
 import "./hudChrome.css";
 import { syncShareButton } from "../share/shareActions";
+import { eclipseTrialHint } from "../trials/trialUnlock";
 
 let inviteFeedbackActive = false;
 let inviteFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -90,7 +91,8 @@ export function updateStatusPanel(zone: ZoneDefinition): void {
     legendEl.textContent = CONTROL_LEGEND_TEXT;
   }
   if (gateEl) {
-    gateEl.textContent = peekQuestCompletionMessage() ?? getStoryStatusLine();
+    // Post-finale, the dock points at the Eclipse Gate until the first trial (#423).
+    gateEl.textContent = peekQuestCompletionMessage() ?? eclipseTrialHint() ?? getStoryStatusLine();
   }
   if (partyEl) {
     renderPartyHpHud(partyEl);

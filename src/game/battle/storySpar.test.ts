@@ -189,6 +189,12 @@ describe("story spar resolution", () => {
     expect(grantCoverageGift("rival-wren")).toBeNull();
   });
 
+  it("never gifts a second Pip when a party member is already Pip (#423)", () => {
+    playerParty.creatures[0]!.nickname = "Pip";
+    expect(grantCoverageGift("rival-wren")).toBe("Rill the Brook Nymph");
+    expect(playerParty.creatures.filter((c) => c.nickname === "Pip")).toHaveLength(1);
+  });
+
   it("heals only the first real loss of the active beat", () => {
     beginStorySpar("rival-wren");
     expect(resolveStorySpar(false)).toBe("lost");
@@ -500,11 +506,19 @@ describe("no farming through side effects or reloads (#369 review)", () => {
   });
 });
 
-describe("giftNickname (#401)", () => {
-  it("keeps the preferred nickname unless the player already uses it", () => {
-    expect(giftNickname("Pip", "Sam")).toBe("Pip");
-    expect(giftNickname("Pip", null)).toBe("Pip");
-    expect(giftNickname("Pip", "pip")).toBe("Rill");
-    expect(giftNickname("Pip", " Pip ")).toBe("Rill");
+describe("giftNickname (#401, #423)", () => {
+  it("keeps the preferred nickname unless something in play already uses it", () => {
+    expect(giftNickname("Pip", ["Sam"])).toBe("Pip");
+    expect(giftNickname("Pip", [null, undefined])).toBe("Pip");
+    expect(giftNickname("Pip", ["pip"])).toBe("Rill");
+    expect(giftNickname("Pip", [" Pip "])).toBe("Rill");
+  });
+
+  it("avoids party nicknames and species names with a deterministic fallback", () => {
+    expect(giftNickname("Pip", ["Sam", "Pip", "Rill"])).toBe("Brooklet");
+    expect(giftNickname("Mossling", ["Mossling"])).toBe("Rill");
+    expect(
+      giftNickname("Pip", ["Pip", "Rill", "Brooklet", "Tansy", "Wade", "Puddle", "Kelp"]),
+    ).toBe("Pip 2");
   });
 });

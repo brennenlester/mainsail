@@ -1,4 +1,6 @@
 import { isMainStoryComplete, questProgress } from "../story/questProgress";
+import { isVisitorMode } from "../world/worldSession";
+import { hasAttemptedTrial } from "./trialState";
 
 /**
  * Finale done: the Eclipse Gate is open (#420). Old saves that finished the
@@ -7,4 +9,14 @@ import { isMainStoryComplete, questProgress } from "../story/questProgress";
  */
 export function isTrialsUnlocked(): boolean {
   return questProgress["shrine-finale"] === "complete" || isMainStoryComplete();
+}
+
+export const ECLIPSE_TRIAL_HINT = "Eclipse Trial: a new daily challenge awaits at the Moon Shrine";
+
+/**
+ * Pointer to the Eclipse Gate (#423): shown in the quest HUD from the finale
+ * until the first trial is played. Never in a friend's world.
+ */
+export function eclipseTrialHint(): string | null {
+  return isTrialsUnlocked() && !isVisitorMode() && !hasAttemptedTrial() ? ECLIPSE_TRIAL_HINT : null;
 }

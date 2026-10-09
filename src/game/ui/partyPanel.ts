@@ -1,6 +1,6 @@
 import "./menuPanels.css";
 import { getCreatureDefinition } from "../creatures/catalog";
-import { displayName } from "../creatures/displayName";
+import { displayNameIn } from "../creatures/displayName";
 import { creatureArtSlot, fillCreatureArt } from "./creatureArt";
 import {
   ACTIVE_PARTY_LIMIT,
@@ -159,13 +159,18 @@ function ensurePartyRoot(): HTMLElement {
   return root;
 }
 
+/** Name as the panel shows it: two "Pip"s read "Pip" and "Pip ·2" (#423). */
+function partyName(creature: CreatureInstance): string {
+  return displayNameIn(creature, [...getActiveCreatures(), ...getReserveCreatures()]);
+}
+
 /** Spoken summary for a party card (the visible card is mostly icons and bars). */
 export function creatureCardLabel(creature: CreatureInstance): string {
   const def = getCreatureDefinition(creature.definitionId);
   const maxHp = getEffectiveMaxHp(creature);
   const tier = bondTier(creature.bond);
   const parts = [
-    displayName(creature),
+    partyName(creature),
     creature.nickname ? def.name : "",
     isRareVariant(creature) ? "rare" : "",
     `level ${creature.level}`,
@@ -265,8 +270,18 @@ function renderDetail(): void {
   });
   actions.append(giftBtn, renameBtn);
   root.appendChild(actions);
-  const note = detailNote || (check.ok ? "" : check.reason);
-  root.appendChild(el("p", "party-detail-note", note));
+  root.appendChild(el("p", "party-detail-note", giftNoteText(detailNote, check)));
+}
+
+/**
+ * Line under the gift button (#423): the last gift's result, and while the
+ * gift is unavailable, why (cooldown or daily cap) — inline, never only a tooltip.
+ */
+export function giftNoteText(last: string, check: { ok: true } | { ok: false; reason: string }): string {
+  if (check.ok) {
+    return last;
+  }
+  return last && last !== check.reason ? `${last} ${check.reason}` : check.reason;
 }
 
 /** One creature card: portrait, name, level, type chip, HP bar, bond hearts, nickname edit. */
@@ -277,7 +292,7 @@ function buildCreatureCard(
 ): HTMLLIElement {
   const def = getCreatureDefinition(creature.definitionId);
   const maxHp = getEffectiveMaxHp(creature);
-  const name = displayName(creature);
+  const name = partyName(creature);
   const li = document.createElement("li");
   li.className = "party-card";
   li.dataset.instanceId = creature.instanceId;

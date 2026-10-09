@@ -28,6 +28,8 @@ export type TrialRecord = {
   claims: Record<string, number>;
   /** Day the first-full-clear bonus roll was spent. */
   bonusDays: string[];
+  /** A host trial has been played to its end once (drives the Gate pointer, #423). */
+  attempted: boolean;
 };
 
 export const BEST_DAYS_KEPT = 30;
@@ -51,6 +53,7 @@ export function emptyTrialRecord(): TrialRecord {
     lastClearedDay: null,
     claims: {},
     bonusDays: [],
+    attempted: false,
   };
 }
 
@@ -134,6 +137,8 @@ export function sanitizeTrialRecord(raw: unknown, today: TrialDay = todayTrialDa
   if (out.lastShowingDay === null) {
     out.streak = 0;
   }
+  // Older saves never stored the flag: any recorded score means a trial was played.
+  out.attempted = raw.attempted === true || Object.keys(out.best).length > 0;
   return out;
 }
 
@@ -150,8 +155,14 @@ export function getTrialRecordSnapshot(): TrialRecord | undefined {
     r.lastShowingDay === null &&
     r.lastClearedDay === null &&
     Object.keys(r.claims).length === 0 &&
-    r.bonusDays.length === 0;
+    r.bonusDays.length === 0 &&
+    !r.attempted;
   return untouched ? undefined : structuredClone(r);
+}
+
+/** True once a host trial has been settled (any outcome). */
+export function hasAttemptedTrial(): boolean {
+  return record.attempted;
 }
 
 export function bestScoreFor(day: TrialDay): number | null {
@@ -197,6 +208,7 @@ export function settleTrialRun(
   today: TrialDay = todayTrialDay(),
 ): TrialSettlement {
   const key = trialDayKey(day);
+  record.attempted = true;
   const score = Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(run.score)));
   const prior = record.best[key];
   const newBest = prior === undefined || score > prior;

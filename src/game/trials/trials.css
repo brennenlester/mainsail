@@ -13,7 +13,9 @@ body.trial-active .opening-caption {
   inset: 0;
   z-index: 65;
   display: flex;
-  align-items: center;
+  /* Start, not center: a sheet taller than a landscape phone must scroll from
+     its top instead of clipping the heading (#423). margin:auto still centers. */
+  align-items: flex-start;
   justify-content: center;
   padding: 16px;
   /* The trial scene paints the eclipse sky and particles on the canvas behind. */
@@ -178,6 +180,12 @@ body.trial-active .opening-caption {
 
 .trial-foe canvas {
   filter: drop-shadow(0 0 12px #b48cff88);
+}
+
+/* Portrait tiles sit on night navy with an ember rim, not the codex mint (#423). */
+.trial-overlay .codex-art {
+  background: radial-gradient(circle at 50% 70%, #2c2a5a 0%, #141634 100%);
+  box-shadow: inset 0 0 0 2px #ff9a4a66;
 }
 
 .trial-note {
@@ -444,6 +452,20 @@ body.trial-active .opening-caption {
   .trial-sheet {
     gap: 8px;
     padding: 12px;
+  }
+  /* Landscape phones (#423): a slimmer heading and portrait so the round fits. */
+  .trial-banner {
+    padding-top: 0;
+  }
+  .trial-banner h2 {
+    font-size: 26px;
+  }
+  .trial-foe canvas {
+    width: 64px !important;
+    height: 64px !important;
+  }
+  .trial-note {
+    font-size: 13px;
   }
   .trial-card-img {
     width: min(100%, 200px);

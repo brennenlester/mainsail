@@ -6,14 +6,15 @@ import { hasStatus } from "../battle/statusEffects";
 import { STAGGER_MOVE_ID } from "../battle/boss/storyBattle";
 import { KEEN_EDGE_DAMAGE, MOON_SHIELD_TAKEN, type BoonId } from "./boons";
 import type { ModifierId } from "./modifiers";
-import { TRIAL_PARTY_SCALE, TrialBattle, trialPartyScale, trialPartyStrength } from "./trialBattle";
+import { EARLY_ROUND_TEMPO, TRIAL_PARTY_SCALE, TrialBattle, trialPartyScale, trialPartyStrength } from "./trialBattle";
 import { ECLIPSE_SIGNATURE_ID, ECLIPSE_CHARGE_ID, buildEclipseBossDef, counterTypeOf } from "./trialBoss";
 import { generateTrialPlan, type TrialPlan, type TrialRoundPlan } from "./trialPlan";
 import { parseTrialDayKey } from "./trialSeed";
 
 const PLAN: TrialPlan = generateTrialPlan(parseTrialDayKey("2026-10-08")!);
 
-function round(modifiers: ModifierId[], creatureId = "lantern-fox", index = 1): TrialRoundPlan {
+/** Default: a middle round (no early-round tempo). */
+function round(modifiers: ModifierId[], creatureId = "lantern-fox", index = 2): TrialRoundPlan {
   return { index, kind: "foe", creatureId, levelBonus: 1, modifiers };
 }
 
@@ -35,6 +36,18 @@ describe("Eclipse modifiers (#420)", () => {
     expect(b.foe.damageScale).toBeCloseTo(WILD_DAMAGE_SCALE * trialPartyScale(2).damage);
     expect(trialPartyScale(1)).toEqual(TRIAL_PARTY_SCALE[0]);
     expect(trialPartyScale(99)).toEqual(trialPartyScale(5));
+  });
+
+  it("rounds 1-2 field quicker foes: less HP, a little more bite (#423)", () => {
+    const at = (index: number) =>
+      new TrialBattle({ plan: PLAN, round: round([], "lantern-fox", index), partyAverage: 10, partySize: 2, boons: [], maxLevel: 50 });
+    const middle = at(2);
+    EARLY_ROUND_TEMPO.forEach((tempo, i) => {
+      const early = at(i);
+      expect(Math.abs(early.foe.maxHp - middle.foe.maxHp * tempo.hp)).toBeLessThanOrEqual(1);
+      expect(early.foe.damageScale!).toBeCloseTo(middle.foe.damageScale! * tempo.damage);
+    });
+    expect(EARLY_ROUND_TEMPO[0]!.hp).toBeLessThan(EARLY_ROUND_TEMPO[1]!.hp);
   });
 
   it("eases foes for weaker (unevolved / non-starter) parties, never below the floor", () => {

@@ -7,6 +7,8 @@ export type TypeAheadStep = {
   buffer: string | null;
   /** The key was taken into the buffer (caller should preventDefault). */
   consumed: boolean;
+  /** Enter after a typed name (#423): submit the form once it appears. */
+  submit?: boolean;
 };
 
 /** Composition (IME) or dead-key events: their `key` is not the typed text. */
@@ -27,6 +29,10 @@ export function stepTypeAhead(
     // Composition can't be replayed: keep what was typed, add nothing, and
     // leave the event alone.
     return { buffer, consumed: false };
+  }
+  if (event.key === "Enter") {
+    // An Enter with nothing typed yet is still the New Game press echoing.
+    return buffer.trim() === "" ? { buffer, consumed: false } : { buffer, consumed: true, submit: true };
   }
   if (event.key === "Backspace") {
     return { buffer: buffer.slice(0, -1), consumed: true };

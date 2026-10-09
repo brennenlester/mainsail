@@ -38,6 +38,16 @@ export const TRIAL_PARTY_SCALE: readonly { hp: number; damage: number }[] = [
   { hp: 2.2, damage: 1.47 },
 ];
 
+/**
+ * Rounds 1-2 tempo (#423): openers were 18-turn slogs of small hits. Foes
+ * there have less HP and hit a little harder, so fights are shorter but cost
+ * about the same; later rounds and the boss are unchanged.
+ */
+export const EARLY_ROUND_TEMPO: readonly { hp: number; damage: number }[] = [
+  { hp: 0.75, damage: 1.5 },
+  { hp: 0.85, damage: 1.25 },
+];
+
 export function trialPartyScale(size: number): { hp: number; damage: number } {
   const i = Math.min(TRIAL_PARTY_SCALE.length, Math.max(1, Math.floor(size))) - 1;
   return TRIAL_PARTY_SCALE[i]!;
@@ -152,7 +162,8 @@ export class TrialBattle {
   private buildFoe(creatureId: string, level: number, partySize: number): BattleCombatant {
     const def = getCreatureDefinition(creatureId);
     const scale = trialPartyScale(partySize);
-    const maxHp = Math.round(scaledStat(def.maxHp, level) * scale.hp);
+    const tempo = EARLY_ROUND_TEMPO[this.round.index] ?? { hp: 1, damage: 1 };
+    const maxHp = Math.max(1, Math.round(scaledStat(def.maxHp, level) * scale.hp * tempo.hp));
     const foe: BattleCombatant = primeOpeningCooldowns({
       name: def.name,
       level,
@@ -162,7 +173,7 @@ export class TrialBattle {
       defense: def.defense,
       moves: getBattleKit(def),
       folkloreType: def.folkloreType,
-      damageScale: WILD_DAMAGE_SCALE * scale.damage,
+      damageScale: WILD_DAMAGE_SCALE * scale.damage * tempo.damage,
       bulk: 1,
     });
     this.decorateFoe(foe, true);
