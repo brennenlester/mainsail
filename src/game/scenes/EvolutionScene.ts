@@ -5,7 +5,7 @@ import {
   playUiClickSfx,
   setMusicDuck,
 } from "../audio/gameAudio";
-import { fastBattleEnabled } from "../battle/vfx/battleTiming";
+import { fastBattleExplicit } from "../battle/vfx/battleTiming";
 import { getCreatureDefinition } from "../creatures/catalog";
 import { resolveCreaturePoseTexture } from "../creatures/creaturePoses";
 import { getCreatureInstance } from "../creatures/party";
@@ -158,7 +158,7 @@ export class EvolutionScene extends Phaser.Scene {
     this.reducedMotion = prefersReducedMotion();
     this.particlesOn = effectsEnabled();
     this.beats = evolutionTimeline(this.reveal.kind, {
-      fast: fastBattleEnabled(),
+      fast: fastBattleExplicit(),
       reducedMotion: this.reducedMotion,
     });
   }

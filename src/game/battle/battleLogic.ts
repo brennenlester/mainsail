@@ -159,7 +159,10 @@ export function resolveAttack(
   }
 
   const mult = matchupMultiplier(matchup) * situationalMultiplier(attacker, move, defender);
-  const damage = Math.max(1, Math.round(baseDamage(attacker, move, defender) * mult));
+  let damage = Math.max(1, Math.round(baseDamage(attacker, move, defender) * mult));
+  if (attacker.maxHitFraction !== undefined) {
+    damage = Math.max(1, Math.min(damage, Math.floor(defender.maxHp * attacker.maxHitFraction)));
+  }
 
   return { kind: "hit", matchup, damage };
 }
