@@ -436,7 +436,7 @@ export function finishTrial(): TrialOutcome | null {
     day: current.day,
     mode: current.mode,
     score,
-    title: trialTitle(score.total),
+    title: trialTitle(score.total, score.roundsCleared, total),
     modifiers,
     party,
     settlement,

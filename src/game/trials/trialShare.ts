@@ -65,7 +65,10 @@ export function encodeTrialBrag(brag: TrialBrag): string {
       n: sanitizeTrialName(brag.name),
       s: Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(brag.score))),
       r: Math.min(5, Math.max(0, Math.floor(brag.rounds))),
-      t: trialTitleIndex(Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(brag.score)))),
+      t: trialTitleIndex(
+        Math.min(MAX_TRIAL_SCORE, Math.max(0, Math.floor(brag.score))),
+        Math.min(5, Math.max(0, Math.floor(brag.rounds))),
+      ),
       p: brag.party.filter((id) => ALLOWED_IDS.has(id)).slice(0, TRIAL_BRAG_PARTY_LIMIT),
     }),
   );
@@ -103,7 +106,7 @@ export function decodeTrialBrag(raw: string | null): TrialBrag | null {
     o.p.length > TRIAL_BRAG_PARTY_LIMIT ||
     !o.p.every((id) => typeof id === "string" && ALLOWED_IDS.has(id)) ||
     // A brag must be self-consistent: the title its score earns, rounds it could score.
-    o.t !== trialTitleIndex(o.s) ||
+    o.t !== trialTitleIndex(o.s, o.r) ||
     o.s < minScoreFor(o.r)
   ) {
     return null;

@@ -3,7 +3,7 @@ import "./trials.css";
 import { creatureArtSlot, fillCreatureArt } from "../ui/creatureArt";
 import { getTopOverlayId, popOverlay, pushOverlay } from "../ui/overlayStack";
 import { isTouchControlsEnabled, setTouchControlsEnabled } from "../ui/touchControls";
-import { BOONS, type BoonId } from "./boons";
+import { BOONS, boonThisRoundText, type BoonId } from "./boons";
 import { MODIFIERS, type ModifierId } from "./modifiers";
 
 /**
@@ -269,7 +269,7 @@ export class TrialOverlay {
     this.modifiers("Eclipse modifiers", view.mods);
     if (view.boons.length > 0) {
       this.sheet.append(el("p", "trial-section-label", "Your boon this round"));
-      this.sheet.append(el("p", "trial-note", view.boons.map((b) => `${BOONS[b].name}: ${BOONS[b].summary}`).join(" ")));
+      this.sheet.append(el("p", "trial-note", view.boons.map(boonThisRoundText).join(" ")));
     }
     this.actions([
       { label: "Begin round", variant: "primary", onClick: onBegin },

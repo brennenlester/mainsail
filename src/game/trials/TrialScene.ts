@@ -32,7 +32,7 @@ import {
   type TrialMode,
   type TrialOutcome,
 } from "./trialRun";
-import { formatTrialDay, type TrialDay } from "./trialSeed";
+import { formatTrialDay, nextTrialIn, type TrialDay } from "./trialSeed";
 import { bestScoreFor, currentStreak } from "./trialState";
 import { openTrialShare, renderTrialCardBlob } from "./trialShareActions";
 import { TrialOverlay, type PipState } from "./trialUi";
@@ -185,7 +185,8 @@ export class TrialScene extends Phaser.Scene {
   }
 
   private kicker(): string {
-    const day = formatTrialDay(this.data_.day);
+    // Trials roll over at UTC midnight: say so, since local evening may already be "tomorrow" (#423).
+    const day = `${formatTrialDay(this.data_.day)} (UTC)`;
     return this.data_.mode === "sandbox" ? `Eclipse Trial · ${day} · practice` : `Eclipse Trial · ${day}`;
   }
 
@@ -226,7 +227,7 @@ export class TrialScene extends Phaser.Scene {
         boons: run.pendingBoons,
         note:
           round.index === 0
-            ? "Five battles with your party, the last a boss. No befriending and nothing to lose: a faint ends the trial and everyone is restored."
+            ? `Five battles with your party, the last a boss. No befriending and nothing to lose: if your whole party faints the trial ends, and everyone is restored afterward. Today's trial is the same for everyone; ${nextTrialIn()}.`
             : boss
               ? "Two forms. When she gathers the dark, Guard the next turn to parry and stagger her."
               : undefined,

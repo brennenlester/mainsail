@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SCORE, scoreTrial, trialTitle, trialTitleIndex, TRIAL_TITLES, type TrialRoundRecord } from "./scoring";
+import { BOSS_TITLE_INDEX, SCORE, scoreTrial, trialTitle, trialTitleIndex, TRIAL_TITLES, type TrialRoundRecord } from "./scoring";
 import { parseTrialDayKey, trialDayKey } from "./trialSeed";
 import {
   BEST_DAYS_KEPT,
@@ -49,16 +49,25 @@ describe("trial scoring (#420)", () => {
     const full = scoreTrial([cleared(30, 999), cleared(30, 999), cleared(30, 999), cleared(30, 999), cleared(30, 999, true)], { used: 4, skipped: 0 }, 5);
     expect(full.cleared).toBe(true);
     expect(full.total).toBe(4 * SCORE.round + SCORE.boss);
-    expect(trialTitle(full.total)).toBe("Eclipse Ascendant");
-    expect(trialTitle(0)).toBe("Ember Initiate");
-    expect(trialTitle(1499)).toBe("Ember Initiate");
-    expect(trialTitle(1500)).toBe("Dusk Wanderer");
-    expect(trialTitle(99_999)).toBe("Eclipse Warden");
+    expect(trialTitle(full.total, 5)).toBe("Eclipse Ascendant");
+    expect(trialTitle(0, 0)).toBe("Ember Initiate");
+    expect(trialTitle(1499, 1)).toBe("Ember Initiate");
+    expect(trialTitle(1500, 1)).toBe("Dusk Wanderer");
+    expect(trialTitle(99_999, 5)).toBe("Eclipse Warden");
     for (let i = 1; i < TRIAL_TITLES.length; i++) {
       expect(TRIAL_TITLES[i]!.min).toBeGreaterThan(TRIAL_TITLES[i - 1]!.min);
-      expect(trialTitleIndex(TRIAL_TITLES[i]!.min)).toBe(i);
-      expect(trialTitleIndex(TRIAL_TITLES[i]!.min - 1)).toBe(i - 1);
+      expect(trialTitleIndex(TRIAL_TITLES[i]!.min, 5)).toBe(i);
+      expect(trialTitleIndex(TRIAL_TITLES[i]!.min - 1, 5)).toBe(i - 1);
     }
+  });
+
+  it("only a boss win earns Shade Breaker or above (#423)", () => {
+    expect(TRIAL_TITLES[BOSS_TITLE_INDEX]!.title).toBe("Shade Breaker");
+    // Four rounds with fast, clean fights can pass 4200 but still lost to the Shade.
+    expect(trialTitle(4600, 4)).toBe("Moonlit Duelist");
+    expect(trialTitle(7400, 4)).toBe("Moonlit Duelist");
+    expect(trialTitle(4600, 5)).toBe("Shade Breaker");
+    expect(trialTitle(2000, 2)).toBe("Dusk Wanderer");
   });
 });
 

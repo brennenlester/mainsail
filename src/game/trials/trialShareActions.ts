@@ -46,7 +46,7 @@ export function bragFor(outcome: TrialOutcome, name: string | null): TrialBrag {
     name: name ?? "",
     score: outcome.score.total,
     rounds: outcome.score.roundsCleared,
-    title: trialTitleIndex(outcome.score.total),
+    title: trialTitleIndex(outcome.score.total, outcome.score.roundsCleared),
     party: outcome.party.map((p) => p.id),
   };
 }

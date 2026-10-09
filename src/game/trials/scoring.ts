@@ -92,16 +92,20 @@ export const TRIAL_TITLES: readonly { min: number; title: string }[] = [
   { min: 7400, title: "Eclipse Warden" },
 ];
 
-export function trialTitleIndex(score: number): number {
+/** First title that needs the Eclipse Shade beaten (#423): a run that falls to her tops out below. */
+export const BOSS_TITLE_INDEX = 3;
+
+/** Title earned by `score`; only a full clear (`rounds` = all five) reaches BOSS_TITLE_INDEX. */
+export function trialTitleIndex(score: number, rounds: number, totalRounds = 5): number {
   let index = 0;
   TRIAL_TITLES.forEach((t, i) => {
     if (score >= t.min) {
       index = i;
     }
   });
-  return index;
+  return rounds >= totalRounds ? index : Math.min(index, BOSS_TITLE_INDEX - 1);
 }
 
-export function trialTitle(score: number): string {
-  return TRIAL_TITLES[trialTitleIndex(score)]!.title;
+export function trialTitle(score: number, rounds: number, totalRounds = 5): string {
+  return TRIAL_TITLES[trialTitleIndex(score, rounds, totalRounds)]!.title;
 }
