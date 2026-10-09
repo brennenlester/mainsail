@@ -30,6 +30,19 @@ export function isRouteZone(zoneId: ZoneId): boolean {
   return ROUTE_ZONE_IDS.includes(zoneId);
 }
 
+/**
+ * Zones that go quiet once the story is over (#429): the Moon Shrine yard
+ * is the walk to the altar and the Eclipse Gate, and two wild rolls inside
+ * three tiles there read as a toll. Earlier in the story the shrine keeps
+ * its encounters (first craft / evolution beats are covered by #418).
+ */
+export const QUIET_AFTER_STORY_ZONE_IDS: readonly ZoneId[] = ["shrine"];
+
+/** True when wild rolls are off in `zoneId` because the finale is complete. */
+export function isQuietAfterStory(zoneId: ZoneId, finaleComplete: boolean): boolean {
+  return finaleComplete && QUIET_AFTER_STORY_ZONE_IDS.includes(zoneId);
+}
+
 /** Where a walked step happened, for the route dry spell. */
 export type RouteStep = { zoneId: ZoneId; immune?: boolean; safeTile?: boolean };
 

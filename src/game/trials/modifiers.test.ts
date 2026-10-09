@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GUARD_DAMAGE_TAKEN, GUARD_FINISHER_DAMAGE_TAKEN } from "../battle/kits";
 import { BURN_TICK_FRACTION, SOAKED_DAMAGE_TAKEN, SOAKED_STORM_DAMAGE_TAKEN } from "../battle/statusEffects";
 import { BOONS, KEEN_EDGE_DAMAGE, MEND_FRACTION, MOON_SHIELD_TAKEN } from "./boons";
-import { MODIFIERS, MODIFIER_IDS, type ModifierId } from "./modifiers";
+import { MODIFIERS, MODIFIER_IDS, MOONFED_ROUND_CAP, type ModifierId } from "./modifiers";
 
 /** Every number a player reads must be the number the rules use (#420 review). */
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -27,7 +27,7 @@ describe("modifier and boon text matches the numbers (#420)", () => {
     ],
     ["glass-cannons", [pct(glass.damage - 1), pct(1 / glass.bulk - 1), times(glass.damage / glass.bulk)]],
     ["soaked-arena", [times(SOAKED_DAMAGE_TAKEN), times(SOAKED_STORM_DAMAGE_TAKEN)]],
-    ["moonfed", [pct(effect("moonfed").foeRegen!)]],
+    ["moonfed", [pct(effect("moonfed").foeRegen!), `at most ${pct(MOONFED_ROUND_CAP)} per round`]],
     ["iron-hide", [`+${pct(effect("iron-hide").foeHp! - 1)}`, pct(1 - effect("iron-hide").foeDamage!)]],
     ["short-fuse", ["turn one"]],
   ];

@@ -296,6 +296,17 @@ test("a ?trial= link runs as practice and never touches an existing save", async
   await expect(page.locator(".trial-result-title")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Done" }).click();
   await expect(preview).toBeVisible();
+  // #429: back from practice, focus is on the heading, so mashed Enters do not start another run.
+  await expect(page.locator("#card-preview-title")).toBeFocused();
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press("Enter");
+  }
+  await page.waitForTimeout(800);
+  await expect(page.locator("#trial-overlay")).toBeHidden();
+  await expect(preview).toBeVisible();
+  // Still keyboard reachable: Tab lands on Try it.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Try it" })).toBeFocused();
   // Wipe paths are no-ops inside the sandbox too.
   await page.evaluate(async () => {
     const save = await import("/src/game/world/worldSave.ts");

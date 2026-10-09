@@ -5,8 +5,17 @@ import { simCombatant } from "../battle/sparSim";
 import { hasStatus } from "../battle/statusEffects";
 import { STAGGER_MOVE_ID } from "../battle/boss/storyBattle";
 import { KEEN_EDGE_DAMAGE, MOON_SHIELD_TAKEN, type BoonId } from "./boons";
-import type { ModifierId } from "./modifiers";
-import { ECLIPSE_HP_FLOOR, EARLY_ROUND_TEMPO, TRIAL_PARTY_SCALE, TrialBattle, trialPartyScale, trialPartyStrength } from "./trialBattle";
+import { IRON_HIDE, MOONFED_REGEN, MOONFED_ROUND_CAP, type ModifierId } from "./modifiers";
+import {
+  ECLIPSE_HP_FLOOR,
+  EARLY_ROUND_TEMPO,
+  SUDDEN_DEATH_AFTER,
+  SUDDEN_DEATH_STEP,
+  TRIAL_PARTY_SCALE,
+  TrialBattle,
+  trialPartyScale,
+  trialPartyStrength,
+} from "./trialBattle";
 import { ECLIPSE_SIGNATURE_ID, ECLIPSE_CHARGE_ID, buildEclipseBossDef, counterTypeOf } from "./trialBoss";
 import { generateTrialPlan, type TrialPlan, type TrialRoundPlan } from "./trialPlan";
 import { parseTrialDayKey } from "./trialSeed";
@@ -114,8 +123,40 @@ describe("Eclipse modifiers (#420)", () => {
   it("Moonfed heals the foe 4% after each of its turns", () => {
     const b = battle(["moonfed"]);
     b.foe.currentHp = 10;
-    expect(b.foeEndTurn(b.foe)).toBe(Math.round(b.foe.maxHp * 0.04));
+    expect(b.foeEndTurn(b.foe)).toBe(Math.round(b.foe.maxHp * MOONFED_REGEN));
     expect(battle([]).foeEndTurn(battle([]).foe)).toBe(0);
+  });
+
+  it("Moonfed stops at 25% of max HP per round (#429)", () => {
+    const b = battle(["moonfed"], [], "mossling", 3);
+    const cap = Math.round(b.foe.maxHp * MOONFED_ROUND_CAP);
+    let healed = 0;
+    for (let turn = 0; turn < 30; turn++) {
+      // Chip damage the foe out-heals uncapped: the old stall.
+      b.foe.currentHp = Math.max(1, b.foe.currentHp - Math.round(b.foe.maxHp * 0.03));
+      healed += b.foeEndTurn(b.foe);
+    }
+    expect(healed).toBe(cap);
+    expect(b.regenSpent).toBe(true);
+    expect(b.foeEndTurn(b.foe)).toBe(0);
+    expect(battle([]).regenSpent).toBe(false);
+  });
+
+  it("sudden death: past turn 14 every turn adds 10% foe damage (#429)", () => {
+    for (const b of [battle([]), battle(["iron-hide"])]) {
+      const base = b.foe.damageScale!;
+      for (let turn = 1; turn <= SUDDEN_DEATH_AFTER; turn++) {
+        expect(b.notePlayerTurn()).toBe(false);
+      }
+      expect(b.foe.damageScale).toBe(base);
+      expect(b.suddenDeathBonus).toBe(0);
+      expect(b.notePlayerTurn()).toBe(true);
+      expect(b.foe.damageScale).toBeCloseTo(base * (1 + SUDDEN_DEATH_STEP));
+      b.notePlayerTurn();
+      b.notePlayerTurn();
+      expect(b.suddenDeathBonus).toBeCloseTo(3 * SUDDEN_DEATH_STEP);
+      expect(b.foe.damageScale).toBeCloseTo(base * (1 + 3 * SUDDEN_DEATH_STEP));
+    }
   });
 
   it("Short Fuse: finishers ready from turn one, both sides", () => {
@@ -127,11 +168,12 @@ describe("Eclipse modifiers (#420)", () => {
     expect(mine.cooldowns).toEqual({});
   });
 
-  it("Iron Hide: +35% foe HP, 10% softer hits", () => {
+  it("Iron Hide: +20% foe HP, 10% softer hits (#429: was +35%)", () => {
     const iron = battle(["iron-hide"]);
     const plain = battle([]);
-    expect(iron.foe.maxHp).toBe(Math.round(plain.foe.maxHp * 1.35));
-    expect(iron.foe.damageScale! / plain.foe.damageScale!).toBeCloseTo(0.9);
+    expect(IRON_HIDE.hp).toBe(1.2);
+    expect(iron.foe.maxHp).toBe(Math.round(plain.foe.maxHp * IRON_HIDE.hp));
+    expect(iron.foe.damageScale! / plain.foe.damageScale!).toBeCloseTo(IRON_HIDE.damage);
   });
 
   it("Twin Shadows: the foe strikes again on every 4th turn only", () => {
@@ -228,7 +270,7 @@ describe("Eclipse Shade boss round (#420)", () => {
     expect(b.foe.bulk).toBeCloseTo(0.7);
   });
 
-  it("a lone survivor still meets a real boss: HP floored at 1.6x round 3's foe (#426)", () => {
+  it("a lone survivor still meets a real boss: HP floored at 1.4x round 3's foe (#426, #429)", () => {
     const third = PLAN.rounds[2]!;
     const boss = PLAN.rounds[4]!;
     const at = (round: TrialRoundPlan, partySize: number, rosterSize?: number) =>
@@ -238,8 +280,9 @@ describe("Eclipse Shade boss round (#420)", () => {
       expect(lone, `1 of ${roster}`).toBeGreaterThanOrEqual(Math.floor(ECLIPSE_HP_FLOOR * at(third, roster)) - 1);
       // Fainted companions no longer shrink her.
       expect(lone, `1 of ${roster}`).toBe(at(boss, roster, roster));
-      // Each form is a real fight, not one finisher (#426 playtest: 20 HP per form).
-      expect(lone / 2, `per form, 1 of ${roster}`).toBeGreaterThanOrEqual(35);
+      // Each form is a real fight, not one finisher (#426 playtest: 20 HP per form;
+      // #429 trimmed trial HP ~15% for pace).
+      expect(lone / 2, `per form, 1 of ${roster}`).toBeGreaterThanOrEqual(28);
     }
     // No roster given: the standing party is the roster.
     expect(at(boss, 2)).toBe(at(boss, 2, 2));

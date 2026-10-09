@@ -1955,7 +1955,8 @@ export class BattleScene extends Phaser.Scene {
     this.clearHunterMatchupTeach();
     this.waitingForPlayer = false;
     this.dimActionButtons();
-    this.trial?.notePlayerTurn();
+    // Sudden death (#429): past the turn limit each turn deepens the eclipse.
+    const deepened = this.trial?.notePlayerTurn() ?? false;
     const result = executeMove(this.player, move, this.wild, this.rng);
     // A boss form threshold clamps the hit and the boss transforms (her turn).
     const transformed = this.story?.checkTransform() ?? null;
@@ -1976,6 +1977,10 @@ export class BattleScene extends Phaser.Scene {
       message += this.tickEndOfTurn(this.player, "player");
       if ((this.trial?.playerEndTurn(this.player) ?? []).length > 0) {
         message += " Pure Light washes it clean.";
+      }
+      if (deepened && this.trial) {
+        message += ` The eclipse deepens: ${this.wild.name} hits +${Math.round(this.trial.suddenDeathBonus * 100)}%.`;
+        this.trialStrip?.refresh();
       }
       this.log(message);
       this.refreshHp();

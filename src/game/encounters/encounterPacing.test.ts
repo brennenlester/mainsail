@@ -4,7 +4,9 @@ import {
   ENCOUNTER_FLEE_GAP_TILES,
   ENCOUNTER_MIN_GAP_TILES,
   EncounterPacer,
+  isQuietAfterStory,
   isRouteZone,
+  QUIET_AFTER_STORY_ZONE_IDS,
   overworldEncounterPacer,
   ROUTE_DRY_SPELL_TILES,
   ROUTE_ZONE_IDS,
@@ -330,5 +332,39 @@ describe("living routes (#411)", () => {
     pacer.walk(ZONE_ENTRY_GRACE_TILES);
     pacer.walkRoute(ZONE_ENTRY_GRACE_TILES, { zoneId: "mistwood" });
     expect(pacer.routeEncounterDue("mistwood")).toBe(true);
+  });
+});
+
+describe("shrine yard after the story (#429)", () => {
+  /** Shrine-yard walk in IsometricScene's loop, every roll a hit unless quiet. */
+  function shrineEncounters(finaleComplete: boolean, tiles = 60): number {
+    const pacer = new EncounterPacer(() => 0);
+    let count = 0;
+    let sinceRoll = 0;
+    for (let t = 0; t < tiles; t += 0.1) {
+      pacer.walk(0.1);
+      sinceRoll += 0.1;
+      if (sinceRoll < ENCOUNTER_TRAVEL_THRESHOLD) continue;
+      sinceRoll = 0;
+      if (isQuietAfterStory("shrine", finaleComplete) || !pacer.canRoll()) continue;
+      count += 1;
+      pacer.onEncounterResolved("spar");
+      pacer.onEncounterEnd();
+    }
+    return count;
+  }
+
+  it("only the shrine goes quiet, and only once the finale is complete", () => {
+    expect([...QUIET_AFTER_STORY_ZONE_IDS]).toEqual(["shrine"]);
+    expect(isQuietAfterStory("shrine", true)).toBe(true);
+    expect(isQuietAfterStory("shrine", false)).toBe(false);
+    for (const zone of ["grove", "overworld", "mistwood", "emberfen", "archipelago", "harbor"] as const) {
+      expect(isQuietAfterStory(zone, true), zone).toBe(false);
+    }
+  });
+
+  it("keeps earlier-story shrine encounters on the #390 pacing, none after the finale", () => {
+    expect(shrineEncounters(false)).toBeGreaterThanOrEqual(3);
+    expect(shrineEncounters(true)).toBe(0);
   });
 });

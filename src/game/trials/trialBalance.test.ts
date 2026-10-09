@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTrialPlan } from "./dailyTrial";
+import type { TrialPlan } from "./trialPlan";
 import { REFERENCE_CLASSES, REFERENCE_LEVEL } from "./trialGate";
 import { simulateTrial, trialStats, type TrialSimPolicy, type TrialSimStats } from "./trialSim";
 import { parseTrialDayKey, type TrialDay } from "./trialSeed";
@@ -57,8 +58,9 @@ describe("Eclipse Trial balance (#420)", () => {
     expect(typical.clearRate).toBeLessThan(skilled.clearRate);
   }, 120_000);
 
-  it("paces rounds 1-4 at ~6-9 turns and the boss as the longest fight (#426)", () => {
+  it("paces rounds 1-4 at ~5-9 turns and the boss as the longest fight (#426, #429)", () => {
     // #426 playtest: rounds 7/7/15/11/7 turns, a ~5 minute trial with a short boss.
+    // #429 playtest: rounds 2-3 at 11-25 turns; play runs ~1.5x the sim's turns.
     const turns = [0, 0, 0, 0, 0];
     const cleared = [0, 0, 0, 0, 0];
     for (const party of ALL_PARTIES) {
@@ -77,11 +79,35 @@ describe("Eclipse Trial balance (#420)", () => {
     const avg = turns.map((t, k) => t / Math.max(1, cleared[k]!));
     console.info(`skilled turns per cleared round ${avg.map((t) => t.toFixed(1)).join(" / ")}`);
     for (const k of [0, 1, 2, 3]) {
-      expect(avg[k]!, `round ${k + 1}`).toBeGreaterThanOrEqual(6);
+      expect(avg[k]!, `round ${k + 1}`).toBeGreaterThanOrEqual(5);
       expect(avg[k]!, `round ${k + 1}`).toBeLessThanOrEqual(9);
     }
     expect(avg[4]!).toBeGreaterThan(Math.max(...avg.slice(0, 4)));
   }, 120_000);
+
+  it("Moonfed + a woodland lead no longer stalls (2026-10-09 round 3, #429)", () => {
+    // The playtest stall: a Mossling at +2 with Soaked Arena + Moonfed vs a
+    // Mossling-line lead. Played on its own at full HP (the slowest case).
+    const day = parseTrialDayKey("2026-10-09")!;
+    const full = buildTrialPlan(day);
+    const plan: TrialPlan = {
+      ...full,
+      rounds: [{ index: 2, kind: "foe", creatureId: "mossling", levelBonus: 2, modifiers: ["soaked-arena", "moonfed"] }],
+      boonOffers: [],
+    };
+    for (const party of [["bramblewarden"], ["mossling"], ["bramblewarden", "hearthflame"], ["mossling", "ember-wisp"]]) {
+      for (const policy of ["skilled", "max-damage"] as const) {
+        const turns = Array.from({ length: 100 }, (_, i) =>
+          simulateTrial({ party, level: REFERENCE_LEVEL, policy, day }, 4_290_000 + i, plan).rounds[0]!.turns,
+        );
+        const mean = turns.reduce((a, b) => a + b, 0) / turns.length;
+        const label = `${party.join("+")} ${policy}`;
+        expect(mean, label).toBeLessThanOrEqual(12);
+        // Sudden death closes every round well before the sim's 80-turn cap.
+        expect(Math.max(...turns), label).toBeLessThanOrEqual(24);
+      }
+    }
+  });
 
   it("no class finds a day unwinnable: skilled floor >= 15% on each of 365 days, median ~45-55%", () => {
     const rates: Record<string, number[]> = {};

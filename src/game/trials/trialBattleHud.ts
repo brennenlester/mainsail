@@ -18,6 +18,8 @@ export class TrialBattleStrip {
   private readonly box: Phaser.GameObjects.Container;
   private readonly chips: { text: Phaser.GameObjects.Text; id: string }[] = [];
   private readonly trial: TrialBattle;
+  /** Sudden death (#429): shown under the strip once the eclipse deepens. */
+  private readonly deepens: Phaser.GameObjects.Text;
 
   constructor(
     scene: Phaser.Scene,
@@ -109,6 +111,18 @@ export class TrialBattleStrip {
       plate.fillRoundedRect(0, -14, width, 28, 10);
       scale = Math.min(ui, room / width);
     }
+    this.deepens = scene.add
+      .text(10, 26, "", {
+        color: "#fff2f6",
+        backgroundColor: "#8a2f6e",
+        fontFamily: FONT,
+        fontSize: "12px",
+        fontStyle: "bold",
+        padding: { x: 5, y: 2 },
+      })
+      .setOrigin(0, 0.5)
+      .setVisible(false);
+    this.box.add(this.deepens);
     this.box.setScale(scale);
     this.refresh();
   }
@@ -125,6 +139,11 @@ export class TrialBattleStrip {
   refresh(): void {
     for (const chip of this.chips) {
       chip.text.setText(this.chipLabel(chip.id, chip.text.text));
+    }
+    const bonus = this.trial.suddenDeathBonus;
+    this.deepens.setVisible(bonus > 0);
+    if (bonus > 0) {
+      this.deepens.setText(`ECLIPSE DEEPENS +${Math.round(bonus * 100)}%`);
     }
   }
 

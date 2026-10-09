@@ -12,7 +12,7 @@ import { getBattleKit, moveRole } from "../battle/kits";
 import { applyStatus, type StatusApplyResult } from "../battle/statusEffects";
 import { StoryBattle } from "../battle/boss/storyBattle";
 import { KEEN_EDGE_DAMAGE, MOON_SHIELD_TAKEN, type BoonId } from "./boons";
-import { combineModifiers, type ModifierId } from "./modifiers";
+import { combineModifiers, MOONFED_ROUND_CAP, type ModifierId } from "./modifiers";
 import { buildEclipseBossDef } from "./trialBoss";
 import type { TrialPlan, TrialRoundPlan } from "./trialPlan";
 
@@ -29,13 +29,17 @@ import type { TrialPlan, TrialRoundPlan } from "./trialPlan";
  *   of the player's turn (Pure Light).
  */
 
-/** Regular foes scale with the standing party (a 3-companion party faces a sturdier foe). */
+/**
+ * Regular foes scale with the standing party (a 3-companion party faces a
+ * sturdier foe). #429: HP x0.85 / damage x1.28 against #426 — same
+ * difficulty in fewer turns (rounds 2-3 ran 11-25 turns in play).
+ */
 export const TRIAL_PARTY_SCALE: readonly { hp: number; damage: number }[] = [
-  { hp: 1.1, damage: 1.05 },
-  { hp: 1.56, damage: 1.3 },
-  { hp: 1.83, damage: 1.37 },
-  { hp: 2.04, damage: 1.42 },
-  { hp: 2.2, damage: 1.47 },
+  { hp: 0.94, damage: 1.34 },
+  { hp: 1.33, damage: 1.66 },
+  { hp: 1.56, damage: 1.75 },
+  { hp: 1.73, damage: 1.82 },
+  { hp: 1.87, damage: 1.88 },
 ];
 
 /**
@@ -54,9 +58,18 @@ export const EARLY_ROUND_TEMPO: readonly { hp: number; damage: number }[] = [
  * Eclipse Shade HP floor (#426): her HP scales with the companions still
  * standing, so a lone survivor met a 40 HP Shade (20 per form) weaker than
  * round 3's foe. Her pool is now at least this many times round 3's foe HP
- * for the whole roster, however many are still standing.
+ * for the whole roster, however many are still standing. #429: 1.6 -> 1.4
+ * (she hits ~10% harder instead) so the boss round stays inside the pace gate.
  */
-export const ECLIPSE_HP_FLOOR = 1.6;
+export const ECLIPSE_HP_FLOOR = 1.4;
+
+/**
+ * Sudden death (#429): from the player's turn after this one, every further
+ * turn of a round adds SUDDEN_DEATH_STEP to the foe's damage ("Eclipse
+ * deepens"), so no round can stall however the matchup or modifiers fall.
+ */
+export const SUDDEN_DEATH_AFTER = 14;
+export const SUDDEN_DEATH_STEP = 0.1;
 
 export function trialPartyScale(size: number): { hp: number; damage: number } {
   const i = Math.min(TRIAL_PARTY_SCALE.length, Math.max(1, Math.floor(size))) - 1;
@@ -133,6 +146,10 @@ export class TrialBattle {
   readonly stats: TrialRoundStats = { turns: 0, parries: 0 };
   private readonly rules: ReturnType<typeof combineModifiers>;
   private foeTurns = 0;
+  /** HP Moonfed has restored this round (capped at MOONFED_ROUND_CAP x max HP). */
+  private regenHealed = 0;
+  /** Foe damage scale before sudden death (captured on its first step). */
+  private foeBaseDamage: number | null = null;
   private freeSwitches: number;
   private readonly strength: number;
 
@@ -329,14 +346,35 @@ export class TrialBattle {
     return result;
   }
 
-  /** End of the foe's turn: Moonfed regen. Returns HP restored. */
+  /** End of the foe's turn: Moonfed regen, up to its per-round cap. Returns HP restored. */
   foeEndTurn(foe: BattleCombatant): number {
     if (this.rules.foeRegen <= 0 || foe.currentHp <= 0) {
       return 0;
     }
+    const room = Math.round(foe.maxHp * MOONFED_ROUND_CAP) - this.regenHealed;
+    const heal = Math.min(room, Math.max(1, Math.round(foe.maxHp * this.rules.foeRegen)));
+    if (heal <= 0) {
+      return 0;
+    }
     const before = foe.currentHp;
-    foe.currentHp = Math.min(foe.maxHp, foe.currentHp + Math.max(1, Math.round(foe.maxHp * this.rules.foeRegen)));
+    foe.currentHp = Math.min(foe.maxHp, foe.currentHp + heal);
+    this.regenHealed += foe.currentHp - before;
     return foe.currentHp - before;
+  }
+
+  /** Moonfed has no healing left this round (always false without Moonfed). */
+  get regenSpent(): boolean {
+    return this.rules.foeRegen > 0 && this.regenHealed >= Math.round(this.foe.maxHp * MOONFED_ROUND_CAP);
+  }
+
+  /** Sudden-death steps so far this round (0 until turn SUDDEN_DEATH_AFTER + 1). */
+  get suddenDeathSteps(): number {
+    return Math.max(0, this.stats.turns - SUDDEN_DEATH_AFTER);
+  }
+
+  /** Extra foe damage from sudden death, as a share (0.2 = +20%). */
+  get suddenDeathBonus(): number {
+    return this.suddenDeathSteps * SUDDEN_DEATH_STEP;
   }
 
   /** End of the player's turn: Pure Light sheds statuses. Returns what was cleared. */
@@ -365,8 +403,20 @@ export class TrialBattle {
     this.verdict = won;
   }
 
-  notePlayerTurn(): void {
+  /**
+   * Counts a player action. Past SUDDEN_DEATH_AFTER turns the eclipse
+   * deepens: the foe's damage rises a step. Returns true on a turn that
+   * raised it (for the battle log).
+   */
+  notePlayerTurn(): boolean {
     this.stats.turns += 1;
+    if (this.suddenDeathSteps <= 0) {
+      return false;
+    }
+    const foe = this.foe;
+    this.foeBaseDamage ??= foe.damageScale ?? 1;
+    foe.damageScale = this.foeBaseDamage * (1 + this.suddenDeathBonus);
+    return true;
   }
 
   /** A telegraphed finisher met a raised guard and landed: a perfect parry. */
