@@ -470,4 +470,52 @@ body.trial-active .opening-caption {
   .trial-card-img {
     width: min(100%, 200px);
   }
+  /* The primary action never scrolls out of reach: pinned to the screen's
+     bottom edge while the sheet is taller than the screen. */
+  .trial-actions {
+    position: sticky;
+    bottom: -8px;
+    z-index: 1;
+    margin: 0 -4px -4px;
+    padding: 8px 4px 4px;
+    background: linear-gradient(180deg, #120a1e00 0%, #120a1eee 30%);
+  }
+}
+
+/* Short landscape (844x390, 667x375): compact the round preview so it fits without a scroll (#423). */
+@media (max-height: 420px) {
+  .trial-overlay {
+    padding: 8px;
+  }
+  .trial-sheet {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .trial-banner h2 {
+    font-size: 22px;
+  }
+  .trial-banner p {
+    margin-top: 2px;
+    font-size: 14px;
+  }
+  .trial-foe canvas {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .trial-note {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .trial-mods {
+    gap: 6px;
+  }
+  .trial-mod {
+    padding: 5px 10px;
+  }
+  .trial-mod-text {
+    font-size: 13px;
+  }
+  .trial-section-label {
+    margin-top: 0;
+  }
 }

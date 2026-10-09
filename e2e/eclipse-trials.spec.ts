@@ -295,6 +295,7 @@ test("a ?trial= link runs as practice and never touches an existing save", async
 for (const size of [
   { width: 390, height: 844, name: "phone" },
   { width: 844, height: 390, name: "landscape" },
+  { width: 667, height: 375, name: "landscape-small" },
   { width: 320, height: 568, name: "small" },
   { width: 1280, height: 800, name: "desktop" },
 ]) {
@@ -309,9 +310,10 @@ for (const size of [
     await page.waitForTimeout(700);
     await shot(page, `10-${size.name}-preview`);
     const begin = page.getByRole("button", { name: "Begin round" });
-    await begin.scrollIntoViewIfNeeded();
+    // Begin is on screen as the sheet opens, no scrolling needed (#423).
     const box = await begin.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(size.height);
     // No horizontal scroll from the sheet.
     expect(await overlay.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     await begin.click();
