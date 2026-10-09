@@ -25,7 +25,7 @@ import { isStorySparId, reportStoryBattleResult, type StoryBattleInit } from "..
 import type { TrialBattle, TrialStrip } from "../trials/trialBattle";
 import type { BossForm } from "../story/storySpars";
 import { getStorySpar } from "../story/storySpars";
-import { getActiveQuestId } from "../story/questProgress";
+import { getActiveQuestId, questProgress } from "../story/questProgress";
 import { MAX_LEVEL } from "../progression/leveling";
 import { hideOpeningCaption } from "../opening/openingCaption";
 import { BattleFx, type Side } from "../battle/vfx/battleFx";
@@ -2728,7 +2728,7 @@ export class BattleScene extends Phaser.Scene {
       }
       if (this.wonForFast) {
         // After the result panel: the next battle (any kind) reads the saved preference.
-        noteBattleWonForFast();
+        noteBattleWonForFast(questProgress["first-evolution"] === "complete");
       }
       this.scene.stop("EncounterScene");
       this.scene.resume("IsometricScene");

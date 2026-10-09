@@ -69,6 +69,8 @@ export type BossDefinition = {
   chargeId: string;
   /** Damage-taken multiplier while staggered (after a parried signature). */
   staggerExposure: number;
+  /** An unguarded hit never takes more than this share of a target's max HP. */
+  maxHitFraction?: number;
   forms: readonly BossForm[];
 };
 
@@ -250,6 +252,8 @@ export const STORY_SPARS: Record<StorySparId, StorySparDefinition> = {
       signatureId: "cinderfall",
       chargeId: "gather-embers",
       staggerExposure: 1.9,
+      // Unguarded Cinderfall with a trio (dmg x1.4) one-shot full-HP Hearthflame / Brook Nymph.
+      maxHitFraction: 0.85,
       forms: [
         {
           id: "mire",

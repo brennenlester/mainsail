@@ -6,6 +6,8 @@
 import type { MoveRole } from "../../creatures/types";
 
 const FAST_KEY = "ivyward-fast-battle";
+/** Set when Fast was switched on by the win counter, not by the player. */
+const FAST_AUTO_KEY = "ivyward-fast-battle-auto";
 
 export type BattleFxMode = {
   /** "Fast battle": skip lunges, particles, pauses; keep numbers + flashes. */
@@ -24,9 +26,23 @@ export function fastBattleEnabled(): boolean {
   }
 }
 
+/**
+ * Fast the player chose themselves. Cutscenes (evolution) only shorten for
+ * this, never for the auto-enabled battle default. Lenient: a saved Fast with
+ * no auto marker counts as explicit.
+ */
+export function fastBattleExplicit(): boolean {
+  try {
+    return fastBattleEnabled() && window.localStorage.getItem(FAST_AUTO_KEY) !== "1";
+  } catch {
+    return false;
+  }
+}
+
 export function setFastBattleEnabled(enabled: boolean): void {
   try {
     window.localStorage.setItem(FAST_KEY, enabled ? "1" : "0");
+    window.localStorage.removeItem(FAST_AUTO_KEY);
   } catch {
     // Storage blocked: the toggle still applies for this battle.
   }
@@ -39,12 +55,14 @@ export const FAST_AUTO_AFTER_WINS = 2;
 /**
  * Count a won battle. On the second, a player who never touched the Fast
  * toggle gets Fast on, saved like a toggle press; any explicit choice (on or
- * off) sticks and is never overridden. True when this call turned Fast on.
+ * off) sticks and is never overridden. Wins only count once the first
+ * evolution is done, so auto-Fast never shortens that cutscene.
+ * True when this call turned Fast on.
  */
-export function noteBattleWonForFast(): boolean {
+export function noteBattleWonForFast(firstEvolutionDone = true): boolean {
   try {
     const storage = window.localStorage;
-    if (storage.getItem(FAST_KEY) !== null) {
+    if (!firstEvolutionDone || storage.getItem(FAST_KEY) !== null) {
       return false;
     }
     const wins = (Number(storage.getItem(WINS_KEY)) || 0) + 1;
@@ -53,6 +71,7 @@ export function noteBattleWonForFast(): boolean {
       return false;
     }
     storage.setItem(FAST_KEY, "1");
+    storage.setItem(FAST_AUTO_KEY, "1");
     storage.removeItem(WINS_KEY);
     return true;
   } catch {

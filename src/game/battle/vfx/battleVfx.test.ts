@@ -6,6 +6,7 @@ import {
   BASE_TIMINGS,
   battleTimings,
   fastBattleEnabled,
+  fastBattleExplicit,
   noteBattleWonForFast,
   setFastBattleEnabled,
   burstCount,
@@ -260,6 +261,32 @@ describe("Fast battles turn on after the second win (#426)", () => {
       expect(noteBattleWonForFast()).toBe(false);
     }
     expect(fastBattleEnabled()).toBe(false);
+  });
+
+  it("does not count wins until the first evolution is complete", () => {
+    for (let i = 0; i < 5; i++) {
+      expect(noteBattleWonForFast(false)).toBe(false);
+    }
+    expect(fastBattleEnabled()).toBe(false);
+    expect(window.localStorage.getItem("ivyward-fast-battle-wins")).toBeNull();
+    noteBattleWonForFast(true);
+    expect(noteBattleWonForFast(true)).toBe(true);
+  });
+
+  it("only a deliberate Fast counts for cutscenes, not the auto default", () => {
+    noteBattleWonForFast();
+    noteBattleWonForFast();
+    expect(fastBattleEnabled()).toBe(true);
+    expect(fastBattleExplicit()).toBe(false);
+    setFastBattleEnabled(true);
+    expect(fastBattleExplicit()).toBe(true);
+    setFastBattleEnabled(false);
+    expect(fastBattleExplicit()).toBe(false);
+  });
+
+  it("a saved Fast with no auto marker counts as explicit", () => {
+    window.localStorage.setItem("ivyward-fast-battle", "1");
+    expect(fastBattleExplicit()).toBe(true);
   });
 
   it("turning it off after the auto switch sticks", () => {

@@ -95,6 +95,8 @@ export type BattleCombatant = {
   bulk?: number;
   /** Outgoing damage multiplier (wild softening). Missing = 1. */
   damageScale?: number;
+  /** One hit never takes more than this share of the defender's max HP (boss fairness). Missing = no cap. */
+  maxHitFraction?: number;
   /** Battle-only state (never saved). */
   statuses?: StatusInstance[];
   /** moveId -> own turns until ready. */

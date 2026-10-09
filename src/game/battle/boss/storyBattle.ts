@@ -199,6 +199,7 @@ export class StoryBattle {
       moves: [...form.kit],
       folkloreType: form.type,
       damageScale: boss.damageScale * scale.damage * this.ward,
+      maxHitFraction: boss.maxHitFraction,
       bulk: this.options.bulk ?? 1,
       cooldowns: {},
     };

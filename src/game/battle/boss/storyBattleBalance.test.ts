@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { MAX_LEVEL } from "../../progression/leveling";
 import { getStorySpar, hearthWardScale } from "../../story/storySpars";
-import { storyPartyRate, WREN_ARRIVAL_PARTIES, WREN_LONE_PARTIES } from "./storyBattleBalance";
+import { executeMove } from "../battleLogic";
+import { simCombatant } from "../sparSim";
+import { StoryBattle } from "./storyBattle";
+import { STORY_PARTIES, storyPartyRate, WREN_ARRIVAL_PARTIES, WREN_LONE_PARTIES } from "./storyBattleBalance";
 import { storyBattleStats } from "./storyBattleSim";
 
 /**
@@ -63,6 +67,25 @@ describe("Cinder Matriarch balance", () => {
       // Never guards at all: still winnable after four.
       expect(warded("max-damage", after4), `max-damage ${size}`).toBeGreaterThanOrEqual(0.2);
       expect(warded("random", after4), `random ${size}`).toBeGreaterThanOrEqual(0.15);
+    }
+  });
+
+  it("an unguarded Cinderfall never one-shots a full-HP evolved companion (#426)", () => {
+    for (const size of [1, 2, 3] as const) {
+      for (const species of new Set(STORY_PARTIES[size].flat())) {
+        const battle = new StoryBattle(getStorySpar("cinder-matriarch"), {
+          partyAverage: 8,
+          partySize: size,
+          maxLevel: MAX_LEVEL,
+        });
+        battle.foe.currentHp = 1;
+        battle.checkTransform();
+        const cinderfall = battle.foe.moves.find((m) => m.id === "cinderfall")!;
+        const target = simCombatant(species, 8);
+        const result = executeMove(battle.foe, cinderfall, target, () => 0);
+        expect(result.attack?.kind, `${species} x${size}`).toBe("hit");
+        expect(target.currentHp, `${species} x${size}`).toBeGreaterThan(0);
+      }
     }
   });
 
