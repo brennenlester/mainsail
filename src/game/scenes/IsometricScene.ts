@@ -111,7 +111,7 @@ import { getSovereignVoyageStep } from "../story/sovereignVoyage";
 import { FINALE_COMPLETE_EVENT } from "../story/finaleScene";
 import { launchFinaleCard } from "../finale/launchFinaleCard";
 import { drawEclipseGate, ECLIPSE_GATE, ECLIPSE_GATE_PROMPT, isNearEclipseGate } from "../trials/eclipseGate";
-import { eclipseTrialHint } from "../trials/trialUnlock";
+import { claimEclipseGateToast, isTrialsUnlocked } from "../trials/trialUnlock";
 import type { SailingBoat } from "../render/sailingBoat";
 import { claimFinaleCard } from "../finale/finaleTrigger";
 import { playerParty } from "../creatures/party";
@@ -367,13 +367,17 @@ export class IsometricScene extends Phaser.Scene {
       onContinue: () => {
         updateStatusPanel(getZone(this.currentZoneId));
         // One-time pointer to the post-game Eclipse Gate (#423), after the quest toast.
-        const hint = eclipseTrialHint();
+        const hint = claimEclipseGateToast();
         if (hint) {
+          notifyWorldChanged();
+          this.eclipseToastChecked = true;
           this.time.delayedCall(3200, () => this.showGatherToast(hint, true, 5200));
         }
       },
     });
   };
+  /** The world-load Eclipse Gate toast check ran (old finished saves, #423). */
+  private eclipseToastChecked = false;
   private layoutLocked = false;
   private isMoving = false;
   /** Distance-driven gait phase (cycles); advances only when a step applies. */
@@ -615,6 +619,7 @@ export class IsometricScene extends Phaser.Scene {
 
     this.updateQuestToast();
     this.updateAchievementToast();
+    this.updateEclipseGateToast();
     this.companions?.update();
     if (this.currentZoneId === "archipelago") {
       this.islandBakes.tick();
@@ -2672,6 +2677,30 @@ export class IsometricScene extends Phaser.Scene {
       this.questToast?.destroy();
       this.questToast = undefined;
     });
+  }
+
+  /**
+   * Saves that finished the story before the Gate toast existed get it once on
+   * the first world load, after the zone title card and any cutscene (#423).
+   */
+  private updateEclipseGateToast(): void {
+    if (this.eclipseToastChecked) {
+      return;
+    }
+    if (isVisitorMode() || !isTrialsUnlocked()) {
+      this.eclipseToastChecked = true;
+      return;
+    }
+    if (isCutsceneActive() || isZoneTitleCardShowing() || this.fx?.hasPendingTitle()) {
+      return;
+    }
+    this.eclipseToastChecked = true;
+    const hint = claimEclipseGateToast();
+    if (hint) {
+      notifyWorldChanged();
+      // Brief beat so a queued quest toast (same slot) is not clobbered.
+      this.time.delayedCall(1500, () => this.showGatherToast(hint, true, 5200));
+    }
   }
 
   private updateAchievementToast(): void {

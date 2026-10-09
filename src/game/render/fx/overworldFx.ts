@@ -403,6 +403,11 @@ export class OverworldFx {
     }
   }
 
+  /** A zone title card is queued but not yet shown (waiting on the player name). */
+  hasPendingTitle(): boolean {
+    return this.pendingTitle !== undefined;
+  }
+
   /** Per-frame tick (runs even while the name intro is up). */
   update(deltaMs: number, playerX: number, playerY: number, moving: boolean, facing: string): void {
     if (!this.zone) {

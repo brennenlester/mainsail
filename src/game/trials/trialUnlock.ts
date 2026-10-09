@@ -1,6 +1,6 @@
 import { isMainStoryComplete, questProgress } from "../story/questProgress";
 import { isVisitorMode } from "../world/worldSession";
-import { hasAttemptedTrial } from "./trialState";
+import { hasAttemptedTrial, hasShownEclipseGateToast, markEclipseGateToastShown } from "./trialState";
 
 /**
  * Finale done: the Eclipse Gate is open (#420). Old saves that finished the
@@ -19,4 +19,18 @@ export const ECLIPSE_TRIAL_HINT = "Eclipse Trial: a new daily challenge awaits a
  */
 export function eclipseTrialHint(): string | null {
   return isTrialsUnlocked() && !isVisitorMode() && !hasAttemptedTrial() ? ECLIPSE_TRIAL_HINT : null;
+}
+
+/**
+ * The one-time Gate toast (#423): the hint text the first time a host sees an
+ * open Gate (finale card or, for saves finished before the toast existed, the
+ * next world load), then null. Marks the flag; the caller saves the world.
+ */
+export function claimEclipseGateToast(): string | null {
+  const hint = eclipseTrialHint();
+  if (!hint || hasShownEclipseGateToast()) {
+    return null;
+  }
+  markEclipseGateToastShown();
+  return hint;
 }
