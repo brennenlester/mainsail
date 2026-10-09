@@ -5,6 +5,7 @@ import {
   setNickname,
 } from "../companions/companionState";
 import { getPersonality } from "../companions/personality";
+import { isDomKeyboardTarget } from "./canvasFocus";
 import { popOverlay, pushOverlay } from "./overlayStack";
 
 /**
@@ -59,6 +60,7 @@ function ensureRoot(): HTMLElement {
       <p id="nickname-body" class="nickname-body"></p>
       <label class="visually-hidden" for="nickname-input">Nickname</label>
       <input id="nickname-input" class="nickname-input" type="text" maxlength="${NICKNAME_MAX_LENGTH}" />
+      <p id="nickname-hint" class="nickname-hint" hidden>Tap or press N to name your companion (Esc to skip)</p>
       <p id="nickname-error" class="nickname-error" role="alert"></p>
       <div class="nickname-actions">
         <button type="submit" class="nickname-btn nickname-btn-primary">Name</button>
@@ -81,7 +83,7 @@ export type NicknamePromptOptions = {
   /**
    * Ambient prompts (a companion just joined) are non-blocking: no backdrop,
    * no auto-focus, movement keys keep walking until the player clicks the
-   * input. Explicit prompts (Party panel "Rename") focus the input.
+   * input or presses N (the hint line says so). Explicit prompts (Party panel "Rename") focus the input.
    */
   ambient?: boolean;
 };
@@ -99,6 +101,7 @@ export function promptNickname(
   const body = root.querySelector("#nickname-body") as HTMLElement;
   const input = root.querySelector("#nickname-input") as HTMLInputElement;
   const error = root.querySelector("#nickname-error") as HTMLElement;
+  const hint = root.querySelector("#nickname-hint") as HTMLElement;
   const skip = root.querySelector("#nickname-skip") as HTMLButtonElement;
   const def = getCreatureDefinition(creature.definitionId);
   const trait = creature.personality ? getPersonality(creature.personality) : undefined;
@@ -109,6 +112,7 @@ export function promptNickname(
     ? `Seems ${trait.label.toLowerCase()} — ${trait.blurb.charAt(0).toLowerCase()}${trait.blurb.slice(1)} Give it a nickname?`
     : "Give it a nickname?";
   root.classList.toggle("nickname-overlay--ambient", ambient);
+  hint.hidden = !ambient;
   input.value = "";
   input.placeholder = def.name;
   error.textContent = "";
@@ -128,6 +132,7 @@ export function promptNickname(
       window.removeEventListener("keydown", onKeyDown);
       form.removeEventListener("submit", onSubmit);
       skip.removeEventListener("click", finish);
+      hint.removeEventListener("click", focusInput);
       input.removeEventListener("focus", onFocus);
       input.removeEventListener("blur", onBlur);
       popOverlay("nickname");
@@ -147,8 +152,21 @@ export function promptNickname(
       if (event.key === "Escape") {
         event.preventDefault();
         finish();
+      } else if (
+        ambient &&
+        (event.key === "n" || event.key === "N") &&
+        !event.repeat &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !isDomKeyboardTarget(document.activeElement)
+      ) {
+        // Typing is opt-in: N (or a tap) hands the keyboard to the box (#429).
+        event.preventDefault();
+        input.focus();
       }
     };
+    const focusInput = (): void => input.focus();
     const onSubmit = (event: Event): void => {
       event.preventDefault();
       if (!input.value.trim()) {
@@ -171,7 +189,8 @@ export function promptNickname(
     if (ambient) {
       input.addEventListener("focus", onFocus);
       input.addEventListener("blur", onBlur);
-      // Esc dismisses the docked prompt whether or not the input has focus.
+      hint.addEventListener("click", focusInput);
+      // N focuses the box; Esc dismisses the docked prompt whether or not the input has focus.
       window.addEventListener("keydown", onKeyDown);
       return;
     }
