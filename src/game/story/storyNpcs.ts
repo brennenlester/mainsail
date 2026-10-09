@@ -251,6 +251,7 @@ function bossConversation(): StoryConversation {
       "The Matriarch's fire gutters out. She settles into the peat, and the whole fen exhales.",
       "Where she sank, something glows in the cooling ash — a warm ember egg. It hums against your palm.",
       outcome.rewardText ? `Beside it: ${outcome.rewardText}.` : "The fen is quiet.",
+      ...(outcome.healed ? ["Wren's Rootwalker tends your companions. Everyone is back on their feet."] : []),
       "Wren will want to see this. She said she'd wait at the Moon Shrine.",
     ].map(narrate));
   }

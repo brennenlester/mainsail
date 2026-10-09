@@ -19,6 +19,7 @@ import { MAX_LEVEL } from "../progression/leveling";
 import { getPartyAverageLevel } from "../progression/wildLevel";
 import {
   getActiveQuestId,
+  isMainStoryComplete,
   questProgress,
   recordQuestEvent,
 } from "../story/questProgress";
@@ -209,6 +210,22 @@ function healParty(): void {
   }
 }
 
+/**
+ * Post-story calm (#426): a finished story never loads with a fainted or
+ * hurt party (the Matriarch win used to leave dock pips at ⊘ until the
+ * altar). No-op while a story spar runs. True when anyone was healed.
+ */
+export function healPartyIfStoryComplete(): boolean {
+  if (active || !isMainStoryComplete()) {
+    return false;
+  }
+  if (playerParty.creatures.every((c) => c.currentHp >= getEffectiveMaxHp(c))) {
+    return false;
+  }
+  healParty();
+  return true;
+}
+
 /** Story spars need at least one standing companion (no fainted-party heal). */
 export function canBeginStorySpar(): boolean {
   return !isVisitorMode() && hasLivingPartyMembers();
@@ -386,10 +403,15 @@ export function resolveStorySpar(won: boolean): StorySparResult | null {
   }
   const companion = firstWin ? grantCoverageGift(spar.id) : null;
   const items = firstWin ? grantFirstWinReward(spar.id) : null;
+  // Beating the boss ends the story: Wren tends the party for the finale (#426).
+  const restored = firstWin && getStorySpar(spar.id).boss !== undefined;
+  if (restored) {
+    healParty();
+  }
   lastOutcome.set(spar.id, {
     result: "won",
     firstWin,
-    healed: false,
+    healed: restored,
     rewardText: items,
     ...(companion ? { gift: companion } : {}),
   });

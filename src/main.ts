@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import "./style.css";
 import { initQuestProgress } from "./game/story/questProgress";
+import { healPartyIfStoryComplete } from "./game/battle/storySpar";
 import { createGame } from "./game/Game";
 import { initNameIntro } from "./game/ui/nameIntro";
 import {
@@ -134,6 +135,8 @@ if (inviteResult.status === "invalid") {
     if (saved) {
       hasSave = true;
       restoreHostSave(saved);
+      // A finished story loads with everyone on their feet (#426).
+      healPartyIfStoryComplete();
     } else {
       initQuestProgress();
     }
